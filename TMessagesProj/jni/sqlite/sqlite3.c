@@ -1,6 +1,6 @@
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
-** version 3.8.7.  By combining all the individual C code files into this 
+** version 3.8.7.1.  By combining all the individual C code files into this 
 ** single large file, the entire code can be compiled as a single translation
 ** unit.  This allows many compilers to do optimizations that would not be
 ** possible if the files were compiled separately.  Performance improvements
@@ -231,9 +231,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.8.7"
+#define SQLITE_VERSION        "3.8.7.1"
 #define SQLITE_VERSION_NUMBER 3008007
-#define SQLITE_SOURCE_ID      "2014-10-17 11:24:17 e4ab094f8afce0817f4074e823fabe59fc29ebb4"
+#define SQLITE_SOURCE_ID      "2014-10-29 13:59:56 3b7b72c4685aa5cf5e675c2c47ebec10d9704221"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -20756,11 +20756,7 @@ SQLITE_PRIVATE int sqlite3ApiExit(sqlite3* db, int rc){
 ** the glibc version so the glibc version is definitely preferred.
 */
 #if !defined(HAVE_STRCHRNUL)
-# if defined(linux)
-#  define HAVE_STRCHRNUL 1
-# else
-#  define HAVE_STRCHRNUL 0
-# endif
+# define HAVE_STRCHRNUL 0
 #endif
 
 
@@ -42806,6 +42802,14 @@ static int pager_end_transaction(Pager *pPager, int hasMaster, int bCommit){
         rc = SQLITE_OK;
       }else{
         rc = sqlite3OsTruncate(pPager->jfd, 0);
+        if( rc==SQLITE_OK && pPager->fullSync ){
+          /* Make sure the new file size is written into the inode right away.
+          ** Otherwise the journal might resurrect following a power loss and
+          ** cause the last transaction to roll back.  See
+          ** https://bugzilla.mozilla.org/show_bug.cgi?id=1072773
+          */
+          rc = sqlite3OsSync(pPager->jfd, pPager->syncFlags);
+        }
       }
       pPager->journalOff = 0;
     }else if( pPager->journalMode==PAGER_JOURNALMODE_PERSIST
@@ -71443,7 +71447,7 @@ case OP_Column: {
       if( pOp->p4type==P4_MEM ){
         sqlite3VdbeMemShallowCopy(pDest, pOp->p4.pMem, MEM_Static);
       }else{
-        MemSetTypeFlag(pDest, MEM_Null);
+        sqlite3VdbeMemSetNull(pDest);
       }
       goto op_column_out;
     }
@@ -93757,7 +93761,7 @@ SQLITE_PRIVATE void sqlite3DeleteFrom(
       assert( nKey==nPk );  /* OP_Found will use an unpacked key */
       assert( !IsVirtual(pTab) );
       if( aToOpen[iDataCur-iTabCur] ){
-        assert( pPk!=0 );
+        assert( pPk!=0 || pTab->pSelect!=0 );
         sqlite3VdbeAddOp4Int(v, OP_NotFound, iDataCur, addrBypass, iKey, nKey);
         VdbeCoverage(v);
       }
@@ -111281,8 +111285,8 @@ SQLITE_PRIVATE void sqlite3Update(
 
   /* Top of the update loop */
   if( okOnePass ){
-    if( aToOpen[iDataCur-iBaseCur] ){
-      assert( pPk!=0 );
+    if( aToOpen[iDataCur-iBaseCur] && !isView ){
+      assert( pPk );
       sqlite3VdbeAddOp4Int(v, OP_NotFound, iDataCur, labelBreak, regKey, nKey);
       VdbeCoverageNeverTaken(v);
     }
