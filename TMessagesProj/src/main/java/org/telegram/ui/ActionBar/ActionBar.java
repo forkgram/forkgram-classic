@@ -9,10 +9,6 @@
 package org.telegram.ui.ActionBar;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
-import static org.telegram.messenger.AndroidUtilities.dpf2;
-import static org.telegram.messenger.AndroidUtilities.find;
-import static org.telegram.messenger.AndroidUtilities.lerp;
-import static org.telegram.messenger.LocaleController.getString;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -30,7 +26,7 @@ import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.VectorDrawable;
+import android.os.Build;
 import android.text.SpannableString;
 import android.text.TextPaint;
 import android.text.TextUtils;
@@ -48,9 +44,7 @@ import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
-import androidx.annotation.NonNull;
 import androidx.core.graphics.ColorUtils;
-import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
@@ -60,25 +54,34 @@ import org.telegram.messenger.SharedConfig;
 import org.telegram.ui.Adapters.FiltersView;
 import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.BackupImageView;
-import org.telegram.ui.Components.ChatAvatarContainer;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EllipsizeSpanAnimator;
 import org.telegram.ui.Components.FireworksEffect;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.SectionsScrollView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.Components.SnowflakesEffect;
-import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
-import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
-import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider;
 
 import java.util.ArrayList;
 
-import me.vkryl.android.animator.BoolAnimator;
-import me.vkryl.android.animator.FactorAnimator;
-import me.vkryl.android.animator.ReplaceAnimator;
+public class ActionBar extends FrameLayout {
 
-public class ActionBar extends FrameLayout implements FactorAnimator.Target, Theme.Colorable {
+    // forkgram-classic: upstream AudioPlayerAlert toggles whether the menu
+    // should occupy the back-button area. Classic action bar lays the menu
+    // out the same way regardless — keep the field as a no-op flag.
+    public boolean menuOccupyBack;
+
+    // forkgram-classic: upstream ChatRightsEditActivity ties the action bar
+    // background tint to the list scroll. The classic action bar uses a flat
+    // background — accept and ignore. Several Business activities pass an
+    // additional `boolean hideTitle` flag; accept and ignore it too.
+    public void setAdaptiveBackground(View view) {}
+    public void setAdaptiveBackground(View view, boolean hideTitle) {}
+    public void setAdaptiveBackground(View view, boolean hideTitle, int topColorKey, int lowerColorKey) {}
+
+    // forkgram-classic: upstream ChannelAdminLogActivity applies a "glass"
+    // (blurred) backdrop drawable to the action bar. Classic flat bar
+    // ignores it — accept and drop.
+    public void setGlassDrawable(Object drawable) {}
 
     public static class ActionBarMenuOnItemClick {
         public void onItemClick(int id) {
@@ -90,10 +93,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
     }
 
-    private BlurredBackgroundDrawable glassDrawable;
-    private Drawable glassDrawableBack;
-    private Drawable glassDrawableMenu;
-    private boolean glassAvatarSquare;
     private INavigationLayout.BackButtonState backButtonState = INavigationLayout.BackButtonState.BACK;
     public ImageView backButtonImageView;
     private BackupImageView avatarSearchImageView;
@@ -109,7 +108,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private ActionBarMenu actionMode;
     private String actionModeTag;
     private boolean ignoreLayoutRequest;
-    protected boolean occupyStatusBar = true;
+    protected boolean occupyStatusBar = Build.VERSION.SDK_INT >= 21;
     protected boolean actionModeVisible;
     private boolean addToContainer = true;
     private boolean clipContent;
@@ -141,12 +140,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean titleOverlayShown;
     private Runnable titleActionRunnable;
     private boolean castShadows = true;
-    private int shadowAlpha = 0xFF;
 
-    public boolean menuOccupyBack;
     protected boolean isSearchFieldVisible;
     public float searchFieldVisibleAlpha;
-    public int itemsBackgroundColor;
+    protected int itemsBackgroundColor;
     protected int itemsActionModeBackgroundColor;
     protected int itemsColor;
     protected int itemsActionModeColor;
@@ -165,7 +162,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     private boolean attachState;
     private FrameLayout titlesContainer;
     private boolean useContainerForTitles;
-    private OnLongClickListener titleLongClickListener;
 
     private View.OnTouchListener interceptTouchEventListener;
     private final Theme.ResourcesProvider resourcesProvider;
@@ -192,82 +188,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 titleActionRunnable.run();
             }
         });
-    }
-
-    private boolean glassMode;
-    private boolean glassOnlyBack;
-    private boolean glassModeIsForum;
-
-    private ChatAvatarContainer chatAvatarContainer;
-
-    public void setGlassOnlyBack() {
-        glassOnlyBack = true;
-    }
-
-    public void setChatAvatarContainer(ChatAvatarContainer chatAvatarContainer) {
-        this.chatAvatarContainer = chatAvatarContainer;
-    }
-
-    public void setupGlass(BlurredBackgroundDrawableViewFactory factory, BlurredBackgroundColorProvider colorProvider) {
-        setupGlass(factory, colorProvider, false);
-    }
-
-    public void setupGlass(BlurredBackgroundDrawableViewFactory factory,
-                           BlurredBackgroundColorProvider colorProvider,
-                           boolean isForum) {
-        setBackground(null);
-        setClipChildren(false);
-        glassMode = true;
-        glassModeIsForum = isForum;
-
-        glassDrawable = factory.create(this)
-            .setColorProvider(colorProvider)
-            .setPadding(dp(6));
-        if (isForum) {
-            glassDrawable.setRadius(dp(18.33f), dp(23), dp(23), dp(18.33f));
-        } else {
-            glassDrawable.setRadius(dp(23));
-        }
-
-
-        glassDrawableBack = factory.create(this)
-            .setColorProvider(colorProvider)
-            .setRadius(dp(23))
-            .setPadding(dp(6));
-
-        glassDrawableMenu = factory.create(this)
-            .setColorProvider(colorProvider)
-            .setRadius(dp(23))
-            .setPadding(dp(6));
-
-        if (menu != null) {
-            menu.setTranslationX(-dp(10));
-            menu.setGlassMode(true);
-        }
-        if (actionMode != null) {
-            actionMode.setTranslationX(-dp(10));
-            actionMode.setGlassMode(true);
-        }
-        if (backButtonImageView != null) {
-            backButtonImageView.setTranslationX(dp(2));
-        }
-        applyGlassAvatarSquare();
-    }
-
-    public void setGlassAvatarSquare(boolean square) {
-        if (glassAvatarSquare == square) {
-            return;
-        }
-        glassAvatarSquare = square;
-        applyGlassAvatarSquare();
-        invalidate();
-    }
-
-    private void applyGlassAvatarSquare() {
-        if (glassDrawable instanceof BlurredBackgroundDrawable) {
-            final float r = dp(23);
-            ((BlurredBackgroundDrawable) glassDrawable).setRadius(glassAvatarSquare ? 0 : r, r, r, glassAvatarSquare ? 0 : r, false);
-        }
     }
 
     public INavigationLayout.BackButtonState getBackButtonState() {
@@ -318,27 +238,8 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             MenuDrawable menuDrawable = (MenuDrawable) drawable;
             menuDrawable.setBackColor(actionBarColor);
             menuDrawable.setIconColor(itemsColor);
-        } else if (drawable instanceof BitmapDrawable || drawable instanceof VectorDrawable) {
+        } else if (drawable instanceof BitmapDrawable) {
             backButtonImageView.setColorFilter(new PorterDuffColorFilter(itemsColor, PorterDuff.Mode.SRC_IN));
-        }
-        checkBackButtonLayerType();
-    }
-
-    private void checkBackButtonLayerType() {
-        if (backButtonImageView == null) {
-            return;
-        }
-
-        // BackDrawable is expensive for render thread because it uses PathStencilCoverOp
-
-        final Drawable drawable = backButtonImageView.getDrawable();
-        final int layerToSet = (drawable instanceof BackDrawable || drawable instanceof MenuDrawable) ?
-            View.LAYER_TYPE_HARDWARE :
-            View.LAYER_TYPE_NONE;
-
-        if (backButtonImageView.getLayerType() != layerToSet) {
-            backButtonImageView.setLayerType(layerToSet, null);
-            backButtonImageView.invalidate();
         }
     }
 
@@ -471,7 +372,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         backButtonImageView.setVisibility(resource == 0 ? GONE : VISIBLE);
         backButtonImageView.setImageResource(resource);
         backButtonImageView.setColorFilter(new PorterDuffColorFilter(itemsColor, PorterDuff.Mode.SRC_IN));
-        checkBackButtonLayerType();
     }
 
     private void createSubtitleTextView() {
@@ -532,7 +432,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return;
         }
         titleTextView[i] = new SimpleTextView(getContext());
-        titleTextView[i].setGravity(isCenterTitle ? Gravity.CENTER : Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        titleTextView[i].setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         if (titleColorToSet != 0) {
             titleTextView[i].setTextColor(titleColorToSet);
         } else {
@@ -547,19 +447,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             titlesContainer.addView(titleTextView[i], 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP));
         } else {
             addView(titleTextView[i], 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP));
-        }
-    }
-
-    private boolean isCenterTitle;
-
-    public void centerTitle() {
-        isCenterTitle = true;
-        if (titleTextView != null) {
-            for (int a = 0; a < titleTextView.length; a++) {
-                if (titleTextView[a] != null) {
-                    titleTextView[a].setGravity(Gravity.CENTER);
-                }
-            }
         }
     }
 
@@ -715,16 +602,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         return false;
     }
 
-    private Runnable doOnActionModeFactorChanged;
-
-    public void setOnActionModeFactorChangeListener(Runnable listener) {
-        doOnActionModeFactorChanged = listener;
-    }
-
-    public float getActionModeFactor() {
-        return actionMode != null ? actionMode.getAlpha() : 0;
-    }
-
     public ActionBarMenu createActionMode(boolean needTop, String tag) {
         if (actionModeIsExist(tag)) {
             return actionMode;
@@ -745,21 +622,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
             @Override
             protected void dispatchDraw(Canvas canvas) {
-                if (blurredBackground && drawBlur && actionModeColor != 0) {
+                if (blurredBackground && drawBlur) {
                     rectTmp.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
                     blurScrimPaint.setColor(actionModeColor);
                     contentView.drawBlurRect(canvas, 0, rectTmp, blurScrimPaint, true);
                 }
                 super.dispatchDraw(canvas);
-            }
-
-            @Override
-            public void setAlpha(float alpha) {
-                super.setAlpha(alpha);
-                ActionBar.this.invalidate();
-                if (doOnActionModeFactorChanged != null) {
-                    doOnActionModeFactorChanged.run();
-                }
             }
 
             @Override
@@ -778,13 +646,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 }
             }
         };
-        actionMode.setTranslationX(glassMode ? -dp(10) : 0);
-        actionMode.setGlassMode(glassMode);
         actionMode.isActionMode = true;
         actionMode.setClickable(true);
-        if (!glassMode) {
-            actionMode.setBackgroundColor(getThemedColor(Theme.key_actionBarActionModeDefault));
-        }
+        actionMode.setBackgroundColor(getThemedColor(Theme.key_actionBarActionModeDefault));
         addView(actionMode, indexOfChild(backButtonImageView));
         actionMode.setPadding(0, occupyStatusBar ? AndroidUtilities.statusBarHeight : 0, 0, 0);
         FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) actionMode.getLayoutParams();
@@ -848,7 +712,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             return;
         }
         actionModeVisible = true;
-        checkMenuItemsWidth();
         if (animated) {
             ArrayList<Animator> animators = new ArrayList<>();
             animators.add(ObjectAnimator.ofFloat(actionMode, View.ALPHA, 0.0f, 1.0f));
@@ -869,29 +732,18 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             actionModeExtraView = extraView;
             actionModeShowingView = showingView;
             actionModeHidingViews = hidingViews;
+            if (occupyStatusBar && actionModeTop != null && !SharedConfig.noStatusBar) {
+                animators.add(ObjectAnimator.ofFloat(actionModeTop, View.ALPHA, 0.0f, 1.0f));
+            }
             if (actionModeExtraView != null) {
                 animators.add(ObjectAnimator.ofFloat(actionModeExtraView, View.TRANSLATION_Y, 0));
             }
-            if (actionModeColor == 0) {
-                if (!isSearchFieldVisible) {
-                    if (titleTextView[0] != null) {
-                        animators.add(ObjectAnimator.ofFloat(titleTextView[0], View.ALPHA, 0));
-                    }
-                    if (subtitleTextView != null && !TextUtils.isEmpty(subtitle)) {
-                        animators.add(ObjectAnimator.ofFloat(subtitleTextView, View.ALPHA, 0));
-                    }
+            if (SharedConfig.noStatusBar) {
+                if (ColorUtils.calculateLuminance(actionModeColor) < 0.7f) {
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), false);
+                } else {
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), true);
                 }
-                if (menu != null) {
-                    animators.add(ObjectAnimator.ofFloat(menu, View.ALPHA, 0));
-                }
-            }
-            final int color = actionModeColor == 0 ? actionBarColor : actionModeColor;
-            if (color == 0 || glassMode) {
-                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needCheckSystemBarColors);
-            } else if (ColorUtils.calculateLuminance(color) < 0.7f) {
-                AndroidUtilities.setLightStatusBar((Activity) getContext(), false);
-            } else {
-                AndroidUtilities.setLightStatusBar((Activity) getContext(), true);
             }
             if (actionModeAnimation != null) {
                 actionModeAnimation.cancel();
@@ -912,6 +764,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 @Override
                 public void onAnimationStart(Animator animation) {
                     actionMode.setVisibility(VISIBLE);
+                    if (occupyStatusBar && actionModeTop != null && !SharedConfig.noStatusBar) {
+                        actionModeTop.setVisibility(VISIBLE);
+                    }
                 }
 
                 @Override
@@ -976,15 +831,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             }
             actionModeShowingView = showingView;
             actionModeHidingViews = hidingViews;
-            final int color = actionModeColor == 0 ? actionBarColor : actionModeColor;
-            if (color == 0 || glassMode) {
-                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needCheckSystemBarColors);
-            } else if (ColorUtils.calculateLuminance(color) < 0.7f) {
-                AndroidUtilities.setLightStatusBar((Activity) getContext(), false);
-            } else {
-                AndroidUtilities.setLightStatusBar((Activity) getContext(), true);
+            if (occupyStatusBar && actionModeTop != null && !SharedConfig.noStatusBar) {
+                actionModeTop.setAlpha(1.0f);
+            }
+            if (SharedConfig.noStatusBar) {
+                if (ColorUtils.calculateLuminance(actionModeColor) < 0.7f) {
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), false);
+                } else {
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), true);
+                }
             }
             actionMode.setVisibility(VISIBLE);
+            if (occupyStatusBar && actionModeTop != null && !SharedConfig.noStatusBar) {
+                actionModeTop.setVisibility(VISIBLE);
+            }
             if (titleTextView[0] != null) {
                 titleTextView[0].setVisibility(INVISIBLE);
             }
@@ -1019,7 +879,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         actionMode.hideAllPopupMenus();
         actionModeVisible = false;
-        checkMenuItemsWidth();
         ArrayList<Animator> animators = new ArrayList<>();
         animators.add(ObjectAnimator.ofFloat(actionMode, View.ALPHA, 0.0f));
         if (actionModeHidingViews != null) {
@@ -1037,26 +896,22 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         if (actionModeShowingView != null) {
             animators.add(ObjectAnimator.ofFloat(actionModeShowingView, View.ALPHA, 0.0f));
         }
+        if (occupyStatusBar && actionModeTop != null && !SharedConfig.noStatusBar) {
+            animators.add(ObjectAnimator.ofFloat(actionModeTop, View.ALPHA, 0.0f));
+        }
         if (actionModeExtraView != null) {
             animators.add(ObjectAnimator.ofFloat(actionModeExtraView, View.TRANSLATION_Y, actionModeExtraView.getMeasuredHeight()));
         }
-        if (!isSearchFieldVisible) {
-            if (titleTextView[0] != null) {
-                animators.add(ObjectAnimator.ofFloat(titleTextView[0], View.ALPHA, 1));
+        if (SharedConfig.noStatusBar) {
+            if (actionBarColor == 0) {
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needCheckSystemBarColors);
+            } else {
+                if (ColorUtils.calculateLuminance(actionBarColor) < 0.7f) {
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), false);
+                } else {
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), true);
+                }
             }
-            if (subtitleTextView != null && !TextUtils.isEmpty(subtitle)) {
-                animators.add(ObjectAnimator.ofFloat(subtitleTextView, View.ALPHA, 1));
-            }
-        }
-        if (menu != null) {
-            animators.add(ObjectAnimator.ofFloat(menu, View.ALPHA, 1));
-        }
-        if (actionBarColor == 0 || glassMode) {
-            NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needCheckSystemBarColors);
-        } else if (ColorUtils.calculateLuminance(actionBarColor) < 0.7f) {
-            AndroidUtilities.setLightStatusBar((Activity) getContext(), false);
-        } else {
-            AndroidUtilities.setLightStatusBar((Activity) getContext(), true);
         }
         if (actionModeAnimation != null) {
             actionModeAnimation.cancel();
@@ -1079,6 +934,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 if (actionModeAnimation != null && actionModeAnimation.equals(animation)) {
                     actionModeAnimation = null;
                     actionMode.setVisibility(INVISIBLE);
+                    if (occupyStatusBar && actionModeTop != null && !SharedConfig.noStatusBar) {
+                        actionModeTop.setVisibility(INVISIBLE);
+                    }
                     if (actionModeExtraView != null) {
                         actionModeExtraView.setVisibility(INVISIBLE);
                     }
@@ -1156,10 +1014,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     @Override
     public void setBackgroundColor(int color) {
-        actionBarColor = color;
-        if (!blurredBackground) {
-            super.setBackgroundColor(actionBarColor);
-        }
+        super.setBackgroundColor(actionBarColor = color);
         if (backButtonImageView != null) {
             Drawable drawable = backButtonImageView.getDrawable();
             if (drawable instanceof MenuDrawable) {
@@ -1193,7 +1048,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
     public void onSearchFieldVisibilityChanged(boolean visible) {
         isSearchFieldVisible = visible;
-        checkMenuItemsWidth();
         if (searchVisibleAnimator != null) {
             searchVisibleAnimator.cancel();
         }
@@ -1215,17 +1069,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         ValueAnimator alphaUpdate = ValueAnimator.ofFloat(searchFieldVisibleAlpha, visible ? 1f : 0f);
         alphaUpdate.addUpdateListener(anm -> {
             searchFieldVisibleAlpha = (float) anm.getAnimatedValue();
-
-            if (glassDrawable != null && glassModeIsForum) {
-                final float r1 = dp(23);
-                final float r2 = lerp(dp(18.33f), dp(23), searchFieldVisibleAlpha);
-                glassDrawable.setRadius(r2, r1, r1, r2);
-                invalidate();
-            }
-
-            if (glassMode && menu != null) {
-                menu.setTranslationX(-lerp((float) dp(10), dp(5), searchFieldVisibleAlpha));
-            }
             if (backgroundUpdateListener != null) {
                 backgroundUpdateListener.run();
             }
@@ -1377,18 +1220,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     @Override
-    public void onViewAdded(View child) {
-        super.onViewAdded(child);
-    }
-
-    private int additionalTextLeft;
-
-    public void setAdditionalTextLeft(int x) {
-        additionalTextLeft = x;
-    }
-
-
-    @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
         int height = MeasureSpec.getSize(heightMeasureSpec);
@@ -1414,7 +1245,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         } else {
             textLeft = dp(AndroidUtilities.isTablet() ? 26 : 18);
         }
-        // textLeft += additionalTextLeft;
 
         if (menu != null && menu.getVisibility() != GONE) {
             int menuWidth;
@@ -1423,12 +1253,12 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 menuWidth = MeasureSpec.makeMeasureSpec(width, MeasureSpec.AT_MOST);
                 menu.measure(menuWidth, actionBarHeightSpec);
                 int itemsWidth = menu.getItemsMeasuredWidth(true);
-                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) + menu.getItemsMeasuredWidth(true), MeasureSpec.EXACTLY);
+                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(AndroidUtilities.isTablet() ? 74 : 66) + menu.getItemsMeasuredWidth(true), MeasureSpec.EXACTLY);
                 if (!isMenuOffsetSuppressed) {
                     menu.translateXItems(-itemsWidth);
                 }
             } else if (isSearchFieldVisible) {
-                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66), MeasureSpec.EXACTLY);
+                menuWidth = MeasureSpec.makeMeasureSpec(width - dp(AndroidUtilities.isTablet() ? 74 : 66), MeasureSpec.EXACTLY);
                 if (!isMenuOffsetSuppressed) {
                     menu.translateXItems(0);
                 }
@@ -1447,11 +1277,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 int availableWidth = width - (menu != null ? menu.getMeasuredWidth() : 0) - dp(16) - textLeft - titleRightMargin;
 
                 if (((fromBottom && i == 0) || (!fromBottom && i == 1)) && overlayTitleAnimation && titleAnimationRunning) {
-                    titleTextView[i].setTextSize(glassMode ? 17 : !AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 18 : 20);
+                    titleTextView[i].setTextSize(!AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 18 : 20);
                 } else {
                     if (titleTextView[0] != null && titleTextView[0].getVisibility() != GONE && subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
                         if (titleTextView[i] != null) {
-                            titleTextView[i].setTextSize(glassMode ? 17 : AndroidUtilities.isTablet() ? 20 : 18);
+                            titleTextView[i].setTextSize(AndroidUtilities.isTablet() ? 20 : 18);
                         }
                         subtitleTextView.setTextSize(AndroidUtilities.isTablet() ? 16 : 14);
                         if (additionalSubtitleTextView != null) {
@@ -1459,7 +1289,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         }
                     } else {
                         if (titleTextView[i] != null && titleTextView[i].getVisibility() != GONE) {
-                            titleTextView[i].setTextSize(glassMode ? 17 : !AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 18 : 20);
+                            titleTextView[i].setTextSize(!AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 18 : 20);
                         }
                         if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
                             subtitleTextView.setTextSize(!AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 14 : 16);
@@ -1484,9 +1314,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
                     subtitleTextView.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(20), MeasureSpec.AT_MOST));
                 }
-                if (additionalSubTitleOverlayContainer != null) {
-                    additionalSubTitleOverlayContainer.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST));
-                }
                 if (additionalSubtitleTextView != null && additionalSubtitleTextView.getVisibility() != GONE) {
                     additionalSubtitleTextView.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(dp(20), MeasureSpec.AT_MOST));
                 }
@@ -1503,7 +1330,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         int childCount = getChildCount();
         for (int i = 0; i < childCount; i++) {
             View child = getChildAt(i);
-            if (child.getVisibility() == GONE || child == titleTextView[0] || child == titleTextView[1] || child == additionalSubTitleOverlayContainer || child == subtitleTextView || child == menu || child == backButtonImageView || child == additionalSubtitleTextView || child == avatarSearchImageView) {
+            if (child.getVisibility() == GONE || child == titleTextView[0] || child == titleTextView[1] || child == subtitleTextView || child == menu || child == backButtonImageView || child == additionalSubtitleTextView || child == avatarSearchImageView) {
                 continue;
             }
             measureChildWithMargins(child, widthMeasureSpec, 0, MeasureSpec.makeMeasureSpec(getMeasuredHeight(), MeasureSpec.EXACTLY), 0);
@@ -1514,27 +1341,20 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         isMenuOffsetSuppressed = menuOffsetSuppressed;
     }
 
-    int prevWidth;
-
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         int additionalTop = occupyStatusBar ? AndroidUtilities.statusBarHeight : 0;
-        if (prevWidth != getMeasuredWidth()) {
-            prevWidth = getMeasuredWidth();
-            checkAvatarContainerWidth(animatorAvatarContainerWidth.isAnimating());
-        }
 
         int textLeft;
         if (backButtonImageView != null && backButtonImageView.getVisibility() != GONE) {
             backButtonImageView.layout(0, additionalTop, backButtonImageView.getMeasuredWidth(), additionalTop + backButtonImageView.getMeasuredHeight());
-            textLeft = glassMode ? dp(76) : dp(AndroidUtilities.isTablet() ? 80 : 72);
+            textLeft = dp(AndroidUtilities.isTablet() ? 80 : 72);
         } else {
-            textLeft = glassMode ? dp(24) : dp(AndroidUtilities.isTablet() ? 26 : 18);
+            textLeft = dp(AndroidUtilities.isTablet() ? 26 : 18);
         }
-        textLeft += additionalTextLeft;
 
         if (menu != null && menu.getVisibility() != GONE) {
-            int menuLeft = menu.searchFieldVisible() ? dp(menuOccupyBack ? 0 : AndroidUtilities.isTablet() ? 74 : 66) : (getMeasuredWidth()) - menu.getMeasuredWidth();
+            int menuLeft = menu.searchFieldVisible() ? dp(AndroidUtilities.isTablet() ? 74 : 66) : (right - left) - menu.getMeasuredWidth();
             menu.layout(menuLeft, additionalTop, menuLeft + menu.getMeasuredWidth(), additionalTop + menu.getMeasuredHeight());
         }
 
@@ -1552,10 +1372,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 }
                 titleTextView[i].layout(textLeft, additionalTop + textTop - titleTextView[i].getPaddingTop(), textLeft + titleTextView[i].getMeasuredWidth(), additionalTop + textTop + titleTextView[i].getTextHeight() - titleTextView[i].getPaddingTop() + titleTextView[i].getPaddingBottom());
             }
-        }
-        if (additionalSubTitleOverlayContainer != null) {
-            int textTop = getCurrentActionBarHeight() / 2 + (getCurrentActionBarHeight() / 2 - additionalSubTitleOverlayContainer.getMeasuredHeight()) / 2 - dp(2);
-            additionalSubTitleOverlayContainer.layout(textLeft, additionalTop + textTop, textLeft + additionalSubTitleOverlayContainer.getMeasuredWidth(), additionalTop + textTop + additionalSubTitleOverlayContainer.getMeasuredHeight());
         }
         if (subtitleTextView != null && subtitleTextView.getVisibility() != GONE) {
             int textTop = getCurrentActionBarHeight() / 2 + (getCurrentActionBarHeight() / 2 - subtitleTextView.getTextHeight()) / 2 - dp(2);
@@ -1579,7 +1395,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         int childCount = getChildCount();
         for (int i = 0; i < childCount; i++) {
             View child = getChildAt(i);
-            if (child.getVisibility() == GONE || child == titleTextView[0] || child == titleTextView[1] || child == additionalSubTitleOverlayContainer || child == subtitleTextView || child == menu || child == backButtonImageView || child == additionalSubtitleTextView || child == avatarSearchImageView) {
+            if (child.getVisibility() == GONE || child == titleTextView[0] || child == titleTextView[1] || child == subtitleTextView || child == menu || child == backButtonImageView || child == additionalSubtitleTextView || child == avatarSearchImageView) {
                 continue;
             }
 
@@ -1600,10 +1416,10 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
 
             switch (absoluteGravity & Gravity.HORIZONTAL_GRAVITY_MASK) {
                 case Gravity.CENTER_HORIZONTAL:
-                    childLeft = (getMeasuredWidth() - width) / 2 + lp.leftMargin - lp.rightMargin;
+                    childLeft = (right - left - width) / 2 + lp.leftMargin - lp.rightMargin;
                     break;
                 case Gravity.RIGHT:
-                    childLeft = getMeasuredWidth() - width - lp.rightMargin;
+                    childLeft = right - width - lp.rightMargin;
                     break;
                 case Gravity.LEFT:
                 default:
@@ -1654,11 +1470,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         lastRunnable = titleActionRunnable = action;
     }
 
-    public void setTitleLongClickListener(OnLongClickListener listener) {
-        titleLongClickListener = listener;
-        setOnLongClickListener(listener);
-    }
-
     boolean overlayTitleAnimationInProgress;
 
     public void setTitleOverlayText(String title, int titleId, Runnable action) {
@@ -1676,17 +1487,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         }
         lastOverlayTitle = title;
 
-        if (additionalSubTitleOverlayContainer != null) {
-            final CharSequence textToSet;
-            if (titleId == R.string.ConnectingToProxyWithDots) {
-                textToSet = AndroidUtilities.replaceArrows(getString(R.string.TitleSetupProxy), true, dp(8f / 3f), dp(2));
-            } else {
-                textToSet = null;
-            }
-            additionalSubTitleOverlayContainer.setText(textToSet, true);
-        }
-
-
         CharSequence textToSet = title != null ? LocaleController.getString(title, titleId) : lastTitle;
         Drawable rightDrawableToSet = title != null ? null : lastRightDrawable;
         boolean ellipsize = false;
@@ -1698,9 +1498,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 textToSet = spannableString;
                 ellipsize = true;
             }
-        }
-        if (titleId == R.string.ConnectingToProxy) {
-            textToSet = "...";
         }
         titleOverlayShown = title != null;
         if ((textToSet != null && titleTextView[0] == null) || getMeasuredWidth() == 0 || (titleTextView[0] != null && titleTextView[0].getVisibility() != View.VISIBLE)) {
@@ -1746,7 +1543,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
             titleTextView[0].setAlpha(0);
             titleTextView[0].setTranslationY(-dp(20));
             titleTextView[0].animate()
-                    .alpha(adaptiveBackgroundHideTitle ? 1.0f - onTopAnimated : 1f)
+                    .alpha(1f)
                     .translationY(0)
                     .setDuration(220).start();
             ViewPropertyAnimator animator = titleTextView[1].animate()
@@ -1822,7 +1619,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                 Drawable drawable = backButtonImageView.getDrawable();
                 if (drawable instanceof BackDrawable) {
                     ((BackDrawable) drawable).setRotatedColor(color);
-                } else if (drawable instanceof BitmapDrawable || drawable instanceof VectorDrawable) {
+                } else if (drawable instanceof BitmapDrawable) {
                     backButtonImageView.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
                 }
             }
@@ -1835,7 +1632,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
                         ((BackDrawable) drawable).setColor(color);
                     } else if (drawable instanceof MenuDrawable) {
                         ((MenuDrawable) drawable).setIconColor(color);
-                    } else if (drawable instanceof BitmapDrawable || drawable instanceof VectorDrawable) {
+                    } else if (drawable instanceof BitmapDrawable) {
                         backButtonImageView.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
                     }
                 }
@@ -1854,19 +1651,6 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         castShadows = value;
     }
 
-    public void setShadowAlpha(int alpha) {
-        if (this.shadowAlpha == alpha) return;
-        if (getParent() instanceof View) {
-            ((View) getParent()).invalidate();
-            invalidate();
-        }
-        this.shadowAlpha = alpha;
-    }
-
-    public int getShadowAlpha() {
-        return shadowAlpha;
-    }
-
     public boolean getCastShadows() {
         return castShadows;
     }
@@ -1880,7 +1664,9 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     public static int getCurrentActionBarHeight() {
-        if (AndroidUtilities.displaySize.x > AndroidUtilities.displaySize.y) {
+        if (AndroidUtilities.isTablet()) {
+            return dp(64);
+        } else if (AndroidUtilities.displaySize.x > AndroidUtilities.displaySize.y) {
             return dp(48);
         } else {
             return dp(56);
@@ -1963,14 +1749,11 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         super.onAttachedToWindow();
         attached = true;
         updateAttachState();
-        if (actionModeVisible) {
-            final int color = actionModeColor == 0 ? actionBarColor : actionModeColor;
-            if (color == 0 || glassMode) {
-                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needCheckSystemBarColors);
-            } else if (ColorUtils.calculateLuminance(color) < 0.7f) {
-                AndroidUtilities.setLightStatusBar((Activity) getContext(), false);
+        if (SharedConfig.noStatusBar && actionModeVisible) {
+            if (ColorUtils.calculateLuminance(actionModeColor) < 0.7f) {
+                AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), false);
             } else {
-                AndroidUtilities.setLightStatusBar((Activity) getContext(), true);
+                AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), true);
             }
         }
         if (lastRightDrawable instanceof AnimatedEmojiDrawable.SwapAnimatedEmojiDrawable) {
@@ -1983,14 +1766,14 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         super.onDetachedFromWindow();
         attached = false;
         updateAttachState();
-        if (actionModeVisible) {
-            if (actionBarColor == 0 || actionModeColor == 0 || glassMode) {
+        if (SharedConfig.noStatusBar && actionModeVisible) {
+            if (actionBarColor == 0) {
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needCheckSystemBarColors);
             } else {
                 if (ColorUtils.calculateLuminance(actionBarColor) < 0.7f) {
-                    AndroidUtilities.setLightStatusBar((Activity) getContext(), false);
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), false);
                 } else {
-                    AndroidUtilities.setLightStatusBar((Activity) getContext(), true);
+                    AndroidUtilities.setLightStatusBar(((Activity) getContext()).getWindow(), true);
                 }
             }
         }
@@ -2020,7 +1803,7 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
     }
 
     public void beginDelayedTransition() {
-        if (!LocaleController.isRTL) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !LocaleController.isRTL) {
             TransitionSet transitionSet = new TransitionSet();
             transitionSet.setOrdering(TransitionSet.ORDERING_TOGETHER);
             transitionSet.addTransition(new Fade());
@@ -2096,148 +1879,13 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         setBackground(null);
     }
 
-    private boolean doNotDrawChild;
-
-    public void setSkipDrawChild(boolean skip) {
-        if (doNotDrawChild != skip) {
-            doNotDrawChild = skip;
-            invalidate();
-        }
-    }
-
-    private float searchFactor;
-
-    public void setSearchFactor(float factor) {
-        if (searchFactor != factor) {
-            searchFactor = factor;
-            invalidate();
-        }
-    }
-
-    public void checkAvatarContainerWidth(boolean animated) {
-        if (chatAvatarContainer == null) {
-            return;
-        }
-
-        final boolean hasAvatar = chatAvatarContainer.hasVisibleAvatar();
-        int visualWidth = chatAvatarContainer.getVisualWidth();
-        if (hasAvatar) {
-            visualWidth = Math.max(visualWidth, dp(192));
-        }
-
-        final int width = Math.min(getMeasuredWidth() - dp(6 + 46 + 6 + 6 + 46 + 6), visualWidth);
-        if (animated) {
-            if (animatorAvatarContainerWidth.getToFactor() != width) {
-                animatorAvatarContainerWidth.animateTo(width);
-            }
-        } else {
-            animatorAvatarContainerWidth.forceFactor(width);
-        }
-        animatorAvatarContainerHasAvatar.setValue(hasAvatar, animated);
-    }
-
-    private final FactorAnimator animatorAvatarContainerWidth = new FactorAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 380);
-    private final BoolAnimator animatorAvatarContainerHasAvatar = new BoolAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 380);
-
-    private final FactorAnimator animatorMenuItemsWidth = new FactorAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320);
-    private final BoolAnimator animatorHasMenuItems = new BoolAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320);
-
-    @Override
-    public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {
-        invalidate();
-    }
-
-    private int forcedMenuWidth;
-    private boolean hasForcedMenuWidth;
-
-    public void setForcedMenuWidth(int width) {
-        hasForcedMenuWidth = true;
-        if (forcedMenuWidth != width) {
-            forcedMenuWidth = width;
-            invalidate();
-        }
-    }
-
-    private boolean isAnimationsAllowed;
-
-    public void checkMenuItemsWidth() {
-        final int defaultMenuWidth = Math.max(0, menu != null ? (int) menu.getItemsWidth() - dp(1) - dp(1) : 0);
-        final int actionMenuWidth = Math.max(0, actionMode != null ? actionMode.getItemsWidth() - dp(1) - dp(1) : 0);
-        final int searchMenuWidth = dp(46);
-        final int width = /*isSearchFieldVisible ? searchMenuWidth :*/ (actionModeVisible ? actionMenuWidth : defaultMenuWidth);
-
-        animatorHasMenuItems.setValue(width > 0, isAnimationsAllowed);
-        if (animatorMenuItemsWidth.getToFactor() != width) {
-            if (isAnimationsAllowed) {
-                animatorMenuItemsWidth.animateTo(width);
-            } else {
-                animatorMenuItemsWidth.forceFactor(width);
-            }
-        }
-    }
-
     @Override
     protected void dispatchDraw(Canvas canvas) {
-        final int p = dp(6);
-        final int s = dp(46);
-
-        final float actionModeFactor = getActionModeFactor();
-        final int menuWidth = hasForcedMenuWidth ? forcedMenuWidth : (int) animatorMenuItemsWidth.getFactor();
-
-        final boolean hasBackButton = backButtonImageView != null && backButtonImageView.getVisibility() == View.VISIBLE;
-
-        final int t = getHeight() - (getCurrentActionBarHeight() + s) / 2 - p;
-        final int b = t + s + p * 2;
-
-        if (glassDrawable != null && !glassOnlyBack) {
-            final int menuWidthWithPadding = menuWidth + (hasForcedMenuWidth ? (menuWidth > 0 ? p : 0) : (int) (p * animatorHasMenuItems.getFloatValue()));
-            final int rightOffset = lerp(menuWidthWithPadding, Math.max(menuWidthWithPadding, p + s), chatAvatarContainer == null ? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
-
-            final int leftDefault = lerp(hasBackButton ? s + p : 0, s + p, chatAvatarContainer == null? 0f : 1f - animatorAvatarContainerHasAvatar.getFloatValue());
-            final int rightDefault = getWidth() - rightOffset;
-            final int widthDefault = rightDefault - leftDefault;
-            final int left, right;
-            if (chatAvatarContainer != null) {
-                final int width = lerp(Math.min(widthDefault, (int) animatorAvatarContainerWidth.getFactor() + p * 2), widthDefault, Math.max(searchFactor, actionModeFactor));
-                left = (rightDefault + leftDefault - width) / 2;
-                right = left + width;
-                chatAvatarContainer.setTranslationX(left
-                    - ((MarginLayoutParams)(chatAvatarContainer.getLayoutParams())).leftMargin
-                    - chatAvatarContainer.getLeftPadding()
-                    + p + dp(3));
-            } else {
-                left = leftDefault;
-                right = rightDefault;
-            }
-
-            glassDrawable.setBounds(left, t, right, b);
-            glassDrawable.draw(canvas);
-        }
-        if (glassDrawableBack != null && hasBackButton) {
-            glassDrawableBack.setBounds(0, t, s + p * 2, b);
-            glassDrawableBack.draw(canvas);
-        }
-        if (glassDrawableMenu != null && menuWidth > 0 && !glassOnlyBack) {
-            glassDrawableMenu.setBounds(getWidth() - Math.max(s, menuWidth) - p * 2, t, getWidth(), b);
-            glassDrawableMenu.setAlpha(hasForcedMenuWidth ? 255 : (int) (255 * animatorHasMenuItems.getFloatValue()));
-            glassDrawableMenu.draw(canvas);
-        }
-
         if (blurredBackground && actionBarColor != Color.TRANSPARENT) {
             rectTmp.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
             blurScrimPaint.setColor(actionBarColor);
-            if (adaptiveBackground) {
-                contentView.drawBlurRect(canvas, getY(), rectTmp, blurScrimPaint, true, 1.0f - onTopAnimated);
-            } else {
-                contentView.drawBlurRect(canvas, getY(), rectTmp, blurScrimPaint, true);
-            }
+            contentView.drawBlurRect(canvas, getY(), rectTmp, blurScrimPaint, true);
         }
-
-        isAnimationsAllowed = true;
-        if (doNotDrawChild) {
-            return;
-        }
-
         super.dispatchDraw(canvas);
     }
 
@@ -2274,149 +1922,32 @@ public class ActionBar extends FrameLayout implements FactorAnimator.Target, The
         return titlesContainer;
     }
 
-    @Override
-    public void updateColors() {
-        adaptive_updateColor();
-        if (additionalSubTitleOverlayContainer != null) {
-            additionalSubTitleOverlayContainer.updateColors();
-        }
-    }
+    // forkgram-classic: upstream DialogsActivity attaches an animated overlay
+    // container above the action bar subtitle. The classic action bar has no
+    // such overlay — return an empty FrameLayout that callers can still
+    // configure (translate, etc.) without crashing.
+    private FrameLayout additionalSubTitleOverlayContainer;
 
-    private ActionBarAnimatedSubtitleOverlayContainer additionalSubTitleOverlayContainer;
     public FrameLayout createAdditionalSubTitleOverlayContainer() {
         if (additionalSubTitleOverlayContainer == null) {
-            additionalSubTitleOverlayContainer = new ActionBarAnimatedSubtitleOverlayContainer(getContext(), resourcesProvider, ellipsizeSpanAnimator) {
-                @Override
-                public void onItemChanged(ReplaceAnimator<?> animator) {
-                    super.onItemChanged(animator);
-                    final float overlayVisibility = getTotalVisibility();
-                    if (titlesContainer != null) {
-                        titlesContainer.setTranslationY(overlayVisibility * dp(-11));
-                    }
-                }
-            };
+            additionalSubTitleOverlayContainer = new FrameLayout(getContext());
             additionalSubTitleOverlayContainer.setClipChildren(false);
-            addView(additionalSubTitleOverlayContainer);
         }
         return additionalSubTitleOverlayContainer;
     }
+
     public FrameLayout getAdditionalSubTitleOverlayContainer() {
         return additionalSubTitleOverlayContainer;
     }
 
-    private boolean adaptiveBackground, adaptiveBackgroundHideTitle;
-    private int adaptive_topColorKey;
-    private int adaptive_lowerColorKey;
-    private boolean onTop = true;
-    private float onTopAnimated = 1.0f;
-    private ValueAnimator adaptive_animator;
-    public void setAdaptiveBackground(RecyclerView list) {
-        setAdaptiveBackground(list, false, Theme.key_windowBackgroundGray, Theme.key_actionBarDefault);
+    // forkgram-classic: upstream DialogsActivity hooks a long-press listener
+    // onto the title to open the chat-folder switcher. The classic bar
+    // doesn't expose long-press; accept and drop the listener.
+    public void setTitleLongClickListener(android.view.View.OnLongClickListener listener) {
     }
-    public void setAdaptiveBackground(RecyclerView list, boolean hideTitle) {
-        setAdaptiveBackground(list, hideTitle, Theme.key_windowBackgroundGray, Theme.key_actionBarDefault);
-    }
-    public void setAdaptiveBackground(RecyclerView list, boolean hideTitle, final int topColorKey, final int lowerColorKey) {
-        this.adaptive_topColorKey = topColorKey;
-        this.adaptive_lowerColorKey = lowerColorKey;
-        final Runnable checkScroll = () -> {
-            final boolean onTop = !list.canScrollVertically(-1);
-            if (ActionBar.this.onTop == onTop) return;
-            if (adaptive_animator != null)
-                adaptive_animator.cancel();
-            adaptive_animator = ValueAnimator.ofFloat(onTopAnimated, (ActionBar.this.onTop = onTop) ? 1.0f : 0.0f);
-            adaptive_animator.addUpdateListener(anm -> {
-                onTopAnimated = (float) anm.getAnimatedValue();
-                adaptive_updateColor();
-            });
-            adaptive_animator.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    onTopAnimated = onTop ? 1.0f : 0.0f;
-                    adaptive_updateColor();
-                }
-            });
-            adaptive_animator.setDuration(320);
-            adaptive_animator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
-            adaptive_animator.start();
-        };
-        list.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
-                checkScroll.run();
-            }
-        });
-        this.adaptiveBackgroundHideTitle = hideTitle;
-        if (this.adaptiveBackground) {
-            checkScroll.run();
-        } else {
-            this.adaptiveBackground = true;
-            this.onTopAnimated = (this.onTop = !list.canScrollVertically(-1)) ? 1 : 0;
-            adaptive_updateColor();
-        }
-    }
-    public void setAdaptiveBackground(SectionsScrollView list) {
-        setAdaptiveBackground(list, Theme.key_windowBackgroundGray, Theme.key_actionBarDefault);
-    }
-    public void setAdaptiveBackground(SectionsScrollView list, final int topColorKey, final int lowerColorKey) {
-        this.adaptive_topColorKey = topColorKey;
-        this.adaptive_lowerColorKey = lowerColorKey;
-        adaptive_updateColor();
-        final Runnable checkScroll = () -> {
-            final boolean onTop = !list.canScrollVertically(-1);
-            if (ActionBar.this.onTop == onTop) return;
-            if (adaptive_animator != null)
-                adaptive_animator.cancel();
-            adaptive_animator = ValueAnimator.ofFloat(onTopAnimated, (ActionBar.this.onTop = onTop) ? 1.0f : 0.0f);
-            adaptive_animator.addUpdateListener(anm -> {
-                onTopAnimated = (float) anm.getAnimatedValue();
-                adaptive_updateColor();
-            });
-            adaptive_animator.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    onTopAnimated = onTop ? 1.0f : 0.0f;
-                    adaptive_updateColor();
-                }
-            });
-            adaptive_animator.setDuration(320);
-            adaptive_animator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
-            adaptive_animator.start();
-        };
-        list.onScroll(checkScroll);
-        if (this.adaptiveBackground) {
-            checkScroll.run();
-        } else {
-            this.adaptiveBackground = true;
-            this.onTopAnimated = (this.onTop = !list.canScrollVertically(-1)) ? 1 : 0;
-            adaptive_updateColor();
-        }
-    }
-    private void adaptive_updateColor() {
-        if (!adaptiveBackground) return;
-        if (adaptiveBackgroundHideTitle) {
-            if (titlesContainer != null) {
-                titlesContainer.setAlpha(1.0f - onTopAnimated);
-            } else if (titleTextView[0] != null) {
-                titleTextView[0].setAlpha(1.0f - onTopAnimated);
-            }
-        }
 
-        final float factor = onTopAnimated;
-        int lowerColor = adaptive_lowerColorKey == -1 ? 0 : Theme.getColor(adaptive_lowerColorKey, resourcesProvider);
-        int topColor = adaptive_topColorKey == -1 ? 0 : Theme.getColor(adaptive_topColorKey, resourcesProvider);
-
-        if (topColor == 0) {
-            topColor = ColorUtils.setAlphaComponent(lowerColor, 0);
-        }
-        if (lowerColor == 0) {
-            lowerColor = ColorUtils.setAlphaComponent(topColor, 0);
-        }
-
-        setBackgroundColor(ColorUtils.blendARGB(lowerColor, topColor, factor));
-        setShadowAlpha((int) ((1.0f - onTopAnimated) * 0xFF));
-        if (blurredBackground) {
-            invalidate();
-        }
+    // forkgram-classic: upstream code calls updateColors() after theme
+    // changes to refresh the overlay container. No overlay → no-op.
+    public void updateColors() {
     }
 }
