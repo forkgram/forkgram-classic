@@ -32,8 +32,19 @@ echo "APP_HASH=$3" >> $vars
 echo "F_DROID=1" >> $vars
 echo "org.gradle.workers.max=1" >> $vars
 
-# tlottie is a Rust staticlib built by jni/tlottie_lib/build.sh for all four ABIs.
-rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+# [classic] #113: tlottie's build.sh wants `stable` by name; the recipe pins its own toolchain.
+# prepare.py does `git checkout -- tlottie_lib` right before building, so patch prepare.py.
+rust_toolchain=$(rustup show active-toolchain 2>/dev/null | awk 'NR == 1 { print $1 }')
+if ! rustup run "$rust_toolchain" rustc --version >/dev/null 2>&1; then
+    rustup default stable
+    rust_toolchain=$(rustup show active-toolchain | awk 'NR == 1 { print $1 }')
+    rustup run "$rust_toolchain" rustc --version >/dev/null
+fi
+rustup target add --toolchain "$rust_toolchain" \
+    aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+prep=../TMessagesProj/jni/prepare.py
+grep -q '\./tlottie_lib/build\.sh' $prep || { echo "$prep: tlottie_lib build call moved" >&2; exit 1; }
+sed -i -e "s|\./tlottie_lib/build\.sh|TLOTTIE_RUST_TOOLCHAIN=$rust_toolchain &|" $prep
 
 # The boringssl build script still targets API 16; the F-Droid NDK needs 21.
 sed -i -e 's/API=16/API=21/g' ../TMessagesProj/jni/build_boringssl.sh
