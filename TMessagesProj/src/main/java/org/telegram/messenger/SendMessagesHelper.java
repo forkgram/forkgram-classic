@@ -10576,7 +10576,7 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
         if (photoSize == null || photoSize.location == null) {
             return null;
         }
-        PointF point = ChatMessageCell.getMessageSize(photoSize.w, photoSize.h);
+        android.graphics.Point point = ChatMessageCell.getMessageSize(photoSize.w, photoSize.h); // forkgram-classic: pinned ChatMessageCell returns Point, not PointF
 
         if (bitmap != null) {
             try {
