@@ -56,21 +56,7 @@ android {
     }
 
     signingConfigs {
-        if (fdroid) {
-            debug {
-                storeFile file("")
-                storePassword ""
-                keyAlias ""
-                keyPassword ""
-            }
-
-            release {
-                storeFile file("")
-                storePassword ""
-                keyAlias ""
-                keyPassword ""
-            }
-        } else {
+        if (!fdroid) {
             debug {
                 storeFile file("../TMessagesProj/config/release.keystore")
                 storePassword RELEASE_STORE_PASSWORD
@@ -85,13 +71,16 @@ android {
                 keyPassword RELEASE_KEY_PASSWORD
             }
         }
+        // When fdroid=true: no signingConfigs declared. AGP auto-signs debug
+        // variants with the local debug.keystore; release variants are left
+        // unsigned, which is what the F-Droid build server expects.
     }
 
     buildTypes {
         debug {
             debuggable true
             jniDebuggable true
-            signingConfig signingConfigs.debug
+            if (!fdroid) signingConfig signingConfigs.debug
             applicationIdSuffix appSuffix
             minifyEnabled true
             shrinkResources false
@@ -102,7 +91,7 @@ android {
         HA {
             debuggable false
             jniDebuggable false
-            signingConfig signingConfigs.debug
+            if (!fdroid) signingConfig signingConfigs.debug
             applicationIdSuffix appSuffix
             minifyEnabled true
             multiDexEnabled true
@@ -112,7 +101,7 @@ android {
         standalone {
             debuggable false
             jniDebuggable false
-            signingConfig signingConfigs.release
+            if (!fdroid) signingConfig signingConfigs.release
             applicationIdSuffix ".web"
             minifyEnabled true
             shrinkResources false
@@ -123,7 +112,7 @@ android {
         release {
             debuggable false
             jniDebuggable false
-            signingConfig signingConfigs.release
+            if (!fdroid) signingConfig signingConfigs.release
             applicationIdSuffix appSuffix
             minifyEnabled true
             shrinkResources false

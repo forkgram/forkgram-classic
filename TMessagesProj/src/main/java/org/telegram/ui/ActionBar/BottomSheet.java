@@ -2473,7 +2473,6 @@ public class BottomSheet extends Dialog implements BaseFragment.AttachedSheet {
 
     protected void onSwipeStarts() {}
 
-    @Override
     public BulletinFactory getBulletinFactory() {
         return BulletinFactory.of(topBulletinContainer, resourcesProvider);
     }

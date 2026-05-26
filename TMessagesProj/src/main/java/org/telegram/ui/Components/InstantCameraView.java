@@ -262,6 +262,12 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
     private final int buttonsSizePx;
 
 
+    // forkgram-classic: pinned 12.1.1 ChatActivity instantiates without the
+    // new-design flag. Default to false to keep the classic camera button look.
+    public InstantCameraView(Context context, Delegate delegate, Theme.ResourcesProvider resourcesProvider) {
+        this(context, delegate, resourcesProvider, false);
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     public InstantCameraView(Context context, Delegate delegate, Theme.ResourcesProvider resourcesProvider, boolean isNewDesign) {
         super(context);
@@ -3842,5 +3848,30 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
         default boolean isInScheduleMode() {
             return false;
         }
+    }
+
+    // forkgram-classic: pinned ChatActivity (12.1.1) gates blur layering on
+    // this signal. Upstream stopped exposing it. Return false so the blur
+    // path falls back to the default branch.
+    public boolean blurFullyDrawing() {
+        return false;
+    }
+
+    // forkgram-classic: pinned ChatActivity drives blur and animates the
+    // switch/flash buttons during the camera close transition. Classic
+    // InstantCameraView doesn't render the redesigned chrome — provide
+    // no-op accessors so the animation list compiles.
+    public void cancelBlur() {
+    }
+
+    public void invalidateBlur() {
+    }
+
+    public android.view.View getSwitchButtonView() {
+        return this;
+    }
+
+    public android.view.View getFlashButtonView() {
+        return this;
     }
 }

@@ -1760,6 +1760,13 @@ public class MessagePreviewView extends FrameLayout {
     private final ResourcesDelegate resourcesProvider;
     private final BlurredBackgroundDrawableViewFactory iBlur3Factory;
 
+    // forkgram-classic: pinned 12.1.1 ChatActivity constructs without the
+    // BlurredBackgroundDrawableViewFactory parameter — pass null so the
+    // classic preview just uses its solid background.
+    public MessagePreviewView(@NonNull Context context, ChatActivity chatActivity, MessagePreviewParams params, TLRPC.User user, TLRPC.Chat chat, int currentAccount, ResourcesDelegate resourcesProvider, int startTab, boolean showOutdatedQuote) {
+        this(context, chatActivity, null, params, user, chat, currentAccount, resourcesProvider, startTab, showOutdatedQuote);
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     public MessagePreviewView(@NonNull Context context, ChatActivity chatActivity, BlurredBackgroundDrawableViewFactory iBlur3Factory, MessagePreviewParams params, TLRPC.User user, TLRPC.Chat chat, int currentAccount, ResourcesDelegate resourcesProvider, int startTab, boolean showOutdatedQuote)  {
         super(context);
