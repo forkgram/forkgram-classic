@@ -54,6 +54,13 @@ public class ChatActivityMemberRequestsDelegate {
         this.currentAccount = fragment.getCurrentAccount();
     }
 
+    // forkgram-classic: pinned 12.1.1 ChatActivity constructs with a
+    // content-view parent and a top-padding invalidate callback. Upstream
+    // dropped both — accept and ignore them so the call compiles.
+    public ChatActivityMemberRequestsDelegate(BaseFragment fragment, android.view.ViewGroup contentView, TLRPC.Chat currentChat, Runnable onLayoutChanged) {
+        this(fragment, currentChat);
+    }
+
     private ChangeVisibilityDelegate delegate;
     public interface ChangeVisibilityDelegate {
         void setVisible(boolean visible, boolean animated);
@@ -206,5 +213,12 @@ public class ChatActivityMemberRequestsDelegate {
     public void fillThemeDescriptions(List<ThemeDescription> themeDescriptions) {
         themeDescriptions.add(new ThemeDescription(requestsCountTextView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_topPanelTitle));
         themeDescriptions.add(new ThemeDescription(closeView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_topPanelClose));
+    }
+
+    // forkgram-classic: pinned ChatActivity reads an "enter offset" used to
+    // animate the top panel. Upstream removed it — return 0 so the panel
+    // simply sits at its current position.
+    public int getViewEnterOffset() {
+        return 0;
     }
 }

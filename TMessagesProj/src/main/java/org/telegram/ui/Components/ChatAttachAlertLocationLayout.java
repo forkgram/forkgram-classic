@@ -390,6 +390,12 @@ public class ChatAttachAlertLocationLayout extends ChatAttachAlert.AttachAlertLa
         void didSelectLocation(TLRPC.MessageMedia location, int live, boolean notify, int scheduleDate, long payStars);
     }
 
+    // forkgram-classic: 12.1.1 ChatAttachAlert constructed without the
+    // allowLiveLocation flag — default to true.
+    public ChatAttachAlertLocationLayout(ChatAttachAlert alert, Context context, Theme.ResourcesProvider resourcesProvider) {
+        this(alert, context, resourcesProvider, true);
+    }
+
     public ChatAttachAlertLocationLayout(ChatAttachAlert alert, Context context, Theme.ResourcesProvider resourcesProvider, boolean allowLiveLocation) {
         super(alert, context, resourcesProvider);
         AndroidUtilities.fixGoogleMapsBug();
