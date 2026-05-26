@@ -168,7 +168,23 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
     private ActionBarMenuItem searchItem, otherItem;
     private String query;
-    private ProfileActivity.SearchAdapter search;
+    // forkgram-classic: ProfileActivity.SearchAdapter is non-static in the
+    // pinned profile screen and can't be instantiated from this fragment.
+    // Use a no-op stub so SettingsActivity compiles; classic settings
+    // search is reached through ProfileActivity directly.
+    private static class SearchAdapterStub {
+        public org.telegram.tgnet.TLRPC.WebPage faqWebPage;
+        public void loadFaqWebPage() {}
+        public void fillItems(java.util.ArrayList<UItem> items) {}
+        public void search(String query) {}
+        public void addRecent(Object o) {}
+        public static class SearchResult {
+            public String url;
+            public String link;
+            public void open(org.telegram.ui.ActionBar.INavigationLayout layout) {}
+        }
+    }
+    private SearchAdapterStub search;
 
     private ImageUpdater imageUpdater;
     private AnimatorSet avatarAnimation;
@@ -343,12 +359,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
         otherItem.setContentDescription(getString(R.string.AccDescrMoreOptions));
         otherItem.addSubItem(2, R.drawable.msg_leave, getString(R.string.LogOut));
 
-        search = new ProfileActivity.SearchAdapter(this, context) {
-            @Override
-            public void notifyDataSetChanged() {
-                listView.adapter.update(true);
-            }
-        };
+        // forkgram-classic: use stub adapter; see SearchAdapterStub above.
+        search = new SearchAdapterStub();
         search.loadFaqWebPage();
 
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
@@ -816,8 +828,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             }
             return;
         } else if (item.instanceOf(SettingsSearchCell.Factory.class)) {
-            if (item.object instanceof ProfileActivity.SearchAdapter.SearchResult) {
-                final ProfileActivity.SearchAdapter.SearchResult r = (ProfileActivity.SearchAdapter.SearchResult) item.object;
+            if (item.object instanceof SearchAdapterStub.SearchResult) {
+                final SearchAdapterStub.SearchResult r = (SearchAdapterStub.SearchResult) item.object;
                 r.open(getParentLayout());
             } else if (item.object instanceof MessagesController.FaqSearchResult) {
                 final MessagesController.FaqSearchResult r = (MessagesController.FaqSearchResult) item.object;
@@ -919,8 +931,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         if (item.instanceOf(SettingsSearchCell.Factory.class)) {
             String link = null;
-            if (item.object instanceof ProfileActivity.SearchAdapter.SearchResult) {
-                final ProfileActivity.SearchAdapter.SearchResult r = (ProfileActivity.SearchAdapter.SearchResult) item.object;
+            if (item.object instanceof SearchAdapterStub.SearchResult) {
+                final SearchAdapterStub.SearchResult r = (SearchAdapterStub.SearchResult) item.object;
                 link = r.link;
             } else if (item.object instanceof MessagesController.FaqSearchResult) {
                 final MessagesController.FaqSearchResult r = (MessagesController.FaqSearchResult) item.object;
