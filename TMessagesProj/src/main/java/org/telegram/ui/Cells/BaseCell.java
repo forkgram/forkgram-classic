@@ -164,4 +164,13 @@ public abstract class BaseCell extends ViewGroup implements SizeNotifierFrameLay
             }
         }
     }
+
+    // forkgram-classic: pinned ChatActivity (12.1.1) calls these methods on
+    // cells while drawing the blur snapshot. Upstream removed the helpers —
+    // provide no-ops so the snapshot path falls back to a normal draw.
+    public void setCaching(boolean top, boolean enable) {}
+
+    public void drawCached(android.graphics.Canvas canvas) {
+        draw(canvas);
+    }
 }

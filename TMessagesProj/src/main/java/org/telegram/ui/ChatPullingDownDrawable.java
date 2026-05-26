@@ -770,6 +770,12 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
         return (progressToBottomPanel > 0) && !emptyStub;
     }
 
+    // forkgram-classic: shim for 12.1.1 ChatActivity (pinned). Upstream removed
+    // the explicit show-bottom-panel control; drawBottomPanel/needDrawBottomPanel
+    // now drive visibility implicitly. Keep as a no-op to preserve the call sites.
+    public void showBottomPanel(boolean show) {
+    }
+
     public boolean animationIsRunning() {
         return swipeToReleaseProgress != 1f;
     }

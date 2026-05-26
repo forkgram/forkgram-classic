@@ -62,6 +62,12 @@ public class StickerSetNameCell extends FrameLayout {
         this(context, emoji, false, resourcesProvider, isGlassDesign);
     }
 
+    // forkgram-classic: classic EmojiView (pinned) instantiates without the
+    // glass-design flag — default to false.
+    public StickerSetNameCell(Context context, boolean emoji, Theme.ResourcesProvider resourcesProvider) {
+        this(context, emoji, false, resourcesProvider, false);
+    }
+
     public StickerSetNameCell(Context context, boolean emoji, boolean supportRtl, Theme.ResourcesProvider resourcesProvider, boolean isGlassDesign) {
         super(context);
         this.resourcesProvider = resourcesProvider;

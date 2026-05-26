@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!--forkgram-classic: restored strings that pinned 12.1.1 UI still uses
+        but upstream 12.7.3 dropped from strings.xml.-->
+    <string name="PollQuestion">Poll question</string>
+    <string name="AnswerOptions">Answer options</string>
+    <string name="QuizInfo">Polls in Quiz Mode have one correct answer. Users can\'t revoke their answers.</string>
+
     <!--FORK CLIENT-->
     <string name="ForkSectionAppearance">Appearance</string>
     <string name="ForkSectionMedia">Photos and video</string>
