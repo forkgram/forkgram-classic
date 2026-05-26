@@ -1843,6 +1843,12 @@ public class MediaDataController extends BaseController {
         return false;
     }
 
+    // forkgram-classic: pinned ChatAttachAlert (12.1.1) calls the 1-arg form.
+    @Nullable
+    public static TLRPC.TL_attachMenuBotIcon getAnimatedAttachMenuBotIcon(@NonNull TLRPC.TL_attachMenuBot bot) {
+        return getAnimatedAttachMenuBotIcon(bot, false);
+    }
+
     @Nullable
     public static TLRPC.TL_attachMenuBotIcon getAnimatedAttachMenuBotIcon(@NonNull TLRPC.TL_attachMenuBot bot, boolean selected) {
         for (TLRPC.TL_attachMenuBotIcon icon : bot.icons) {

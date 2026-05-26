@@ -15668,6 +15668,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         return originalSticker;
     }
 
+    // forkgram-classic: pinned ChatAttachAlert (12.1.1) calls with 3 args.
+    public void enableStickerMode(TLRPC.Document document, boolean empty, Utilities.Callback2<String, TLRPC.InputDocument> customHandler) {
+        enableStickerMode(null, document, empty, customHandler);
+    }
+
     public void enableStickerMode(TLRPC.Document originalDocument, TLRPC.Document document, boolean empty, Utilities.Callback2<String, TLRPC.InputDocument> customHandler) {
         originalSticker = originalDocument;
         replacedSticker = document;
