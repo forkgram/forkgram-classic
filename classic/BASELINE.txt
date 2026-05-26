@@ -1,0 +1,10 @@
+# Forkgram Classic — baseline commit for the design pin.
+#
+# This is the upstream Telegram-Android version we treat as the source of
+# truth for design-frozen files (UI, action bar, drawer, emoji panel,
+# chat layout). Restored into the worktree by
+# `tools/classic/restore-frozen.sh`.
+#
+# Telegram-Android 12.1.1 — last release before the Material 3 redesign era.
+# Tag this revision locally with: git tag classic-baseline 9cbf03332
+9cbf03332a5a68fce3e616852d7dc929022c8441
