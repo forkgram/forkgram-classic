@@ -1,0 +1,99 @@
+# Forkgram Classic — DESIGN_FROZEN list.
+#
+# Paths in this file are "design-pinned" at the baseline commit (see
+# classic/BASELINE.txt). When `tools/classic/restore-frozen.sh` runs:
+#   - Paths that exist at baseline  → checked out from baseline (overwrite
+#     the worktree copy).
+#   - Paths that DON'T exist at baseline → removed from the worktree
+#     (these are "new redesign files" we don't want to ship).
+#
+# Patterns support `**` (any subtree) and `*` (single path segment).
+#
+# See classic/PLAN.md §4.1 for rationale and §1.2 for upstream deltas.
+
+# ── Drawer and side menu (deleted upstream — restore from baseline) ───────
+TMessagesProj/src/main/java/org/telegram/ui/ActionBar/CustomNavigationBar.java
+TMessagesProj/src/main/java/org/telegram/ui/ActionBar/DrawerLayoutContainer.java
+TMessagesProj/src/main/java/org/telegram/ui/Adapters/DrawerLayoutAdapter.java
+TMessagesProj/src/main/java/org/telegram/ui/Cells/DrawerActionCell.java
+TMessagesProj/src/main/java/org/telegram/ui/Cells/DrawerAddCell.java
+TMessagesProj/src/main/java/org/telegram/ui/Cells/DrawerProfileCell.java
+TMessagesProj/src/main/java/org/telegram/ui/Cells/DrawerUserCell.java
+TMessagesProj/src/main/java/org/telegram/ui/Cells/InviteTextCell.java
+TMessagesProj/src/main/java/org/telegram/ui/Components/SideMenultItemAnimator.java
+
+# ── Chat screen and input panels ──────────────────────────────────────────
+TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java
+TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java
+TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java
+
+# New redesign files → delete (not present at baseline)
+TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityTopPanelLayout.java
+TMessagesProj/src/main/java/org/telegram/ui/Components/ChatReplyContainer.java
+
+# ── Emoji / stickers / GIFs ───────────────────────────────────────────────
+TMessagesProj/src/main/java/org/telegram/ui/Components/EmojiView.java
+TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlert.java
+TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlertPollLayout.java
+
+# New redesign file → delete
+TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlertEmojiLayout.java
+
+# ── Profile (legacy screen) ───────────────────────────────────────────────
+TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+# ProfileActivity2.java, PollItemMenu.java, PollCreateCheckCell.java and
+# ActiveGiftAuctionsHintCell.java are KEPT as upstream (PLAN §0.1.8, §0.1.2).
+
+# ── Action bar (semi-pin: take fixes, freeze layout logic) ────────────────
+TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBar.java
+TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBarLayout.java
+TMessagesProj/src/main/java/org/telegram/ui/ActionBar/BaseFragment.java
+
+# ActionBarAnimatedSubtitleOverlayContainer.java — KEPT (Stories dependency):
+# DialogStoriesCell (under ui/Stories/, which is kept per PLAN §0.1.1) uses
+# this overlay helper. Originally listed as a redesign file to delete, but
+# stripping it would force pinning DialogStoriesCell or rewriting its
+# subtitle layout. Keep as upstream.
+# (intentionally not listed here)
+
+# ── Borderline / semi-pin (review before each upstream merge) ─────────────
+# These are pinned at baseline but routinely take selective upstream patches
+# (perf, bugfix). categorize-diff.sh will flag them under "frozen".
+TMessagesProj/src/main/java/org/telegram/ui/Cells/DialogCell.java
+
+# ── Phase 1 deferrals (semi-pins taken from upstream for now) ─────────────
+# Each of these was originally listed as a pin (or semi-pin) but caused
+# cascading errors that would have required broad shim layers. They were
+# moved to "use upstream wholesale" for Phase 1; Phase 2/3 can revisit
+# applying selective patches on top.
+#
+# Theme.java — 40+ cascading errors from upstream files (MessageObject,
+#   EmojiTabsStrip, ButtonWithCounterView, …) referencing new tokens.
+#   PLAN §6 marks Theme as semi-pin: "allow adding new colors, forbid
+#   structural changes". Structural audit deferred.
+# RecyclerListView.java — upstream UniversalAdapter (and 7+ other files)
+#   depends on new public API: forcedSections, TAG_NOT_SECTION,
+#   hasSections(), setSections(...). PLAN §1.2 already tagged this as
+#   semi-pin "take perf/correctness fixes, skip layout-related changes".
+# LaunchActivity.java — pinned 12.1.1 imports the now-removed
+#   com.google.firebase.appindexing package. PLAN §1.2: "Affected not only
+#   by design (init/loading logic too); requires hand-merge."
+#
+# TMessagesProj/src/main/java/org/telegram/ui/ActionBar/Theme.java
+# TMessagesProj/src/main/java/org/telegram/ui/Components/RecyclerListView.java
+# TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java
+
+# ── Layout XML (default-pinned per PLAN §4.3) ─────────────────────────────
+# Layout XML is design-critical by default. Specific layouts will be added
+# here as Phase 1 uncovers concrete dependencies. For now this section
+# stays empty; categorize-diff.sh will route layout changes into `unknown`
+# so each one is reviewed manually.
+
+# ── Notes / non-entries (informational, do not remove) ────────────────────
+# - DialogsActivity.java is NOT pinned (PLAN §0.1.4, lean-(b) approach):
+#   stays at upstream, Drawer mode restored on top via patches.
+# - MainTabsActivity.java, DialogsActivityTopPanelLayout.java,
+#   DialogsActivityTopBubblesFadeView.java, DialogsActivityStatusLayout.java
+#   are RETAINED for opt-in bottom-tabs mode — also not in this list.
+# - AIEditorAlert.java, AiButtonDrawable.java are KEPT (gated by existing
+#   toggle in dev).

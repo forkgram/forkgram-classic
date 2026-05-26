@@ -8804,7 +8804,9 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 public void didPressVoteButtons(ChatMessageCell cell, ArrayList<TLRPC.PollAnswer> buttons, int showCount, int x, int y) {
                     SendMessagesHelper.getInstance(currentAccount).sendVote(cell.getMessageObject(), buttons, null);
                 }
-                @Override
+                // forkgram-classic: pinned ChatMessageCell.ChatMessageCellDelegate
+                // doesn't declare didPressPollMedia. Drop @Override; the method is
+                // kept in case some classic flow grows it back later.
                 public void didPressPollMedia(ChatMessageCell cell, ImageReceiver imageReceiver, TLRPC.PollAnswer answer, TLRPC.MessageMedia media, float x, float y, int unshuffledIndex) {
                     final MessageObject messageObject = cell.getMessageObject();
                     final TLRPC.MessageMedia messageMedia = MessageObject.getMedia(messageObject);
