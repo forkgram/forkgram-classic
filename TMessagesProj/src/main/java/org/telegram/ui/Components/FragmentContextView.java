@@ -2966,4 +2966,11 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         }
     }
+
+    // forkgram-classic: pinned 12.1.1 ChatActivity wires two
+    // FragmentContextView instances together (location + voice). Upstream
+    // dropped this linkage. Treat as a no-op so the second panel still draws
+    // independently.
+    public void setAdditionalContextView(FragmentContextView other) {
+    }
 }

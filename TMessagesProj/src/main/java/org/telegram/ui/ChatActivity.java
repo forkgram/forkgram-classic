@@ -22,6 +22,7 @@ import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.DatePickerDialog;
 import android.app.Dialog;
@@ -46,6 +47,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Region;
@@ -77,6 +79,7 @@ import android.text.style.ClickableSpan;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.ImageSpan;
 import android.text.style.URLSpan;
+import android.util.Log;
 import android.util.Pair;
 import android.util.Property;
 import android.util.SparseArray;
@@ -92,12 +95,12 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
+import android.view.ViewPropertyAnimator;
 import android.view.ViewTreeObserver;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.DecelerateInterpolator;
-import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
@@ -105,7 +108,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Space;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
@@ -115,8 +117,6 @@ import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.core.graphics.ColorUtils;
 import androidx.core.graphics.drawable.DrawableCompat;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
@@ -139,7 +139,6 @@ import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BotForumHelper;
 import org.telegram.messenger.BotInlineKeyboard;
 import org.telegram.messenger.BotWebViewVibrationEffect;
-import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.ChannelBoostsController;
 import org.telegram.messenger.ChatMessageSharedResources;
@@ -161,6 +160,7 @@ import org.telegram.messenger.HashtagSearchController;
 import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.ImageReceiver;
+import org.telegram.messenger.LanguageDetector;
 import org.telegram.messenger.LiteMode;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaController;
@@ -184,14 +184,8 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.messenger.browser.Browser;
-import org.telegram.messenger.camera.CameraView;
-import org.telegram.messenger.forkgram.ForkUtils;
-import org.telegram.messenger.forkgram.ExtractMediaFromPreview;
 import org.telegram.messenger.support.LongSparseIntArray;
-import org.telegram.messenger.utils.OnPostDrawView;
 import org.telegram.messenger.utils.PhotoUtilities;
-import org.telegram.messenger.utils.RectFMergeBounding;
-import org.telegram.messenger.utils.ViewOutlineProviderImpl;
 import org.telegram.messenger.utils.tlutils.TlUtils;
 import org.telegram.messenger.voip.VoIPService;
 import org.telegram.tgnet.ConnectionsManager;
@@ -200,7 +194,6 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.tgnet.tl.TL_bots;
 import org.telegram.tgnet.tl.TL_phone;
-import org.telegram.tgnet.tl.TL_stats;
 import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarLayout;
@@ -229,7 +222,6 @@ import org.telegram.ui.Business.QuickRepliesActivity;
 import org.telegram.ui.Business.QuickRepliesController;
 import org.telegram.ui.Business.QuickRepliesEmptyView;
 import org.telegram.ui.Cells.BaseCell;
-import org.telegram.ui.Cells.BotAskCell;
 import org.telegram.ui.Cells.BotHelpCell;
 import org.telegram.ui.Cells.BotSwitchCell;
 import org.telegram.ui.Cells.ChatActionCell;
@@ -243,6 +235,7 @@ import org.telegram.ui.Cells.MentionCell;
 import org.telegram.ui.Cells.ProfileChannelCell;
 import org.telegram.ui.Cells.ShareDialogCell;
 import org.telegram.ui.Cells.StickerCell;
+import org.telegram.ui.Cells.TextCell;
 import org.telegram.ui.Cells.TextSelectionHelper;
 import org.telegram.ui.Cells.UserInfoCell;
 import org.telegram.ui.Components.*;
@@ -259,35 +252,6 @@ import org.telegram.ui.Components.Premium.boosts.PremiumPreviewGiftLinkBottomShe
 import org.telegram.ui.Components.Reactions.ChatSelectionReactionMenuOverlay;
 import org.telegram.ui.Components.Reactions.ReactionsEffectOverlay;
 import org.telegram.ui.Components.Reactions.ReactionsLayoutInBubble;
-import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
-import org.telegram.ui.Components.blur3.BlurredBackgroundWithFadeDrawable;
-import org.telegram.ui.Components.blur3.DownscaleScrollableNoiseSuppressor;
-import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProviderThemed;
-import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
-import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceWrapped;
-import org.telegram.ui.Components.blur3.utils.Blur3Utils;
-import org.telegram.ui.Components.chat.ChatActivityBottomViewsVisibilityController;
-import org.telegram.ui.Components.chat.ChatActivityDraftMessageMeasureController;
-import org.telegram.ui.Components.chat.ChatActivityMessageMetricsView;
-import org.telegram.ui.Components.chat.ChatActivityTopFadeView;
-import org.telegram.ui.Components.chat.layouts.ChatActivityActionsButtonsLayout;
-import org.telegram.ui.Components.chat.layouts.ChatActivityChannelButtonsLayout;
-import org.telegram.ui.Components.chat.ChatInputViewsContainer;
-import org.telegram.ui.Components.chat.ChatListViewPaddingsAnimator;
-import org.telegram.ui.Components.chat.ViewPositionWatcher;
-import org.telegram.ui.Components.chat.WallpaperBitmapProvider;
-import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
-import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceBitmap;
-import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
-import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
-import org.telegram.ui.Components.chat.layouts.ChatActivitySideControlsButtonsLayout;
-import org.telegram.ui.Components.inset.WindowInsetsStateHolder;
-import org.telegram.ui.Components.poll.FileState;
-import org.telegram.ui.Components.poll.PollAddOptionFieldLayout;
-import org.telegram.ui.Components.poll.PollAttachedMediaPack;
-import org.telegram.ui.Components.poll.PollSendParams;
-import org.telegram.ui.Components.poll.PollUtils;
-import org.telegram.ui.Components.poll.sheets.PollStatisticsBottomSheet;
 import org.telegram.ui.Components.quickforward.QuickShareSelectorOverlayLayout;
 import org.telegram.ui.Components.spoilers.SpoilerEffect;
 import org.telegram.ui.Components.voip.CellFlickerDrawable;
@@ -309,7 +273,6 @@ import org.telegram.ui.Stories.recorder.StoryEntry;
 import org.telegram.ui.Stories.recorder.StoryRecorder;
 import org.telegram.ui.TON.TONIntroActivity;
 import org.telegram.ui.bots.BotAdView;
-import org.telegram.ui.bots.BotCommandsMenuContainer;
 import org.telegram.ui.bots.BotCommandsMenuView;
 import org.telegram.ui.bots.BotWebViewSheet;
 import org.telegram.ui.bots.WebViewRequestProps;
@@ -341,26 +304,50 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import me.vkryl.android.animator.BoolAnimator;
-import me.vkryl.android.animator.FactorAnimator;
-import me.vkryl.core.BitwiseUtils;
-import me.vkryl.core.reference.ReferenceList;
-
 @SuppressWarnings("unchecked")
-public class ChatActivity extends BaseFragment implements
-        NotificationCenter.NotificationCenterDelegate,
-        DialogsActivity.DialogsActivityDelegate,
-        LocationActivity.LocationActivityDelegate,
-        ChatAttachAlertDocumentLayout.DocumentSelectActivityDelegate,
-        ChatActivityInterface,
-        FloatingDebugProvider,
-        InstantCameraView.Delegate,
-        FactorAnimator.Target
-{
+public class ChatActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate, DialogsActivity.DialogsActivityDelegate, LocationActivity.LocationActivityDelegate, ChatAttachAlertDocumentLayout.DocumentSelectActivityDelegate, ChatActivityInterface, FloatingDebugProvider, InstantCameraView.Delegate {
     private final static boolean PULL_DOWN_BACK_FRAGMENT = false;
     private final static boolean DISABLE_PROGRESS_VIEW = true;
     private final static int SKELETON_DISAPPEAR_MS = 200;
-    public static final int ACTION_BAR_BLUR_ALPHA = 178;
+
+    // forkgram-classic: upstream DialogsActivity references this constant
+    // when blending the action bar over scrolled content. Matches the
+    // upstream value (alpha ~70%).
+    public static final int ACTION_BAR_BLUR_ALPHA = 180;
+
+    // forkgram-classic: upstream LaunchActivity writes the poll option to
+    // highlight (deep-linking to a vote). Classic chat doesn't run the
+    // animated highlight on open — accept the value and drop it.
+    public byte[] highlightPollOptionId;
+
+    // forkgram-classic: upstream LaunchActivity picks the navigation bar
+    // tint based on this hint. Classic chat lives under the action bar
+    // theme, so default to dark icons (the system bar paints itself).
+    public boolean isShouldHaveLightNavigationBarIcons() {
+        return false;
+    }
+
+    // forkgram-classic: upstream gifts/auction sheets celebrate a
+    // successful purchase by triggering a confetti animation on the host
+    // chat. Classic chat doesn't ship that confetti — no-op.
+    public void startFireworks() {
+    }
+
+    // forkgram-classic: upstream sheets queue work to run after the chat
+    // becomes fully visible (e.g. after a present-transition). Classic
+    // chat doesn't expose the "fully visible" event — run immediately.
+    public void whenFullyVisible(Runnable action) {
+        if (action != null) {
+            action.run();
+        }
+    }
+
+    // forkgram-classic: upstream TextMessageEnterTransition reads the
+    // target height of the dynamic-island input. Classic enter view has
+    // no island — return 0.
+    public int getInputIslandHeightTarget() {
+        return 0;
+    }
 
     private static int SKELETON_LIGHT_OVERLAY_ALPHA = 22;
     private static float SKELETON_SATURATION = 1.4f;
@@ -368,8 +355,6 @@ public class ChatActivity extends BaseFragment implements
     public final static int DEBUG_SHARE_ALERT_MODE_NORMAL = 0,
             DEBUG_SHARE_ALERT_MODE_LESS = 1,
             DEBUG_SHARE_ALERT_MODE_MORE = 2;
-
-    private static boolean IS_ANONYMOUS_FORWARD = false;
 
     public int shareAlertDebugMode = DEBUG_SHARE_ALERT_MODE_NORMAL;
     public boolean shareAlertDebugTopicsSlowMotion;
@@ -383,52 +368,25 @@ public class ChatActivity extends BaseFragment implements
 
     private long chatInviterId;
 
-    //private static final LongSparseArray<ArrayList<ChatMessageCell>> chatMessageCellsCache = new LongSparseArray<ArrayList<ChatMessageCell>>();
+    private static final LongSparseArray<ArrayList<ChatMessageCell>> chatMessageCellsCache = new LongSparseArray<ArrayList<ChatMessageCell>>();
 
     private HashMap<MessageObject, Boolean> alreadyPlayedStickers = new HashMap<>();
-
-    private final WindowInsetsStateHolder windowInsetsStateHolder = new WindowInsetsStateHolder(this::checkInsets);
-
-    private BlurredBackgroundColorProviderThemed blurredBackgroundColorProvider;
-    private BlurredBackgroundColorProviderThemed blurredBackgroundColorProviderWhite;
-
-    private final ReferenceList<View> glassAttachedViews = new ReferenceList<>();
-    private final @Nullable DownscaleScrollableNoiseSuppressor scrollableViewNoiseSuppressor;
-    private final int recommendedAdditionalSizeY;
-
-    private final @Nullable BlurredBackgroundSourceRenderNode glassBackgroundSourceRenderNode;
-    private final @Nullable BlurredBackgroundSourceRenderNode glassBackgroundSourceFrostedRenderNode;
-    private final @NonNull BlurredBackgroundDrawableViewFactory glassBackgroundDrawableFactory;
-    private final @NonNull BlurredBackgroundDrawableViewFactory glassBackgroundDrawableFactoryFrosted;
-
-    private final @NonNull BlurredBackgroundSourceWrapped navbarContentSourceWallpaper;
-    private final @NonNull BlurredBackgroundDrawableViewFactory navbarContentDrawableFactory;
 
     private Dialog closeChatDialog;
     private boolean showCloseChatDialogLater;
     private FrameLayout progressView;
     private View progressView2;
     private FrameLayout bottomOverlay;
-    private ChatInputViewsContainer chatInputViewsContainer;
-    private View roundVideoRecordBackground;
-
-    private FrameLayout chatInputBubbleContainer;
-    private FrameLayout chatInputInAppContainer;
-    private WallpaperBitmapProvider wallpaperBitmapProvider = new WallpaperBitmapProvider();
-
     protected ChatActivityEnterView chatActivityEnterView;
     private ChatActivityEnterTopView chatActivityEnterTopView;
-    private ChatReplyContainer replyLayout;
     private int chatActivityEnterViewAnimateFromTop;
     private boolean chatActivityEnterViewAnimateBeforeSending;
     private ActionBarMenuItem.Item timeItem2;
-    private ComposeDrawable otherIcon;
     private ActionBarMenu.LazyItem attachItem;
     private ActionBarMenuItem.Item savedChatsItem, savedChatsGap;;
     private ActionBarMenuItem headerItem;
     private ActionBarMenu.LazyItem editTextItem;
     protected ActionBarMenuItem searchItem;
-    protected ActionBarMenuItem topicCreateItem;
     private ActionBarMenuItem.Item translateItem;
     private ActionBarMenuItem searchIconItem;
     private ActionBarMenu.LazyItem audioCallIconItem;
@@ -441,8 +399,7 @@ public class ChatActivity extends BaseFragment implements
     private ActionBarMenuItem.Item openForumItem;
     private ClippingImageView animatingImageView;
     private ThanosEffect chatListThanosEffect;
-    private ChatListViewPaddingsAnimator chatListViewPaddingsAnimator;
-    private ChatListRecyclerView chatListView;
+    private RecyclerListView chatListView;
     private ChatListItemAnimator chatListItemAnimator;
     private GridLayoutManagerFixed chatLayoutManager;
     private ChatActivityAdapter chatAdapter;
@@ -451,18 +408,20 @@ public class ChatActivity extends BaseFragment implements
     private LinkSpanDrawable.LinksTextView bottomOverlayLinksText;
     private TextView bottomOverlayText;
     private TextView bottomOverlayStartButton;
+    private ImageView bottomOverlayImage;
     private RadialProgressView bottomOverlayProgress;
     private AnimatorSet bottomOverlayAnimation;
     private boolean bottomOverlayChatWaitsReply;
+    private ImageView bottomGiftButton;
     private HintView2 bottomGiftHintView;
+    private ImageView bottomSuggestButton;
     private HintView2 bottomSuggestHintView;
-    private ChatActivityTopPanelLayout topPanelLayout;
-    private ChatActivityTopFadeView topPanelLayoutFade;
-
-    private boolean ignoreItemAnimation;
-    private ChatActivityChannelButtonsLayout bottomChannelButtonsLayout;
-    private ChatActivityActionsButtonsLayout actionsButtonsLayout;
-
+    private BlurredFrameLayout bottomOverlayChat;
+    private BlurredFrameLayout bottomMessagesActionContainer;
+    @Nullable
+    private TextView forwardButton;
+    @Nullable
+    private TextView replyButton;
     @Nullable
     private FrameLayout emptyViewContainer;
     private LinearLayout emptyViewContent;
@@ -482,16 +441,28 @@ public class ChatActivity extends BaseFragment implements
     private ActionBarMenuItem.Item feeItemGap;
     private ActionBarMenuItem.Item feeItemText;
     private ChatNotificationsPopupWrapper chatNotificationsPopupWrapper;
-    // private ChatActivitySideControlsButtonsLayout topButtonsLayout;
-    private ChatActivitySideControlsButtonsLayout sideControlsButtonsLayout;
+    private float pagedownButtonEnterProgress;
+    private float searchUpDownEnterProgress;
+    private float mentionsButtonEnterProgress;
+    private float reactionsMentionButtonEnterProgress;
+    private FrameLayout pagedownButton;
+    private ImageView pagedownButtonImage;
+    private ImageView pagedownButtonArrow;
+    private ImageView pagedownButtonLoading;
+    private CircularProgressDrawable pagedownButtonLoadingDrawable;
     private boolean pagedownButtonShowedByScroll;
-    private ActionBarMenuSubItem hideTitleItem;
-    private int reactionsMentionCount;
-    private int pollVotesMentionCount;
+    private CounterView pagedownButtonCounter;
+    private FrameLayout mentiondownButton;
+    private SimpleTextView mentiondownButtonCounter;
+    private ImageView mentiondownButtonImage;
     public Bulletin messageSeenPrivacyBulletin;
     TextView webBotTitle;
     public SearchTagsList actionBarSearchTags;
     public ChatSearchTabs hashtagSearchTabs;
+    private FrameLayout searchUpButton;
+    private ImageView searchUpButtonArrow;
+    private FrameLayout searchDownButton;
+    private ImageView searchDownButtonArrow;
     private ViewPagerFixed searchViewPager;
     private int defaultSearchPage;
     private boolean requestClearSearchPages;
@@ -507,17 +478,31 @@ public class ChatActivity extends BaseFragment implements
     private HintView2 videoConversionTimeHint;
     private float videoConversionTimeHintY;
 
+    private int reactionsMentionCount;
+    private FrameLayout reactionsMentiondownButton;
+    private CounterView reactionsMentiondownButtonCounter;
+    private ImageView reactionsMentiondownButtonImage;
+
     private TL_stories.TL_premium_boostsStatus boostsStatus;
     private ChannelBoostsController.CanApplyBoost canApplyBoosts;
 
+    private BackupImageView replyImageView;
+    private SimpleTextView replyNameTextView;
+    private SimpleTextView replyObjectTextView;
+    private SimpleTextView replyObjectHintTextView;
     private boolean showTapForForwardingOptionsHit;
     private Runnable tapForForwardingOptionsHitRunnable;
+    private ImageView replyIconImageView;
     private ImageView replyCloseImageView;
-    private MentionsContainerView mentionContainer;
+    public MentionsContainerView mentionContainer;
     private AnimatorSet mentionListAnimation;
     public ChatAttachAlert chatAttachAlert;
     @Nullable
-    private FrameLayout topChatPanelView;
+    private BlurredFrameLayout topChatPanelView;
+    @Nullable
+    private BlurredFrameLayout topChatPanelView2;
+    private AnimatorSet reportSpamViewAnimator;
+    private AnimatorSet topChatPanelView2Animator;
     @Nullable
     private TextView addToContactsButton;
     private boolean addToContactsButtonArchive;
@@ -527,10 +512,11 @@ public class ChatActivity extends BaseFragment implements
     private TextView restartTopicButton;
     @Nullable
     private TranslateButton translateButton;
-    private TextView addProfilePictureButton;
     public TopicsTabsView topicsTabs;
     @Nullable
     private BusinessBotButton bizBotButton;
+    @Nullable
+    private View topViewSeparator1, topViewSeparator2, topViewSeparator3;
     @Nullable
     private LinkSpanDrawable.LinksTextView emojiStatusSpamHint;
     @Nullable
@@ -538,9 +524,8 @@ public class ChatActivity extends BaseFragment implements
     private BotAdView botAdView;
     private TextView chatWithAdminTextView;
     private FragmentContextView fragmentContextView;
-    private FrameLayout fragmentContextViewWrapper;
     private FragmentContextView fragmentLocationContextView;
-    private FrameLayout fragmentLocationContextViewWrapper;
+    private View replyLineView;
     private TextView emptyView;
     private FlickerLoadingView hashtagLoadingView;
     private StickerEmptyView hashtagSearchEmptyView;
@@ -565,10 +550,11 @@ public class ChatActivity extends BaseFragment implements
     private HintView forwardHintView;
     private ChecksHintView checksHintView;
     private View emojiButtonRed;
-    private FrameLayout pinnedMessageView;
+    private BlurredFrameLayout pinnedMessageView;
     private BluredView blurredView;
     private PinnedLineView pinnedLineView;
     private boolean setPinnedTextTranslationX;
+    private AnimatorSet pinnedMessageViewAnimator;
     private BackupImageView[] pinnedMessageImageView = new BackupImageView[2];
     private TrackingWidthSimpleTextView[] pinnedNameTextView = new TrackingWidthSimpleTextView[2];
     private SimpleTextView[] pinnedMessageTextView = new SimpleTextView[2];
@@ -586,8 +572,9 @@ public class ChatActivity extends BaseFragment implements
     private Runnable hideAlertViewRunnable;
     private TextView alertNameTextView;
     private TextView alertTextView;
-    private final int searchContainerHeight = 44;
-    private FrameLayout searchContainer;
+    private AnimatorSet alertViewAnimator;
+    private final int searchContainerHeight = 51;
+    private BlurredFrameLayout searchContainer;
     private ImageView searchCalendarButton;
     private ImageView searchUserButton;
     private AnimatedTextView searchCountText;
@@ -651,7 +638,6 @@ public class ChatActivity extends BaseFragment implements
     public RecyclerListView messagesSearchListView;
     private MessagesSearchAdapter messagesSearchAdapter;
     private AnimatorSet messagesSearchListViewAnimation;
-    private ChatActivityMessageMetricsView messageMetricsView;
 
     public static final int MODE_DEFAULT = 0;
     public static final int MODE_SCHEDULED = 1;
@@ -751,6 +737,11 @@ public class ChatActivity extends BaseFragment implements
         updatePinnedTopicStarterMessage();
     }
 
+    private ValueAnimator pagedownButtonAnimation;
+    private ValueAnimator searchUpButtonAnimation;
+    private ValueAnimator mentiondownButtonAnimation;
+    private ValueAnimator reactionsMentionButtonAnimation;
+    private AnimatorSet replyButtonAnimation;
     private AnimatorSet editButtonAnimation;
     private AnimatorSet forwardButtonAnimation;
 
@@ -795,6 +786,7 @@ public class ChatActivity extends BaseFragment implements
     private TLRPC.PhotoSize replyImageLocation;
     private TLRPC.PhotoSize replyImageThumbLocation;
     private TLObject replyImageLocationObject;
+    private boolean replyImageHasMediaSpoiler;
     private int pinnedImageSize;
     private int pinnedImageCacheType;
     private boolean pinnedImageHasBlur;
@@ -803,9 +795,6 @@ public class ChatActivity extends BaseFragment implements
     private TLObject pinnedImageLocationObject;
     private int linkSearchRequestId;
     public TLRPC.WebPage foundWebPage;
-    public boolean forkExtractMediaActive;
-    public TLRPC.WebPage forkExtractMediaFrozenWebPage;
-    private ImageView forkExtractMediaButton;
     private ArrayList<CharSequence> foundUrls;
     private String pendingLinkSearchString;
     private Runnable pendingWebPageTimeoutRunnable;
@@ -834,9 +823,7 @@ public class ChatActivity extends BaseFragment implements
     private long dialog_id;
     private Long dialog_id_Long;
     private int lastLoadIndex = 1;
-    private SparseArrayWithTouch<MessageObject>[] selectedMessagesIds = new SparseArrayWithTouch[]{
-        new SparseArrayWithTouch<MessageObject>(),
-        new SparseArrayWithTouch<MessageObject>()};
+    private SparseArray<MessageObject>[] selectedMessagesIds = new SparseArray[]{new SparseArray<>(), new SparseArray<>()};
     private SparseArray<MessageObject>[] selectedMessagesCanCopyIds = new SparseArray[]{new SparseArray<>(), new SparseArray<>()};
     private SparseArray<MessageObject>[] selectedMessagesCanStarIds = new SparseArray[]{new SparseArray<>(), new SparseArray<>()};
     private boolean hasUnfavedSelected;
@@ -909,6 +896,7 @@ public class ChatActivity extends BaseFragment implements
     private Paint skeletonOutlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Matrix skeletonOutlineMatrix = new Matrix();
     private LinearGradient skeletonOutlineGradient;
+    private boolean chatListViewAttached;
     public boolean forceDisallowApplyWallpeper;
     public boolean forceDisallowRedrawThemeDescriptions;
     private boolean waitingForGetDifference;
@@ -918,7 +906,6 @@ public class ChatActivity extends BaseFragment implements
     private int migrated_to;
     private boolean firstMessagesLoaded;
     private boolean clearOnLoad;
-    private boolean clearOnLoadButIsNewTopic;
     private int clearOnLoadAndScrollMessageId = -1, clearOnLoadAndScrollOffset;
     private boolean topicChangedFromMessage;
     private Runnable closeInstantCameraAnimation;
@@ -944,6 +931,7 @@ public class ChatActivity extends BaseFragment implements
     private int createUnreadMessageAfterId;
     private boolean createUnreadMessageAfterIdLoading;
     private boolean loadingFromOldPosition;
+    private float alertViewEnterProgress;
 
     private boolean first = true;
     private int first_unread_id;
@@ -956,7 +944,6 @@ public class ChatActivity extends BaseFragment implements
     private long highlightMessageQuoteFirstTime;
     public String highlightMessageQuote;
     public Integer highlightTaskId;
-    public byte[] highlightPollOptionId;
     public int highlightMessageQuoteOffset = -1;
     private int scrollToMessagePosition = -10000;
     private Runnable unselectRunnable;
@@ -1004,8 +991,6 @@ public class ChatActivity extends BaseFragment implements
         destroyTextureView();
     };
 
-    private final BlurredBackgroundSourceBitmap scrimBlur3SourceBitmap = new BlurredBackgroundSourceBitmap();
-    private final BlurredBackgroundDrawableViewFactory scrimBlur3Factory = new BlurredBackgroundDrawableViewFactory(scrimBlur3SourceBitmap);
     private Bitmap scrimBlurBitmap;
     private BitmapShader scrimBlurBitmapShader;
     private Paint scrimBlurBitmapPaint;
@@ -1090,9 +1075,14 @@ public class ChatActivity extends BaseFragment implements
     private float contentPanTranslationT;
     private float floatingDateViewOffset;
     private float floatingTopicViewOffset;
+    private float topChatPanelViewOffset;
+    private float topChatPanelView2Offset;
+    private float pinnedMessageEnterOffset;
     private float topViewOffset;
     private TLRPC.Document preloadedGreetingsSticker;
     private boolean forceHistoryEmpty;
+    private float bottomPanelTranslationY;
+    private float bottomPanelTranslationYReverse;
     private boolean invalidateChatListViewTopPadding;
     private long activityResumeTime;
 
@@ -1193,8 +1183,6 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_SUGGESTION_EDIT_MESSAGE = 113;
     public final static int OPTION_SUGGESTION_ADD_OFFER = 114;
 
-    public final static int OPTION_VIEW_STATISTICS = 115;
-
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
             NotificationCenter.threadMessagesRead,
@@ -1258,146 +1246,6 @@ public class ChatActivity extends BaseFragment implements
 
     private ValueAnimator searchExpandAnimator;
     private float searchExpandProgress;
-
-    private boolean notSingleMediaSelected() {
-        int mediaCount = 0;
-        for (int a = 0; a < 2; a++) {
-            for (int b = 0, N = selectedMessagesIds[a].size(); b < N; b++) {
-                MessageObject message = selectedMessagesIds[a].valueAt(b);
-                if (ForkUtils.HasPhotoOrDocument(message)) {
-                    mediaCount++;
-                    if (mediaCount >= 2) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    private ShareAlert createShareAlert(
-            final Context context,
-            ArrayList<MessageObject> messages,
-            final String text,
-            boolean groupAnyItems,
-            final boolean includeStory,
-            MessageObject messageObject) {
-
-        return new ShareAlert(
-            context,
-            ChatActivity.this,
-            messages,
-            text,
-            null,
-            ChatObject.isChannel(currentChat),
-            null,
-            null,
-            false,
-            false,
-            includeStory,
-            null,
-            themeDelegate,
-            groupAnyItems) {
-                { includeStoryFromMessage = includeStory; }
-                @Override
-                public void dismissInternal() {
-                    AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid);
-                    super.dismissInternal();
-                    if (chatActivityEnterView.getVisibility() == View.VISIBLE) {
-                        fragmentView.requestLayout();
-                    }
-                }
-                @Override
-                protected void onShareStory(View cell) {
-                    StoryRecorder.SourceView sourceView = null;
-                    if (cell instanceof ShareDialogCell) {
-                        sourceView = StoryRecorder.SourceView.fromShareCell((ShareDialogCell) cell);
-                    }
-                    final ArrayList<MessageObject> messageObjects = new ArrayList<>();
-                    MessageObject.GroupedMessages groupedMessages = messageObject.getGroupId() != 0 ? groupedMessagesMap.get(messageObject.getGroupId()) : null;
-                    if (groupedMessages != null) {
-                        messageObjects.addAll(groupedMessages.messages);
-                    } else {
-                        messageObjects.add(messageObject);
-                    }
-                    StoryRecorder editor = StoryRecorder.getInstance(getParentActivity(), currentAccount);
-                    editor.setOnPrepareCloseListener((t, close, sent, did) -> {
-                        if (sent) {
-                            AndroidUtilities.runOnUIThread(() -> {
-                                String chatTitle = "";
-                                if (did < 0) {
-                                    TLRPC.Chat chat = getMessagesController().getChat(-did);
-                                    if (chat != null) {
-                                        chatTitle = chat.title;
-                                    }
-                                }
-                                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.contact_check, AndroidUtilities.replaceTags(
-                                    TextUtils.isEmpty(chatTitle) ?
-                                        LocaleController.getString(R.string.RepostedToProfile) :
-                                        LocaleController.formatString(R.string.RepostedToChannelProfile, chatTitle)
-                                )).show();
-                            });
-                            dismiss();
-                            editor.replaceSourceView(null);
-                        } else {
-                            StoryRecorder.SourceView sourceView2 = null;
-                            if (cell instanceof ShareDialogCell && cell.isAttachedToWindow()) {
-                                sourceView2 = StoryRecorder.SourceView.fromShareCell((ShareDialogCell) cell);
-                            }
-                            editor.replaceSourceView(sourceView2);
-                        }
-                        AndroidUtilities.runOnUIThread(close);
-                    });
-                    editor.openRepost(sourceView, StoryEntry.repostMessage(messageObjects));
-                }
-                @Override
-                protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, UndoInfo info) {
-                    if (dids.size() == 1) {
-                        getUndoView().showWithAction(dids.valueAt(0).id, UndoView.ACTION_FWD_MESSAGES, info);
-                    } else {
-                        getUndoView().showWithAction(0, UndoView.ACTION_FWD_MESSAGES, info, dids.size(), null, null);
-                    }
-                }
-                @Override
-                protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, boolean showToast) {
-                    if (showToast == false) {
-                        return;
-                    }
-                    if (dids.size() == 1) {
-                        if (dids.valueAt(0).id != getUserConfig().getClientUserId() || !BulletinFactory.of(ChatActivity.this).showForwardedBulletinWithTag(dids.valueAt(0).id, count)) {
-                            getUndoView().showWithAction(dids.valueAt(0).id, UndoView.ACTION_FWD_MESSAGES, count, topic, null, null);
-                        }
-                    } else {
-                        getUndoView().showWithAction(0, UndoView.ACTION_FWD_MESSAGES, count, dids.size(), null, null);
-                    }
-                }
-        };
-    }
-
-    private void showAnonymShareAlert(boolean groupMedia) {
-        ArrayList<MessageObject> messages = new ArrayList<MessageObject>();
-        for (int a = 1; a >= 0; a--) {
-            ArrayList<Integer> ids = new ArrayList<>();
-            for (int b = 0; b < selectedMessagesIds[a].size(); b++) {
-                ids.add(selectedMessagesIds[a].keyAt(b));
-            }
-            Collections.sort(ids);
-            for (int b = 0; b < ids.size(); b++) {
-                Integer i = ids.get(b);
-                MessageObject messageObject = selectedMessagesIds[a].get(i);
-                if (messageObject != null) {
-                    messages.add(messageObject);
-                }
-            }
-            selectedMessagesCanCopyIds[a].clear();
-            selectedMessagesCanStarIds[a].clear();
-            selectedMessagesIds[a].clear();
-        }
-        hideActionMode();
-        updatePinnedMessageView(true);
-        updateVisibleRows();
-        showDialog(createShareAlert(getParentActivity(), messages, "", groupMedia, false, null));
-    }
 
     public static ChatActivity of(long dialogId) {
         Bundle bundle = new Bundle();
@@ -1465,18 +1313,12 @@ public class ChatActivity extends BaseFragment implements
                 if (headerItem != null) {
                     headerItem.setVisibility(View.GONE);
                 }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(true);
-                }
             } else {
                 if (attachItem != null) {
                     attachItem.setVisibility(View.GONE);
                 }
                 if (headerItem != null) {
                     headerItem.setVisibility(View.VISIBLE);
-                }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(false);
                 }
             }
         } else {
@@ -1485,9 +1327,6 @@ public class ChatActivity extends BaseFragment implements
             }
             if (headerItem != null) {
                 headerItem.setVisibility(View.GONE);
-            }
-            if (otherIcon != null) {
-                otherIcon.setIconVisible(false);
             }
         }
         if (avatarContainer != null) {
@@ -1617,16 +1456,6 @@ public class ChatActivity extends BaseFragment implements
 
     MessagePreviewView forwardingPreviewView;
 
-    public class SparseArrayWithTouch<E> extends SparseArray<E> {
-        public ArrayList<Integer> withTouch = new ArrayList<>();
-
-        @Override
-        public void clear() {
-            withTouch.clear();
-            super.clear();
-        }
-    }
-
     private PhotoViewer.PhotoViewerProvider photoViewerProvider = new PhotoViewer.EmptyPhotoViewerProvider() {
 
         @Override
@@ -1685,7 +1514,7 @@ public class ChatActivity extends BaseFragment implements
                     view.getLocationInWindow(coords);
                     PhotoViewer.PlaceProviderObject object = new PhotoViewer.PlaceProviderObject();
                     object.viewX = coords[0];
-                    object.viewY = coords[1];
+                    object.viewY = coords[1] - (Build.VERSION.SDK_INT >= 21 ? 0 : AndroidUtilities.statusBarHeight);
 //                    object.clipTopAddition = (int) (chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4));
                     object.parentView = mentionContainer.getListView();
                     object.imageReceiver = imageReceiver;
@@ -1708,8 +1537,6 @@ public class ChatActivity extends BaseFragment implements
 
     private final static int copy = 10;
     private final static int forward = 11;
-    private final static int forward_anonym = 111;
-    private final static int select_between = 112;
     private final static int delete = 12;
     private final static int chat_enc_timer = 13;
     private final static int chat_menu_attach = 14;
@@ -1734,11 +1561,6 @@ public class ChatActivity extends BaseFragment implements
     private final static int bot_settings = 31;
     private final static int call = 32;
     private final static int video_call = 33;
-    private final static int hideTitle = 34;
-    private final static int goToFirstMessage = 35;
-    private final static int deleteAllYourMessages = 36;
-    private final static int deleteAllUnpinnedMessages = 37;
-    private final static int deleteAllYourMessagesInAllTopics = 38;
 
     private final static int attach_photo = 0;
     private final static int attach_gallery = 1;
@@ -1753,7 +1575,6 @@ public class ChatActivity extends BaseFragment implements
     private final static int text_underline = 56;
     private final static int text_spoiler = 57;
     private final static int text_quote = 58;
-    private final static int text_date = 74;
 
     private final static int view_as_topics = 59;
 
@@ -1775,8 +1596,6 @@ public class ChatActivity extends BaseFragment implements
     private final static int open_direct = 70;
     private final static int remove_fee = 71;
     private final static int charge_fee = 72;
-
-    private final static int chat_menu_topic_create = 73;
 
     private final static int id_chat_compose_panel = 1000;
 
@@ -1979,9 +1798,6 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public boolean hasDoubleTap(View view, int position) {
-            if (MessagesController.getGlobalMainSettings().getBoolean("disableQuickReaction", false)) {
-                return false;
-            }
             if (chatMode == MODE_QUICK_REPLIES) return false;
             String reactionStringSetting = getMediaDataController().getDoubleTapReaction();
             TLRPC.TL_availableReaction reaction = getMediaDataController().getReactionsMap().get(reactionStringSetting);
@@ -2025,10 +1841,6 @@ public class ChatActivity extends BaseFragment implements
             if (messageObject.isSecret() || !messageObject.canSetReaction() || messageObject.isExpiredStory() || messageObject.type == MessageObject.TYPE_JOINED_CHANNEL) {
                 return;
             }
-            if (!(currentChat == null || ChatObject.isChannelAndNotMegaGroup(currentChat) || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS))) {
-                return;
-            }
-
             ReactionsEffectOverlay.removeCurrent(false);
             String reactionString = getMediaDataController().getDoubleTapReaction();
             if (reactionString.startsWith("animated_")) {
@@ -2074,9 +1886,6 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public TLRPC.TL_channels_sendAsPeers getSendAsPeers() {
-            if (MessagesController.getGlobalMainSettings().getBoolean("hideSendAs", false)) {
-                return null;
-            }
             return sendAsPeersObj;
         }
 
@@ -2190,9 +1999,6 @@ public class ChatActivity extends BaseFragment implements
                 if (attachItem != null) {
                     attachItem.setVisibility(View.GONE);
                 }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(false);
-                }
             }
         }
 
@@ -2223,9 +2029,6 @@ public class ChatActivity extends BaseFragment implements
                             }
                             if (attachItem != null) {
                                 attachItem.setVisibility(View.GONE);
-                            }
-                            if (otherIcon != null) {
-                                otherIcon.setIconVisible(false);
                             }
                         } else {
                             ValueAnimator valueAnimator = ValueAnimator.ofFloat(AndroidUtilities.dp(48), 0);
@@ -2266,18 +2069,12 @@ public class ChatActivity extends BaseFragment implements
                                 if (attachItem != null) {
                                     attachItem.setVisibility(View.VISIBLE);
                                 }
-                                if (otherIcon != null) {
-                                    otherIcon.setIconVisible(true);
-                                }
                             } else {
                                 if (headerItem != null) {
                                     headerItem.setVisibility(View.VISIBLE);
                                 }
                                 if (attachItem != null) {
                                     attachItem.setVisibility(View.GONE);
-                                }
-                                if (otherIcon != null) {
-                                    otherIcon.setIconVisible(false);
                                 }
                             }
                         } else {
@@ -2375,9 +2172,6 @@ public class ChatActivity extends BaseFragment implements
                 if (attachItem != null) {
                     attachItem.setVisibility(View.VISIBLE);
                 }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(true);
-                }
             }
         }
 
@@ -2394,9 +2188,6 @@ public class ChatActivity extends BaseFragment implements
             }
             if (attachItem != null) {
                 attachItem.setVisibility(View.GONE);
-            }
-            if (otherIcon != null) {
-                otherIcon.setIconVisible(false);
             }
         }
 
@@ -2498,7 +2289,9 @@ public class ChatActivity extends BaseFragment implements
                     chatListView.stopScroll();
                     chatAdapter.updateRowsSafe();
                 } else if (state == 1 || state == 3 || state == 4) {
-                    instantCameraView.send(state, notify, scheduleDate, 0, ttl, effectId, stars);
+                    // forkgram-classic: upstream InstantCameraView.send grew a
+                    // scheduleRepeatPeriod slot; thread it through.
+                    instantCameraView.send(state, notify, scheduleDate, scheduleRepeatPeriod, ttl, effectId, stars);
                 } else if (state == 2 || state == 5) {
                     instantCameraView.cancel(state == 2);
                 }
@@ -2526,21 +2319,9 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        public void onEmojiViewTabChanged() {
-            final boolean isExpanded = chatActivityEnterView.isStickersExpanded();
-            final boolean isEmoji = chatActivityEnterView.isCurrentPageEmoji();
-            animatorHideTopPanelByEmojiKeyboardExpanded.setValue(isExpanded && !isEmoji, true);
-        }
-
-        @Override
         public void onStickersExpandedChange() {
             checkRaiseSensors();
-
-            final boolean isExpanded = chatActivityEnterView.isStickersExpanded();
-            final boolean isEmoji = chatActivityEnterView.isCurrentPageEmoji();
-            animatorHideTopPanelByEmojiKeyboardExpanded.setValue(isExpanded && !isEmoji, true);
-
-            if (isExpanded) {
+            if (chatActivityEnterView.isStickersExpanded()) {
                 AndroidUtilities.setAdjustResizeToNothing(getParentActivity(), classGuid);
                 if (Bulletin.getVisibleBulletin() != null && Bulletin.getVisibleBulletin().isShowing()) {
                     Bulletin.getVisibleBulletin().hide();
@@ -2549,12 +2330,12 @@ public class ChatActivity extends BaseFragment implements
                 AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid);
             }
             if (mentionContainer != null) {
-                mentionContainer.animate().alpha(isExpanded || isInPreviewMode() ? 0 : 1f).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
+                mentionContainer.animate().alpha(chatActivityEnterView.isStickersExpanded() || isInPreviewMode() ? 0 : 1f).setInterpolator(CubicBezierInterpolator.DEFAULT).start();
             }
             if (suggestEmojiPanel != null) {
                 suggestEmojiPanel.setVisibility(View.VISIBLE);
-                suggestEmojiPanel.animate().alpha(isExpanded || isInPreviewMode() ? 0 : 1f).setInterpolator(CubicBezierInterpolator.DEFAULT).withEndAction(() -> {
-                    if (suggestEmojiPanel != null && isExpanded) {
+                suggestEmojiPanel.animate().alpha(chatActivityEnterView.isStickersExpanded() || isInPreviewMode() ? 0 : 1f).setInterpolator(CubicBezierInterpolator.DEFAULT).withEndAction(() -> {
+                    if (suggestEmojiPanel != null && chatActivityEnterView.isStickersExpanded()) {
                         suggestEmojiPanel.setVisibility(View.GONE);
                     }
                 }).start();
@@ -2602,6 +2383,15 @@ public class ChatActivity extends BaseFragment implements
             if (translation != 0) {
                 wasManualScroll = true;
             }
+            bottomPanelTranslationY = chatActivityEnterView.panelAnimationInProgress() ? chatActivityEnterView.getEmojiPadding() - translation : 0;
+            bottomPanelTranslationYReverse = chatActivityEnterView.panelAnimationInProgress() ? translation : 0;
+            chatActivityEnterView.setTranslationY(translation);
+            mentionContainer.setTranslationY(translation);
+            contentView.setEmojiOffset(chatActivityEnterView.panelAnimationInProgress(), bottomPanelTranslationY);
+
+            translation += chatActivityEnterView.getTopViewTranslation();
+            mentionContainer.setTranslationY(translation);
+            chatListView.setTranslationY(translation);
 
             invalidateChatListViewTopPadding();
             invalidateMessagesVisiblePart();
@@ -2613,9 +2403,6 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public void prepareMessageSending() {
             waitingForSendingMessageLoad = true;
-            if (chatAdapter != null) {
-                chatAdapter.checkRemoveBotForumRowsStartThreadRow(true);
-            }
         }
 
         @Override
@@ -2661,12 +2448,7 @@ public class ChatActivity extends BaseFragment implements
         }
         SharedConfig.increaseScheduledOrNoSoundHintShowed();
         if (scheduledOrNoSoundHint == null) {
-            scheduledOrNoSoundHint = new HintView(getParentActivity(), 4, themeDelegate) {
-                @Override
-                protected int offsetCx() {
-                    return dp(100 - 44) / 2;
-                }
-            };
+            scheduledOrNoSoundHint = new HintView(getParentActivity(), 4, themeDelegate);
             scheduledOrNoSoundHint.createCloseButton();
             scheduledOrNoSoundHint.setAlpha(0);
             scheduledOrNoSoundHint.setVisibility(View.INVISIBLE);
@@ -2704,50 +2486,7 @@ public class ChatActivity extends BaseFragment implements
 
     public ChatActivity(Bundle args) {
         super(args);
-
-        navbarContentSourceWallpaper = new BlurredBackgroundSourceWrapped();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SharedConfig.chatBlurEnabled()) {
-            scrollableViewNoiseSuppressor = new DownscaleScrollableNoiseSuppressor();
-            recommendedAdditionalSizeY = dp(48);
-
-            glassBackgroundSourceFrostedRenderNode = new BlurredBackgroundSourceRenderNode(navbarContentSourceWallpaper);
-            glassBackgroundSourceFrostedRenderNode.setOnDrawablesRelativePositionChangeListener(this::invalidateMergedVisibleBlurredPositionsAndSourcesPositions);
-            glassBackgroundSourceFrostedRenderNode.setScrollableNoiseSuppressor(scrollableViewNoiseSuppressor, DownscaleScrollableNoiseSuppressor.DRAW_FROSTED_GLASS);
-            glassBackgroundSourceFrostedRenderNode.setUnderSource(navbarContentSourceWallpaper);
-
-            glassBackgroundDrawableFactoryFrosted = new BlurredBackgroundDrawableViewFactory(glassBackgroundSourceFrostedRenderNode);
-            glassBackgroundDrawableFactoryFrosted.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
-
-            if (LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
-                glassBackgroundSourceRenderNode = new BlurredBackgroundSourceRenderNode(navbarContentSourceWallpaper);
-                glassBackgroundSourceRenderNode.setOnDrawablesRelativePositionChangeListener(this::invalidateMergedVisibleBlurredPositionsAndSourcesPositions);
-                glassBackgroundSourceRenderNode.setScrollableNoiseSuppressor(scrollableViewNoiseSuppressor, DownscaleScrollableNoiseSuppressor.DRAW_GLASS);
-                glassBackgroundSourceRenderNode.setUnderSource(navbarContentSourceWallpaper);
-                glassBackgroundDrawableFactory = new BlurredBackgroundDrawableViewFactory(glassBackgroundSourceRenderNode);
-                glassBackgroundDrawableFactory.setLiquidGlassEffectAllowed(LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS));
-            } else {
-                glassBackgroundSourceRenderNode = null;
-                glassBackgroundDrawableFactory = glassBackgroundDrawableFactoryFrosted;
-            }
-        } else {
-            scrollableViewNoiseSuppressor = null;
-            recommendedAdditionalSizeY = 0;
-
-            glassBackgroundSourceRenderNode = null;
-            glassBackgroundSourceFrostedRenderNode = null;
-
-            glassBackgroundDrawableFactory = new BlurredBackgroundDrawableViewFactory(navbarContentSourceWallpaper);
-            glassBackgroundDrawableFactoryFrosted = new BlurredBackgroundDrawableViewFactory(navbarContentSourceWallpaper);
-        }
-        navbarContentDrawableFactory = new BlurredBackgroundDrawableViewFactory(navbarContentSourceWallpaper);
-        navbarContentDrawableFactory.setLinkedViewsRef(glassAttachedViews);
-        glassBackgroundDrawableFactory.setLinkedViewsRef(glassAttachedViews);
-        glassBackgroundDrawableFactoryFrosted.setLinkedViewsRef(glassAttachedViews);
-        scrimBlur3Factory.setLinkedViewsRef(new ReferenceList<>());
     }
-
-    private NotificationCenter.ObserversGroup observersGroup;
-    private NotificationCenter.ObserversGroup globalObserversGroup;
 
     @Override
     public boolean onFragmentCreate() {
@@ -2768,12 +2507,7 @@ public class ChatActivity extends BaseFragment implements
         textToSet = arguments.getString("start_text");
         premiumInvoiceBot = arguments.getBoolean("premium_bot", false);
         startLoadFromMessageId = arguments.getInt("message_id", 0);
-        if (highlightTaskId == null) {
-            highlightTaskId = arguments.containsKey("task_id") ? arguments.getInt("task_id", 0) : null;
-        }
-        if (highlightPollOptionId == null) {
-            highlightPollOptionId = arguments.containsKey("poll_option_id") ? arguments.getByteArray("poll_option_id") : null;
-        }
+        highlightTaskId = arguments.containsKey("task_id") ? arguments.getInt("task_id", 0) : null;
         startReplyTo = arguments.getInt("reply_to", 0);
         startLoadFromDate = arguments.getInt("start_from_date", 0);
         startFromVideoTimestamp = arguments.getInt("video_timestamp", -1);
@@ -2947,143 +2681,131 @@ public class ChatActivity extends BaseFragment implements
             MediaController.getInstance().startMediaObserver();
         }
 
-        observersGroup = getNotificationCenter().createObserversGroup(this);
-        globalObserversGroup = NotificationCenter.getGlobalInstance().createObserversGroup(this);
-
         getNotificationCenter().addPostponeNotificationsCallback(postponeNotificationsWhileLoadingCallback);
-        getNotificationCenter().addObserver(this, NotificationCenter.closeChats);
 
         if (chatMode != MODE_SCHEDULED) {
             if (threadMessageId == 0) {
-                observersGroup
-                    .add(NotificationCenter.screenshotTook)
-                    .add(NotificationCenter.encryptedChatUpdated)
-                    .add(NotificationCenter.messagesReadEncrypted)
-                    .add(NotificationCenter.updateMentionsCount)
-                    .add(NotificationCenter.newDraftReceived)
-                    .add(NotificationCenter.chatOnlineCountDidLoad)
-                    .add(NotificationCenter.peerSettingsDidLoad)
-                    .add(NotificationCenter.didLoadPinnedMessages)
-                    .add(NotificationCenter.commentsRead)
-                    .add(NotificationCenter.changeRepliesCounter)
-                    .add(NotificationCenter.messagesRead)
-                    .add(NotificationCenter.didLoadChatInviter)
-                    .add(NotificationCenter.groupCallUpdated);
+                getNotificationCenter().addObserver(this, NotificationCenter.screenshotTook);
+                getNotificationCenter().addObserver(this, NotificationCenter.encryptedChatUpdated);
+                getNotificationCenter().addObserver(this, NotificationCenter.messagesReadEncrypted);
+                getNotificationCenter().addObserver(this, NotificationCenter.updateMentionsCount);
+                getNotificationCenter().addObserver(this, NotificationCenter.newDraftReceived);
+                getNotificationCenter().addObserver(this, NotificationCenter.chatOnlineCountDidLoad);
+                getNotificationCenter().addObserver(this, NotificationCenter.peerSettingsDidLoad);
+                getNotificationCenter().addObserver(this, NotificationCenter.didLoadPinnedMessages);
+                getNotificationCenter().addObserver(this, NotificationCenter.commentsRead);
+                getNotificationCenter().addObserver(this, NotificationCenter.changeRepliesCounter);
+                getNotificationCenter().addObserver(this, NotificationCenter.messagesRead);
+                getNotificationCenter().addObserver(this, NotificationCenter.didLoadChatInviter);
+                getNotificationCenter().addObserver(this, NotificationCenter.groupCallUpdated);
             } else {
-                observersGroup.add(NotificationCenter.threadMessagesRead);
+                getNotificationCenter().addObserver(this, NotificationCenter.threadMessagesRead);
                 if (isTopic) {
-                    observersGroup.add(NotificationCenter.updateMentionsCount);
-                    observersGroup.add(NotificationCenter.didLoadPinnedMessages);
+                    getNotificationCenter().addObserver(this, NotificationCenter.updateMentionsCount);
+                    getNotificationCenter().addObserver(this, NotificationCenter.didLoadPinnedMessages);
                 }
             }
-            observersGroup
-                .add(NotificationCenter.monoForumMessagesRead)
-                .add(NotificationCenter.botKeyboardDidLoad)
-                .add(NotificationCenter.removeAllMessagesFromDialog)
-                .add(NotificationCenter.messagesReadContent)
-                .add(NotificationCenter.chatSearchResultsAvailable)
-                .add(NotificationCenter.chatSearchResultsLoading)
-                .add(NotificationCenter.didUpdateMessagesViews)
-                .add(NotificationCenter.didUpdatePollResults)
-                .add(NotificationCenter.availableEffectsUpdate)
-                .add(NotificationCenter.starReactionAnonymousUpdate);
+            getNotificationCenter().addObserver(this, NotificationCenter.monoForumMessagesRead);
+            getNotificationCenter().addObserver(this, NotificationCenter.botKeyboardDidLoad);
+            getNotificationCenter().addObserver(this, NotificationCenter.removeAllMessagesFromDialog);
+            getNotificationCenter().addObserver(this, NotificationCenter.messagesReadContent);
+            getNotificationCenter().addObserver(this, NotificationCenter.chatSearchResultsAvailable);
+            getNotificationCenter().addObserver(this, NotificationCenter.chatSearchResultsLoading);
+            getNotificationCenter().addObserver(this, NotificationCenter.didUpdateMessagesViews);
+            getNotificationCenter().addObserver(this, NotificationCenter.didUpdatePollResults);
+            getNotificationCenter().addObserver(this, NotificationCenter.availableEffectsUpdate);
+            getNotificationCenter().addObserver(this, NotificationCenter.starReactionAnonymousUpdate);
             if (currentEncryptedChat != null) {
-                observersGroup.add(NotificationCenter.didVerifyMessagesStickers);
+                getNotificationCenter().addObserver(this, NotificationCenter.didVerifyMessagesStickers);
             }
         }
+        getNotificationCenter().addObserver(this, NotificationCenter.premiumFloodWaitReceived);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagesDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.loadingMessagesFailed);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.invalidateMotionBackground);
+        getNotificationCenter().addObserver(this, NotificationCenter.didUpdateConnectionState);
+        getNotificationCenter().addObserver(this, NotificationCenter.updateInterfaces);
+        getNotificationCenter().addObserver(this, NotificationCenter.updateDefaultSendAsPeer);
+        getNotificationCenter().addObserver(this, NotificationCenter.userIsPremiumBlockedUpadted);
         if (chatMode != MODE_PINNED) {
-            observersGroup.add(NotificationCenter.didReceiveNewMessages);
+            getNotificationCenter().addObserver(this, NotificationCenter.didReceiveNewMessages);
         }
         if (chatMode == 0) {
-            observersGroup.add(NotificationCenter.didLoadSponsoredMessages);
+            getNotificationCenter().addObserver(this, NotificationCenter.didLoadSponsoredMessages);
         }
-        observersGroup
-            .add(NotificationCenter.updatedChatRanks)
-            .add(NotificationCenter.premiumFloodWaitReceived)
-            .add(NotificationCenter.messagesDidLoad)
-            .add(NotificationCenter.loadingMessagesFailed)
-            .add(NotificationCenter.didUpdateConnectionState)
-            .add(NotificationCenter.updateInterfaces)
-            .add(NotificationCenter.updateDefaultSendAsPeer)
-            .add(NotificationCenter.userIsPremiumBlockedUpadted)
-            .add(NotificationCenter.didLoadSendAsPeers)
-            .add(NotificationCenter.closeChatActivity)
-            .add(NotificationCenter.messagesDeleted)
-            .add(NotificationCenter.historyCleared)
-            .add(NotificationCenter.messageReceivedByServer)
-            .add(NotificationCenter.messageReceivedByAck)
-            .add(NotificationCenter.messageSendError)
-            .add(NotificationCenter.chatInfoDidLoad)
-            .add(NotificationCenter.groupRestrictionsUnlockedByBoosts)
-            .add(NotificationCenter.customStickerCreated)
-            .add(NotificationCenter.contactsDidLoad)
-            .add(NotificationCenter.messagePlayingProgressDidChanged)
-            .add(NotificationCenter.messagePlayingDidReset)
-            .add(NotificationCenter.messagePlayingGoingToStop)
-            .add(NotificationCenter.messagePlayingPlayStateChanged)
-            .add(NotificationCenter.blockedUsersDidLoad)
-            .add(NotificationCenter.fileNewChunkAvailable)
-            .add(NotificationCenter.didCreatedNewDeleteTask)
-            .add(NotificationCenter.messagePlayingDidStart)
-            .add(NotificationCenter.updateMessageMedia)
-            .add(NotificationCenter.voiceTranscriptionUpdate)
-            .add(NotificationCenter.animatedEmojiDocumentLoaded)
-            .add(NotificationCenter.replaceMessagesObjects)
-            .add(NotificationCenter.notificationsSettingsUpdated)
-            .add(NotificationCenter.replyMessagesDidLoad)
-            .add(NotificationCenter.didReceivedWebpages)
-            .add(NotificationCenter.didReceivedWebpagesInUpdates)
-            .add(NotificationCenter.botInfoDidLoad)
-            .add(NotificationCenter.chatInfoCantLoad)
-            .add(NotificationCenter.userInfoDidLoad)
-            .add(NotificationCenter.pinnedInfoDidLoad)
-            .add(NotificationCenter.topicsDidLoaded)
-            .add(NotificationCenter.chatWasBoostedByUser)
-            .add(NotificationCenter.channelRightsUpdated)
-            .add(NotificationCenter.audioRecordTooShort)
-            .add(NotificationCenter.didUpdateReactions)
-            .add(NotificationCenter.savedReactionTagsUpdate)
-            .add(NotificationCenter.updateAllMessages)
-            .add(NotificationCenter.didUpdateExtendedMedia)
-            .add(NotificationCenter.videoLoadingStateChanged)
-            .add(NotificationCenter.scheduledMessagesUpdated)
-            .add(NotificationCenter.diceStickersDidLoad)
-            .add(NotificationCenter.dialogDeleted)
-            .add(NotificationCenter.chatAvailableReactionsUpdated)
-            .add(NotificationCenter.dialogsUnreadReactionsCounterChanged)
-            .add(NotificationCenter.dialogsUnreadPollVotesCounterChanged)
-            .add(NotificationCenter.groupStickersDidLoad)
-            .add(NotificationCenter.dialogTranslate)
-            .add(NotificationCenter.dialogIsTranslatable)
-            .add(NotificationCenter.messageTranslated)
-            .add(NotificationCenter.messageTranslating)
-            .add(NotificationCenter.onReceivedChannelDifference)
-            .add(NotificationCenter.storiesUpdated)
-            .add(NotificationCenter.channelRecommendationsLoaded)
-            .add(NotificationCenter.updateTranscriptionLock)
-            .add(NotificationCenter.savedMessagesDialogsUpdate)
-            .add(NotificationCenter.quickRepliesDeleted)
-            .add(NotificationCenter.quickRepliesUpdated)
-            .add(NotificationCenter.factCheckLoaded)
-            .add(NotificationCenter.messagesFeeUpdated)
-            .add(NotificationCenter.starBalanceUpdated)
-            .add(NotificationCenter.botForumTopicDidCreate)
-            .add(NotificationCenter.botForumDraftUpdate)
-            .add(NotificationCenter.botForumDraftDelete)
-            .add(NotificationCenter.joinedGroup);
-
-        globalObserversGroup
-            .add(NotificationCenter.emojiLoaded)
-            .add(NotificationCenter.invalidateMotionBackground)
-            .add(NotificationCenter.didSetNewWallpapper)
-            .add(NotificationCenter.didApplyNewTheme)
-            .add(NotificationCenter.goingToPreviewTheme);
-
+        getNotificationCenter().addObserver(this, NotificationCenter.didLoadSendAsPeers);
+        getNotificationCenter().addObserver(this, NotificationCenter.closeChats);
+        getNotificationCenter().addObserver(this, NotificationCenter.closeChatActivity);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagesDeleted);
+        getNotificationCenter().addObserver(this, NotificationCenter.historyCleared);
+        getNotificationCenter().addObserver(this, NotificationCenter.messageReceivedByServer);
+        getNotificationCenter().addObserver(this, NotificationCenter.messageReceivedByAck);
+        getNotificationCenter().addObserver(this, NotificationCenter.messageSendError);
+        getNotificationCenter().addObserver(this, NotificationCenter.chatInfoDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.groupRestrictionsUnlockedByBoosts);
+        getNotificationCenter().addObserver(this, NotificationCenter.customStickerCreated);
+        getNotificationCenter().addObserver(this, NotificationCenter.contactsDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingDidReset);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingGoingToStop);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        getNotificationCenter().addObserver(this, NotificationCenter.blockedUsersDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.fileNewChunkAvailable);
+        getNotificationCenter().addObserver(this, NotificationCenter.didCreatedNewDeleteTask);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagePlayingDidStart);
+        getNotificationCenter().addObserver(this, NotificationCenter.updateMessageMedia);
+        getNotificationCenter().addObserver(this, NotificationCenter.voiceTranscriptionUpdate);
+        getNotificationCenter().addObserver(this, NotificationCenter.animatedEmojiDocumentLoaded);
+        getNotificationCenter().addObserver(this, NotificationCenter.replaceMessagesObjects);
+        getNotificationCenter().addObserver(this, NotificationCenter.notificationsSettingsUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.replyMessagesDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.didReceivedWebpages);
+        getNotificationCenter().addObserver(this, NotificationCenter.didReceivedWebpagesInUpdates);
+        getNotificationCenter().addObserver(this, NotificationCenter.botInfoDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.chatInfoCantLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.userInfoDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.pinnedInfoDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.topicsDidLoaded);
+        getNotificationCenter().addObserver(this, NotificationCenter.chatWasBoostedByUser);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didSetNewWallpapper);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.didApplyNewTheme);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.goingToPreviewTheme);
+        getNotificationCenter().addObserver(this, NotificationCenter.channelRightsUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.audioRecordTooShort);
+        getNotificationCenter().addObserver(this, NotificationCenter.didUpdateReactions);
+        getNotificationCenter().addObserver(this, NotificationCenter.savedReactionTagsUpdate);
+        getNotificationCenter().addObserver(this, NotificationCenter.updateAllMessages);
+        getNotificationCenter().addObserver(this, NotificationCenter.didUpdateExtendedMedia);
+        getNotificationCenter().addObserver(this, NotificationCenter.videoLoadingStateChanged);
+        getNotificationCenter().addObserver(this, NotificationCenter.scheduledMessagesUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.diceStickersDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.dialogDeleted);
+        getNotificationCenter().addObserver(this, NotificationCenter.chatAvailableReactionsUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.dialogsUnreadReactionsCounterChanged);
+        getNotificationCenter().addObserver(this, NotificationCenter.groupStickersDidLoad);
+        getNotificationCenter().addObserver(this, NotificationCenter.dialogTranslate);
+        getNotificationCenter().addObserver(this, NotificationCenter.dialogIsTranslatable);
+        getNotificationCenter().addObserver(this, NotificationCenter.messageTranslated);
+        getNotificationCenter().addObserver(this, NotificationCenter.messageTranslating);
+        getNotificationCenter().addObserver(this, NotificationCenter.onReceivedChannelDifference);
+        getNotificationCenter().addObserver(this, NotificationCenter.storiesUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.channelRecommendationsLoaded);
+        getNotificationCenter().addObserver(this, NotificationCenter.updateTranscriptionLock);
+        getNotificationCenter().addObserver(this, NotificationCenter.savedMessagesDialogsUpdate);
+        getNotificationCenter().addObserver(this, NotificationCenter.quickRepliesDeleted);
+        getNotificationCenter().addObserver(this, NotificationCenter.quickRepliesUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.factCheckLoaded);
+        getNotificationCenter().addObserver(this, NotificationCenter.messagesFeeUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.starBalanceUpdated);
+        getNotificationCenter().addObserver(this, NotificationCenter.botForumTopicDidCreate);
+        getNotificationCenter().addObserver(this, NotificationCenter.botForumDraftUpdate);
+        getNotificationCenter().addObserver(this, NotificationCenter.botForumDraftDelete);
         if (chatMode == MODE_EDIT_BUSINESS_LINK) {
-            observersGroup.add(NotificationCenter.businessLinksUpdated);
+            getNotificationCenter().addObserver(this, NotificationCenter.businessLinksUpdated);
         }
         if (chatMode == MODE_SEARCH) {
-            observersGroup.add(NotificationCenter.hashtagSearchUpdated);
+            getNotificationCenter().addObserver(this, NotificationCenter.hashtagSearchUpdated);
         }
 
         if (actionBarSearchTags != null) {
@@ -3223,7 +2945,7 @@ public class ChatActivity extends BaseFragment implements
 
         themeDelegate = parentThemeDelegate != null ? parentThemeDelegate : new ThemeDelegate();
         if (themeDelegate.isThemeChangeAvailable(false)) {
-            globalObserversGroup.add(NotificationCenter.needSetDayNightTheme);
+            NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.needSetDayNightTheme);
         }
 
         if (chatInvite != null) {
@@ -3444,9 +3166,6 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
-        if (messageMetricsView != null) {
-            messageMetricsView.finish();
-        }
         if (chatActivityEnterView != null) {
             chatActivityEnterView.onDestroy();
         }
@@ -3471,21 +3190,123 @@ public class ChatActivity extends BaseFragment implements
         }
         getNotificationCenter().removePostponeNotificationsCallback(postponeNotificationsWhileLoadingCallback);
         getMessagesController().setLastCreatedDialogId(dialog_id, chatMode == MODE_SCHEDULED, false);
-
-        if (observersGroup != null) {
-            observersGroup.removeAllObservers();
-            observersGroup = null;
-        }
-        if (globalObserversGroup != null) {
-            globalObserversGroup.removeAllObservers();
-            globalObserversGroup = null;
-        }
-
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagesDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.loadingMessagesFailed);
+        getNotificationCenter().removeObserver(this, NotificationCenter.premiumFloodWaitReceived);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.invalidateMotionBackground);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didUpdateConnectionState);
+        getNotificationCenter().removeObserver(this, NotificationCenter.updateInterfaces);
+        getNotificationCenter().removeObserver(this, NotificationCenter.updateDefaultSendAsPeer);
+        getNotificationCenter().removeObserver(this, NotificationCenter.userIsPremiumBlockedUpadted);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didReceiveNewMessages);
         getNotificationCenter().removeObserver(this, NotificationCenter.closeChats);
+        getNotificationCenter().removeObserver(this, NotificationCenter.closeChatActivity);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagesRead);
+        getNotificationCenter().removeObserver(this, NotificationCenter.threadMessagesRead);
+        getNotificationCenter().removeObserver(this, NotificationCenter.monoForumMessagesRead);
+        getNotificationCenter().removeObserver(this, NotificationCenter.commentsRead);
+        getNotificationCenter().removeObserver(this, NotificationCenter.changeRepliesCounter);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagesDeleted);
+        getNotificationCenter().removeObserver(this, NotificationCenter.historyCleared);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messageReceivedByServer);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messageReceivedByAck);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messageSendError);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.groupRestrictionsUnlockedByBoosts);
+        getNotificationCenter().removeObserver(this, NotificationCenter.customStickerCreated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didLoadChatInviter);
+        getNotificationCenter().removeObserver(this, NotificationCenter.groupCallUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.encryptedChatUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagesReadEncrypted);
+        getNotificationCenter().removeObserver(this, NotificationCenter.removeAllMessagesFromDialog);
+        getNotificationCenter().removeObserver(this, NotificationCenter.contactsDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidReset);
+        getNotificationCenter().removeObserver(this, NotificationCenter.screenshotTook);
+        getNotificationCenter().removeObserver(this, NotificationCenter.blockedUsersDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.fileNewChunkAvailable);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didCreatedNewDeleteTask);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingDidStart);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingGoingToStop);
+        getNotificationCenter().removeObserver(this, NotificationCenter.updateMessageMedia);
+        getNotificationCenter().removeObserver(this, NotificationCenter.voiceTranscriptionUpdate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.animatedEmojiDocumentLoaded);
+        getNotificationCenter().removeObserver(this, NotificationCenter.replaceMessagesObjects);
+        getNotificationCenter().removeObserver(this, NotificationCenter.notificationsSettingsUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.replyMessagesDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didReceivedWebpages);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didReceivedWebpagesInUpdates);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagesReadContent);
+        getNotificationCenter().removeObserver(this, NotificationCenter.botInfoDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.botKeyboardDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatSearchResultsAvailable);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatSearchResultsLoading);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didUpdateMessagesViews);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoCantLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didLoadPinnedMessages);
+        getNotificationCenter().removeObserver(this, NotificationCenter.peerSettingsDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.newDraftReceived);
+        getNotificationCenter().removeObserver(this, NotificationCenter.userInfoDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.pinnedInfoDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.topicsDidLoaded);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatWasBoostedByUser);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.didSetNewWallpapper);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.didApplyNewTheme);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.goingToPreviewTheme);
+        getNotificationCenter().removeObserver(this, NotificationCenter.channelRightsUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.updateMentionsCount);
+        getNotificationCenter().removeObserver(this, NotificationCenter.audioRecordTooShort);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didUpdatePollResults);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didUpdateReactions);
+        getNotificationCenter().removeObserver(this, NotificationCenter.savedReactionTagsUpdate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.updateAllMessages);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didUpdateExtendedMedia);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatOnlineCountDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.videoLoadingStateChanged);
+        getNotificationCenter().removeObserver(this, NotificationCenter.scheduledMessagesUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.diceStickersDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.dialogDeleted);
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatAvailableReactionsUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didLoadSponsoredMessages);
+        getNotificationCenter().removeObserver(this, NotificationCenter.didLoadSendAsPeers);
+        getNotificationCenter().removeObserver(this, NotificationCenter.dialogsUnreadReactionsCounterChanged);
+        getNotificationCenter().removeObserver(this, NotificationCenter.groupStickersDidLoad);
+        getNotificationCenter().removeObserver(this, NotificationCenter.dialogTranslate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.dialogIsTranslatable);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messageTranslated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messageTranslating);
+        getNotificationCenter().removeObserver(this, NotificationCenter.onReceivedChannelDifference);
+        getNotificationCenter().removeObserver(this, NotificationCenter.storiesUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.channelRecommendationsLoaded);
+        getNotificationCenter().removeObserver(this, NotificationCenter.updateTranscriptionLock);
+        getNotificationCenter().removeObserver(this, NotificationCenter.savedMessagesDialogsUpdate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.quickRepliesDeleted);
+        getNotificationCenter().removeObserver(this, NotificationCenter.quickRepliesUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.availableEffectsUpdate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.starReactionAnonymousUpdate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.factCheckLoaded);
+        getNotificationCenter().removeObserver(this, NotificationCenter.messagesFeeUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.starBalanceUpdated);
+        getNotificationCenter().removeObserver(this, NotificationCenter.botForumTopicDidCreate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.botForumDraftUpdate);
+        getNotificationCenter().removeObserver(this, NotificationCenter.botForumDraftDelete);
+        if (chatMode == MODE_EDIT_BUSINESS_LINK) {
+            getNotificationCenter().removeObserver(this, NotificationCenter.businessLinksUpdated);
+        }
+        if (chatMode == MODE_SEARCH) {
+            getNotificationCenter().removeObserver(this, NotificationCenter.hashtagSearchUpdated);
+        }
 
         if (actionBarSearchTags != null) {
             actionBarSearchTags.detach();
         }
+        if (currentEncryptedChat != null) {
+            getNotificationCenter().removeObserver(this, NotificationCenter.didVerifyMessagesStickers);
+        }
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.needSetDayNightTheme);
+
         if (chatMode == 0 && AndroidUtilities.isTablet()) {
             getNotificationCenter().postNotificationName(NotificationCenter.openedChatChanged, dialog_id, getTopicId(), true);
         }
@@ -3582,7 +3403,7 @@ public class ChatActivity extends BaseFragment implements
                 return false;
             }
             final boolean noforwards = (
-                chatActivity != null && chatActivity.isPeerNoForwards() ||
+                chatActivity != null && chatActivity.getMessagesController().isChatNoForwards(chatActivity.getCurrentChat()) ||
                 selectedView != null && selectedView.getMessageObject() != null && selectedView.getMessageObject().messageOwner != null && selectedView.getMessageObject().messageOwner.noforwards
             );
             return !isFactCheck && (
@@ -3604,7 +3425,7 @@ public class ChatActivity extends BaseFragment implements
                 return true;
             }
             return chatActivity == null || !(
-                chatActivity.getDialogId() < 0 && chatActivity.getMessagesController().isPeerNoForwards(chatActivity.getDialogId()) ||
+                chatActivity.getDialogId() < 0 && chatActivity.getMessagesController().isChatNoForwards(-chatActivity.getDialogId()) ||
                 selectedView != null && selectedView.getMessageObject() != null && (selectedView.getMessageObject().messageOwner != null && selectedView.getMessageObject().messageOwner.noforwards)
             );
         }
@@ -3633,7 +3454,7 @@ public class ChatActivity extends BaseFragment implements
                     chatActivity.replyingQuote = quote;
                     chatActivity.replyingMessageObject = messageObject;
                     chatActivity.forbidForwardingWithDismiss = false;
-                    chatActivity.messagePreviewParams = new MessagePreviewParams(chatActivity.currentEncryptedChat != null, chatActivity.isPeerNoForwards(), ChatObject.isMonoForum(chatActivity.currentChat));
+                    chatActivity.messagePreviewParams = new MessagePreviewParams(chatActivity.currentEncryptedChat != null, chatActivity.getMessagesController().isChatNoForwards(chatActivity.currentChat), ChatObject.isMonoForum(chatActivity.currentChat));
                     chatActivity.messagePreviewParams.updateReply(chatActivity.replyingMessageObject, chatActivity.getGroup(messageObject.getGroupId()), chatActivity.getDialogId(), chatActivity.replyingQuote);
                     Bundle args = new Bundle();
                     args.putBoolean("onlySelect", true);
@@ -3660,36 +3481,6 @@ public class ChatActivity extends BaseFragment implements
     @Override
     public View createView(Context context) {
         Timer t = Timer.create("ChatActivity.createView");
-
-        blurredBackgroundColorProvider = new BlurredBackgroundColorProviderThemed(themeDelegate, Theme.key_chat_messagePanelBackground) {
-            @Override
-            public int getBackgroundColor() {
-                if (!BlurredBackgroundProviderImpl.checkBlurEnabled(currentAccount, themeDelegate)) {
-                    return ColorUtils.setAlphaComponent(getThemedColor(Theme.key_chat_messagePanelBackground), 255);
-                }
-
-                final boolean isThemeLight = themeDelegate != null && !themeDelegate.isDark();
-                if (isThemeLight) {
-                    return ColorUtils.setAlphaComponent(super.getBackgroundColor(), 216);
-                }
-                return super.getBackgroundColor();
-            }
-        };
-        blurredBackgroundColorProviderWhite = new BlurredBackgroundColorProviderThemed(themeDelegate, Theme.key_windowBackgroundWhite) {
-            @Override
-            public int getBackgroundColor() {
-                if (!BlurredBackgroundProviderImpl.checkBlurEnabled(currentAccount, themeDelegate)) {
-                    return ColorUtils.setAlphaComponent(getThemedColor(Theme.key_windowBackgroundWhite), 255);
-                }
-
-                final boolean isThemeLight = themeDelegate != null && !themeDelegate.isDark();
-                if (isThemeLight) {
-                    return ColorUtils.setAlphaComponent(super.getBackgroundColor(), 216);
-                }
-                return super.getBackgroundColor();
-            }
-        };
-
         if (textSelectionHelper == null) {
             if (textSelectionHelpersCache != null && !textSelectionHelpersCache.isEmpty()) {
                 textSelectionHelper = textSelectionHelpersCache.remove(0);
@@ -3714,18 +3505,18 @@ public class ChatActivity extends BaseFragment implements
         actionBarBackgroundPaint.setColor(getThemedColor(Theme.key_actionBarDefault));
         sharedResources = new ChatMessageSharedResources(context);
 
-        //ArrayList<ChatMessageCell> chatMessagesCache = chatMessageCellsCache.get(currentAccount);
-        //if (chatMessagesCache == null) {
-        //    chatMessageCellsCache.put(currentAccount, chatMessagesCache = new ArrayList<>());
-        //}
-        //if (chatMessagesCache.size() < 10) {
-        //    int n = 15 - chatMessagesCache.size();
-        //    Timer.Task t2 = Timer.start(t, "create ChatMessageCell n=" + n);
-        //    for (int a = 0; a < n; a++) {
-        //        chatMessagesCache.add(new ChatMessageCell(context, currentAccount,true, sharedResources, themeDelegate));
-        //    }
-        //    Timer.done(t2);
-        //}
+        ArrayList<ChatMessageCell> chatMessagesCache = chatMessageCellsCache.get(currentAccount);
+        if (chatMessagesCache == null) {
+            chatMessageCellsCache.put(currentAccount, chatMessagesCache = new ArrayList<>());
+        }
+        if (chatMessagesCache.size() < 10) {
+            int n = 15 - chatMessagesCache.size();
+            Timer.Task t2 = Timer.start(t, "create ChatMessageCell n=" + n);
+            for (int a = 0; a < n; a++) {
+                chatMessagesCache.add(new ChatMessageCell(context, currentAccount,true, sharedResources, themeDelegate));
+            }
+            Timer.done(t2);
+        }
         for (int a = 1; a >= 0; a--) {
             selectedMessagesIds[a].clear();
             selectedMessagesCanCopyIds[a].clear();
@@ -3783,9 +3574,7 @@ public class ChatActivity extends BaseFragment implements
             @Override
             public void onItemClick(final int id) {
                 if (id == -1) {
-                    if (isInPollAddOptionMode()) {
-                        pollAddOptionModeClose();
-                    } else if (actionBar.isActionModeShowed()) {
+                    if (actionBar.isActionModeShowed()) {
                         clearSelectionMode();
                     } else {
                         if (chatMode == MODE_QUICK_REPLIES && (messages.isEmpty() || threadMessageId == 0)) {
@@ -3798,7 +3587,7 @@ public class ChatActivity extends BaseFragment implements
                             });
                             return;
                         }
-                        if (!checkRecordLocked(true, true)) {
+                        if (!checkRecordLocked(true)) {
                             finishFragment();
                         }
                     }
@@ -3844,30 +3633,8 @@ public class ChatActivity extends BaseFragment implements
                         return;
                     }
                     createDeleteMessagesAlert(null, null);
-                } else if (id == select_between) {
-                    // For selecting messages between the first and the last.
-                    ArrayList<Integer> ids = new ArrayList<>();
-                    for (int a = 1; a >= 0; a--) {
-                        for (int b = 0; b < selectedMessagesIds[a].size(); b++) {
-                            ids.add(selectedMessagesIds[a].keyAt(b));
-                        }
-                    }
-                    Collections.sort(ids);
-                    Integer begin = ids.get(0);
-                    Integer end = ids.get(ids.size() - 1);
-                    for (int i = 0; i < messages.size(); i++) {
-                        Integer msgId = messages.get(i).getId();
-                        if (msgId > begin && msgId < end && !selectedMessagesIds[0].withTouch.contains(msgId)) {
-                            addToSelectedMessages(messages.get(i), false);
-                            updateActionModeTitle();
-                            updateVisibleRows();
-                        }
-                    }
                 } else if (id == forward) {
-                    // IS_ANONYMOUS_FORWARD = id == forward_anonym;
                     openForward(true);
-                } else if (id == forward_anonym) {
-                    showAnonymShareAlert(false);
                 } else if (id == share) {
                     share();
                 } else if (id == open_direct) {
@@ -3963,7 +3730,8 @@ public class ChatActivity extends BaseFragment implements
                                 if (revoke && (currentUser != null || canDeleteHistory)) {
                                     getMessagesStorage().getMessagesCount(dialog_id, (count) -> {
                                         if (count >= 50) {
-                                            AlertsCreator.createClearOrDeleteDialogAlert(ChatActivity.this, true, currentChat, currentUser, false, false, false, canDeleteHistory, (param) -> performHistoryClear(true, canDeleteHistory));
+                                            // forkgram-classic: 11-arg sig is (fragment, clear, second, chat, user, secret, checkDeleteForAll, forceDeleteForAll, canDeleteHistory, callback, resourcesProvider).
+                                            AlertsCreator.createClearOrDeleteDialogAlert(ChatActivity.this, true, false, currentChat, currentUser, false, false, false, canDeleteHistory, (param) -> performHistoryClear(true, canDeleteHistory), themeDelegate);
                                         } else {
                                             performHistoryClear(true, canDeleteHistory);
                                         }
@@ -3975,7 +3743,8 @@ public class ChatActivity extends BaseFragment implements
                         }, getResourceProvider());
                         return;
                     }
-                    AlertsCreator.createClearOrDeleteDialogAlert(ChatActivity.this, id == clear_history, currentChat, currentUser, currentEncryptedChat != null, true, false, canDeleteHistory, (param) -> {
+                    // forkgram-classic: 11-arg sig adds `boolean second` and `boolean forceDeleteForAll`.
+                    AlertsCreator.createClearOrDeleteDialogAlert(ChatActivity.this, id == clear_history, false, currentChat, currentUser, currentEncryptedChat != null, true, false, canDeleteHistory, (param) -> {
                         if (id == clear_history && ChatObject.isChannel(currentChat) && (!currentChat.megagroup || ChatObject.isPublic(currentChat))) {
                             getMessagesController().deleteDialog(dialog_id, 2, param);
                         } else {
@@ -3988,7 +3757,7 @@ public class ChatActivity extends BaseFragment implements
                                 performHistoryClear(param, canDeleteHistory);
                             }
                         }
-                    });
+                    }, themeDelegate);
                 } else if (id == share_contact) {
                     if (currentUser == null || getParentActivity() == null) {
                         return;
@@ -4120,11 +3889,6 @@ public class ChatActivity extends BaseFragment implements
                         chatActivityEnterView.getEditField().setSelectionOverride(editTextStart, editTextEnd);
                         chatActivityEnterView.getEditField().makeSelectedUnderline();
                     }
-                } else if (id == text_date) {
-                    if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
-                        chatActivityEnterView.getEditField().setSelectionOverride(editTextStart, editTextEnd);
-                        chatActivityEnterView.getEditField().makeSelectedDate();
-                    }
                 } else if (id == text_link) {
                     if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
                         chatActivityEnterView.getEditField().setSelectionOverride(editTextStart, editTextEnd);
@@ -4182,41 +3946,6 @@ public class ChatActivity extends BaseFragment implements
                     if (button != null) {
                         button.setTextColor(getThemedColor(Theme.key_text_RedBold));
                     }
-                } else if (id == chat_menu_topic_create) {
-                    presentFragment(TopicCreateFragment.create(-dialog_id, 0).setOpenInChatActivity(ChatActivity.this));
-                } else if (id == hideTitle) {
-                    SharedConfig.hideTitleDialog = !SharedConfig.hideTitleDialog;
-                    updateTitle(false);
-                    checkAndUpdateAvatar();
-                    if (hideTitleItem != null) {
-                        if (SharedConfig.hideTitleDialog) {
-                            hideTitleItem.setText(LocaleController.getString("ShowTitle", R.string.ShowTitle));
-                        } else {
-                            hideTitleItem.setText(LocaleController.getString("HideTitle", R.string.HideTitle));
-                        }
-                    }
-
-                    SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-                    preferences.edit().putBoolean("hideTitle", SharedConfig.hideTitleDialog).commit();
-                } else if (id == goToFirstMessage) {
-                    // This is timestamp of launch date of the Telegram.
-                    // August 2013.
-                    jumpToDate(1375350800);
-                } else if (id == deleteAllYourMessages) {
-                    org.telegram.messenger.forkgram.ForkDialogs.CreateDeleteAllYourMessagesAlert(
-                        currentAccount,
-                        dialog_id,
-                        getParentActivity());
-                } else if (id == deleteAllYourMessagesInAllTopics) {
-                    org.telegram.messenger.forkgram.ForkDialogs.CreateDeleteAllYourMessagesInAllTopicsAlert(
-                        currentAccount,
-                        dialog_id,
-                        getParentActivity());
-                } else if (id == deleteAllUnpinnedMessages) {
-                    org.telegram.messenger.forkgram.ForkDialogs.CreateDeleteAllUnpinnedMessagesAlert(
-                        currentAccount,
-                        dialog_id,
-                        getParentActivity());
                 }
             }
         });
@@ -4266,13 +3995,6 @@ public class ChatActivity extends BaseFragment implements
             return false;
         });
 
-        topPanelLayoutFade = new ChatActivityTopFadeView(context);
-        topPanelLayout = new ChatActivityTopPanelLayout(context);
-        topPanelLayout.setOnAnimatedHeightChangedListener(() -> {
-            invalidateChatListViewTopPadding();
-            invalidateMessagesVisiblePart();
-            checkUi_topFade();
-        });
         if (avatarContainer != null) {
             avatarContainer.onDestroy();
         }
@@ -4363,14 +4085,10 @@ public class ChatActivity extends BaseFragment implements
             menu.addItem(edit_quick_reply, R.drawable.group_edit).setContentDescription(LocaleController.getString(R.string.Edit));
         }
 
-        if (UserObject.isBotForumWithEditableTopics(currentUser) && chatMode == 0) {
-            topicCreateItem = menu.addItem(chat_menu_topic_create, R.drawable.menu_topic_add_30);
-        }
-
         if (currentEncryptedChat == null && (chatMode == 0 || chatMode == MODE_SAVED || chatMode == MODE_SUGGESTIONS) && !isReport()) {
-            searchIconItem = menu.addItem(search, isSupportedTags() ? R.drawable.navbar_search_tag : R.drawable.outline_header_search);
+            searchIconItem = menu.addItem(search, isSupportedTags() ? R.drawable.navbar_search_tag : R.drawable.msg_search);
             searchIconItem.setContentDescription(LocaleController.getString(R.string.Search));
-            searchItem = menu.addItem(chat_menu_search, R.drawable.outline_header_search, themeDelegate);
+            searchItem = menu.addItem(chat_menu_search, R.drawable.msg_search, themeDelegate);
             searchItem.setIsSearchField(true);
             searchItem.setActionBarMenuItemSearchListener(getSearchItemListener());
             searchItem.setSearchFieldHint(isSupportedTags() ? LocaleController.getString(R.string.SavedTagSearchHint) : LocaleController.getString(R.string.Search));
@@ -4385,7 +4103,7 @@ public class ChatActivity extends BaseFragment implements
         if (chatMode == 0 && (threadMessageId == 0 || isTopic) && !UserObject.isReplyUser(currentUser) && !isReport()) {
             TLRPC.UserFull userFull = null;
             if (currentUser != null) {
-                audioCallIconItem = menu.lazilyAddItem(call, R.drawable.call, themeDelegate);
+                audioCallIconItem = menu.lazilyAddItem(call, R.drawable.ic_call, themeDelegate);
                 audioCallIconItem.setContentDescription(LocaleController.getString(R.string.Call));
                 userFull = getMessagesController().getUserFull(currentUser.id);
                 if (userFull != null && userFull.phone_calls_available) {
@@ -4406,19 +4124,12 @@ public class ChatActivity extends BaseFragment implements
         editTextItem.setTag(null);
         editTextItem.setVisibility(View.GONE);
 
-        otherIcon = new ComposeDrawable(
-            context.getResources().getDrawable(R.drawable.ic_ab_other).mutate(),
-            context.getResources().getDrawable(R.drawable.mini_attach).mutate()
-        );
-        otherIcon.setIconTranslate(-dp(6), dp(6.66f));
-
         if (((chatMode == 0 && (threadMessageId == 0 || isTopic)) || chatMode == MODE_SUGGESTIONS) && !UserObject.isReplyUser(currentUser) && !isReport()) {
             TLRPC.UserFull userFull = null;
             if (currentUser != null) {
                 userFull = getMessagesController().getUserFull(currentUser.id);
             }
-            headerItem = menu.addItem(chat_menu_options, otherIcon);
-            otherIcon.addView(headerItem.getIconView());
+            headerItem = menu.addItem(chat_menu_options, R.drawable.ic_ab_other, themeDelegate);
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
 
             if (currentUser != null && currentUser.self && chatMode != MODE_SAVED) {
@@ -4504,6 +4215,23 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(open_direct, R.drawable.msg_markunread, getString(R.string.ChannelOpenDirect));
                 headerItem.setSubItemShown(open_direct, ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && currentChat.linked_monoforum_id != 0 && ChatObject.canManageMonoForum(currentAccount, -currentChat.linked_monoforum_id));
             }
+            if (currentUser != null && chatMode != MODE_SAVED) {
+                headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
+                if (Build.VERSION.SDK_INT >= 18) {
+                    headerItem.lazilyAddSubItem(video_call, R.drawable.msg_videocall, LocaleController.getString(R.string.VideoCall));
+                }
+                if (userFull != null && userFull.phone_calls_available) {
+                    headerItem.showSubItem(call);
+                    if (userFull.video_calls_available) {
+                        headerItem.showSubItem(video_call);
+                    } else {
+                        headerItem.hideSubItem(video_call);
+                    }
+                } else {
+                    headerItem.hideSubItem(call);
+                    headerItem.hideSubItem(video_call);
+                }
+            }
 
             if (searchItem != null) {
                 headerItem.lazilyAddSubItem(search, R.drawable.msg_search, LocaleController.getString(R.string.Search));
@@ -4533,8 +4261,7 @@ public class ChatActivity extends BaseFragment implements
                 headerItem.lazilyAddSubItem(add_shortcut, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut));
             }
             if (!isTopic && !ChatObject.isMonoForum(currentChat)) {
-                clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear,
-                    LocaleController.getString(UserObject.isBotForum(currentUser) ? R.string.ClearAllHistory : R.string.ClearHistory));
+                clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear, LocaleController.getString(R.string.ClearHistory));
             }
             boolean addedSettings = false;
             if (!isTopic) {
@@ -4565,29 +4292,6 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
             }
-            if (ChatObject.isMegagroup(currentChat) || currentChat != null && !ChatObject.isChannel(currentChat)) {
-                headerItem.addSubItem(
-                    deleteAllYourMessages,
-                    R.drawable.msg_delete,
-                    LocaleController.getString("DeleteAllYourMessages", R.string.DeleteAllYourMessages),
-                    themeDelegate);
-                // Add option to delete messages in all topics for forum groups
-                if (ChatObject.isForum(currentChat)) {
-                    headerItem.addSubItem(
-                        deleteAllYourMessagesInAllTopics,
-                        R.drawable.msg_delete,
-                        LocaleController.getString("DeleteAllYourMessagesInAllTopics", R.string.DeleteAllYourMessagesInAllTopics),
-                        themeDelegate);
-                }
-            }
-            if (MessagesController.getGlobalMainSettings().getBoolean("addItemToDeleteAllUnpinnedMessages", false)
-                && ((currentUser != null && currentEncryptedChat == null) || currentChat != null)) {
-                headerItem.addSubItem(
-                    deleteAllUnpinnedMessages,
-                    R.drawable.msg_delete,
-                    LocaleController.getString("DeleteAllUnpinnedMessages", R.string.DeleteAllUnpinnedMessages),
-                    themeDelegate);
-            }
             if (ChatObject.isMonoForum(currentChat) && ChatObject.canManageMonoForum(currentAccount, currentChat)) {
                 headerItem.lazilyAddSubItem(remove_fee, R.drawable.menu_paid_off, getString(R.string.DirectRemoveFee));
                 headerItem.lazilyAddSubItem(charge_fee, R.drawable.menu_feature_paid, getString(R.string.DirectChargeFee));
@@ -4599,35 +4303,8 @@ public class ChatActivity extends BaseFragment implements
                 feeItemGap.setVisibility(View.GONE);
                 feeItemText.setVisibility(View.GONE);
             }
-            String hideTitleString = "";
-            if (SharedConfig.hideTitleDialog) {
-                hideTitleString = LocaleController.getString("ShowTitle", R.string.ShowTitle);
-            } else {
-                hideTitleString = LocaleController.getString("HideTitle", R.string.HideTitle);
-            }
-            hideTitleItem = headerItem.addSubItem(hideTitle, R.drawable.hide_title, hideTitleString, themeDelegate);
-
-
-            headerItem.addSubItem(goToFirstMessage, R.drawable.to_first, LocaleController.getString("GoToFirstMessage", R.string.GoToFirstMessage), themeDelegate);
-
-            if (currentUser != null && chatMode != MODE_SAVED) {
-                headerItem.lazilyAddSubItem(call, R.drawable.msg_callback, LocaleController.getString(R.string.Call));
-                headerItem.lazilyAddSubItem(video_call, R.drawable.msg_videocall, LocaleController.getString(R.string.VideoCall));
-                if (userFull != null && userFull.phone_calls_available) {
-                    headerItem.showSubItem(call);
-                    if (userFull.video_calls_available) {
-                        headerItem.showSubItem(video_call);
-                    } else {
-                        headerItem.hideSubItem(video_call);
-                    }
-                } else {
-                    headerItem.hideSubItem(call);
-                    headerItem.hideSubItem(video_call);
-                }
-            }
         } else if (chatMode == MODE_EDIT_BUSINESS_LINK) {
-            headerItem = menu.addItem(chat_menu_options, otherIcon);
-            otherIcon.addView(headerItem.getIconView());
+            headerItem = menu.addItem(chat_menu_options, R.drawable.ic_ab_other, themeDelegate);
             headerItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
 
             headerItem.lazilyAddSubItem(copy_business_link, R.drawable.msg_copy, getString(R.string.Copy));
@@ -4661,8 +4338,7 @@ public class ChatActivity extends BaseFragment implements
         updateTitleIcons();
 
         if (chatMode == 0 && (!isThreadChat() || isTopic) && !isReport()) {
-            attachItem = menu.lazilyAddItem(chat_menu_attach, otherIcon, themeDelegate);
-            attachItem.onView(cell -> otherIcon.addView(cell.getIconView()));
+            attachItem = menu.lazilyAddItem(chat_menu_attach, R.drawable.ic_ab_other, themeDelegate);
             attachItem.setOverrideMenuClick(true);
             attachItem.setAllowCloseAnimation(false);
             attachItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
@@ -4690,49 +4366,11 @@ public class ChatActivity extends BaseFragment implements
         }
         removingFromParent = false;
         fragmentView = contentView = new ChatActivityFragmentView(context, parentLayout);
-        invalidateBlurredSourcesView = new OnPostDrawView(context, true, this::invalidateMergedVisibleBlurredPositionsAndSourcesImpl);
-        contentView.addView(invalidateBlurredSourcesView);
-
-        final ViewPositionWatcher viewPositionWatcher = new ViewPositionWatcher(contentView);
-
-        glassBackgroundDrawableFactory.setSourceRootView(viewPositionWatcher, contentView);
-        glassBackgroundDrawableFactoryFrosted.setSourceRootView(viewPositionWatcher, contentView);
-        navbarContentDrawableFactory.setSourceRootView(viewPositionWatcher, contentView);
-        scrimBlur3Factory.setSourceRootView(viewPositionWatcher, contentView);
-
-        contentView.setOccupyStatusBar(!inBubbleMode && !isInsideContainer && !inPreviewMode);
-
-        BlurredBackgroundWithFadeDrawable fadeDrawable = new BlurredBackgroundWithFadeDrawable(
-                navbarContentDrawableFactory.create(chatInputViewsContainer, null));
-        if (!SharedConfig.chatBlurEnabled() || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) || true) {
-            fadeDrawable.setFadeHeight(dp(72), true);
+        contentView.needBlur = true;
+        contentView.needBlurBottom = true;
+        if (inBubbleMode || isInsideContainer) {
+            contentView.setOccupyStatusBar(false);
         }
-
-        BlurredBackgroundWithFadeDrawable fadeDrawableTop = new BlurredBackgroundWithFadeDrawable(
-            navbarContentDrawableFactory.create(topPanelLayoutFade, null));
-
-        if (!SharedConfig.chatBlurEnabled() || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS) || true) {
-            fadeDrawableTop.setFadeHeight(-dp(72), true);
-        } else {
-            fadeDrawableTop.setFadeHeight(-dp(48), false);
-        }
-
-        topPanelLayoutFade.setFadeDrawable(fadeDrawableTop);
-
-        chatInputViewsContainer = new ChatInputViewsContainer(context);
-        chatInputViewsContainer.setClipChildren(false);
-        chatInputViewsContainer.setBackgroundWithFadeDrawable(fadeDrawable);
-        chatInputViewsContainer.setWindowInsetsProvider(windowInsetsStateHolder);
-        chatInputViewsContainer.setInputIslandBubbleDrawable(
-            glassBackgroundDrawableFactory.create(chatInputViewsContainer, blurredBackgroundColorProvider));
-        chatInputViewsContainer.setUnderKeyboardBackgroundDrawable(
-            glassBackgroundDrawableFactoryFrosted.create(chatInputViewsContainer, blurredBackgroundColorProvider));
-
-
-        chatInputBubbleContainer = chatInputViewsContainer.getInputIslandBubbleContainer();
-        chatInputBubbleContainer.setClipChildren(false);
-
-        chatInputInAppContainer = chatInputViewsContainer.getInAppKeyboardBubbleContainer();
 
         updateBackground();
 
@@ -4753,7 +4391,7 @@ public class ChatActivity extends BaseFragment implements
             mentionContainer.getAdapter().onDestroy();
         }
 
-        chatListView = new ChatListRecyclerView(context, themeDelegate) {
+        chatListView = new RecyclerListViewInternal(context, themeDelegate) {
             private int lastWidth;
 
             private final ArrayList<ChatMessageCell> drawTimeAfter = new ArrayList<>();
@@ -4819,7 +4457,6 @@ public class ChatActivity extends BaseFragment implements
                 if (ignoreLayout) {
                     return;
                 }
-                botDraftHeightController.onRequestLayout();
                 super.requestLayout();
             }
 
@@ -4827,6 +4464,16 @@ public class ChatActivity extends BaseFragment implements
             public void setTranslationY(float translationY) {
                 if (translationY != getTranslationY()) {
                     super.setTranslationY(translationY);
+                    if (emptyViewContainer != null) {
+                        if (chatActivityEnterView != null && (chatActivityEnterView.panelAnimationInProgress() || ChatObject.isMonoForum(currentChat))) {
+                            emptyViewContainer.setTranslationY(translationY / 2f);
+                        } else {
+                            emptyViewContainer.setTranslationY(translationY / 1.7f);
+                        }
+                    }
+                    if (chatActivityEnterView != null && chatActivityEnterView.botCommandsMenuContainer != null) {
+                        chatActivityEnterView.botCommandsMenuContainer.setTranslationY(translationY);
+                    }
                     invalidateChatListViewTopPadding();
                     invalidateMessagesVisiblePart();
                 }
@@ -4847,7 +4494,6 @@ public class ChatActivity extends BaseFragment implements
             @Override
             protected void onLayout(boolean changed, int l, int t, int r, int b) {
                 super.onLayout(changed, l, t, r, b);
-
                 if (lastWidth != r - l) {
                     if (lastWidth != 0) {
                         hideHints(false);
@@ -4870,7 +4516,6 @@ public class ChatActivity extends BaseFragment implements
                 if (textSelectionHelper != null && textSelectionHelper.isInSelectionMode()) {
                     textSelectionHelper.invalidate();
                 }
-                invalidateClipRectForBackgroundAndChatList();
                 isSkeletonVisible();
             }
 
@@ -5124,12 +4769,16 @@ public class ChatActivity extends BaseFragment implements
                         MessageObject message = slidingView.getMessageObject();
                         boolean allowReplyOnOpenTopic = canSendMessageToTopic(message);
                         if (
-                            chatMode != 0 && chatMode != MODE_QUICK_REPLIES && chatMode != MODE_SUGGESTIONS && (chatMode != MODE_SAVED || threadMessageId != getUserConfig().getClientUserId()) ||
-                            threadMessageObjects != null && threadMessageObjects.contains(message) ||
-                            getMessageType(message) == 1 && (message.getDialogId() == mergeDialogId || message.needDrawBluredPreview()) ||
-                            currentEncryptedChat == null && message.getId() < 0 ||
-                            currentChat != null && ChatObject.isForum(currentChat) && !allowReplyOnOpenTopic ||
-                            textSelectionHelper.isInSelectionMode()
+                                chatMode != 0 && chatMode != MODE_QUICK_REPLIES && chatMode != MODE_SUGGESTIONS && (chatMode != MODE_SAVED || threadMessageId != getUserConfig().getClientUserId()) ||
+                                threadMessageObjects != null && threadMessageObjects.contains(message) ||
+                                getMessageType(message) == 1 && (message.getDialogId() == mergeDialogId || message.needDrawBluredPreview()) ||
+                                currentEncryptedChat == null && message.getId() < 0 ||
+                                bottomOverlayChat != null && bottomOverlayChat.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && allowReplyOnOpenTopic || message.wasJustSent) ||
+                                currentChat != null && (ChatObject.isNotInChat(currentChat) && !isThreadChat() ||
+                                ChatObject.isChannel(currentChat) && !ChatObject.canPost(currentChat) && !currentChat.megagroup ||
+                                !ChatObject.canSendMessages(currentChat) ||
+                                (ChatObject.isForum(currentChat) && !allowReplyOnOpenTopic)) ||
+                                textSelectionHelper.isInSelectionMode()
                         ) {
                             slidingView.setSlidingOffset(0);
                             slidingView = null;
@@ -5176,40 +4825,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 } else if (slidingView != null && (e == null || e.getPointerId(0) == startedTrackingPointerId && (e.getAction() == MotionEvent.ACTION_CANCEL || e.getAction() == MotionEvent.ACTION_UP || e.getAction() == MotionEvent.ACTION_POINTER_UP))) {
                     if (e != null && e.getAction() != MotionEvent.ACTION_CANCEL && Math.abs(slidingView.getNonAnimationTranslationX(false)) >= AndroidUtilities.dp(50)) {
-                        MessageObject message = slidingView.getMessageObject();
-                        final boolean allowReplyOnOpenTopic = canSendMessageToTopic(message);
-                        if (
-                            bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && allowReplyOnOpenTopic || message.wasJustSent) ||
-                            currentChat != null && (
-                                ChatObject.isNotInChat(currentChat) && !isThreadChat() ||
-                                ChatObject.isChannel(currentChat) && !ChatObject.canPost(currentChat) && !currentChat.megagroup ||
-                                !ChatObject.canSendMessages(currentChat)
-                            )
-                        ) {
-                            if (message.getGroupId() != 0) {
-                                MessageObject.GroupedMessages group = getGroup(message.getGroupId());
-                                if (group != null && group.captionMessage != null) {
-                                    message = group.captionMessage;
-                                }
-                            }
-                            replyingMessageObject = message;
-                            Bundle args = new Bundle();
-                            args.putBoolean("onlySelect", true);
-                            args.putInt("dialogsType", DialogsActivity.DIALOGS_TYPE_FORWARD);
-                            args.putBoolean("quote", true);
-                            args.putBoolean("reply_to", true);
-                            final long author = DialogObject.getPeerDialogId(message.getFromPeer());
-                            if (author != 0 && author != getDialogId() && author != getUserConfig().getClientUserId() && author > 0) {
-                                args.putLong("reply_to_author", author);
-                            }
-                            args.putInt("messagesCount", 1);
-                            args.putBoolean("canSelectTopics", true);
-                            final DialogsActivity fragment = new DialogsActivity(args);
-                            fragment.setDelegate(ChatActivity.this);
-                            presentFragment(fragment);
-                        } else {
-                            showFieldPanelForReply(slidingView.getMessageObject());
-                        }
+                        showFieldPanelForReply(slidingView.getMessageObject());
                     }
                     endTrackingX = slidingView.getSlidingOffsetX();
                     if (endTrackingX == 0) {
@@ -5254,7 +4870,7 @@ public class ChatActivity extends BaseFragment implements
                             AnimatorSet animatorSet = new AnimatorSet();
                             pullingDownBackAnimator = animatorSet;
                             if (pullingDownDrawable != null) {
-                                animatorPullingDownContainerVisibility.setValue(false, true);
+                                pullingDownDrawable.showBottomPanel(false);
                             }
                             ValueAnimator animator = ValueAnimator.ofFloat(pullingDownOffset, AndroidUtilities.dp(111));
                             animator.addUpdateListener(valueAnimator -> {
@@ -5279,7 +4895,7 @@ public class ChatActivity extends BaseFragment implements
                             ValueAnimator animator = ValueAnimator.ofFloat(pullingDownOffset, 0);
                             pullingDownBackAnimator = animator;
                             if (pullingDownDrawable != null) {
-                                animatorPullingDownContainerVisibility.setValue(false, true);
+                                pullingDownDrawable.showBottomPanel(false);
                             }
                             animator.addUpdateListener(valueAnimator -> {
                                 pullingDownOffset = (float) valueAnimator.getAnimatedValue();
@@ -5373,17 +4989,11 @@ public class ChatActivity extends BaseFragment implements
                     c.save();
                     float transitionOffset = 0;
                     if (pullingDownAnimateProgress != 0) {
-                        transitionOffset = (
-                            chatListView.getMeasuredHeight()
-                                - pullingDownOffset
-                                + (pullingDownAnimateToActivity == null ? 0 : pullingDownAnimateToActivity.pullingBottomOffset)
-                        ) * pullingDownAnimateProgress;
+                        transitionOffset = (chatListView.getMeasuredHeight() - pullingDownOffset + (pullingDownAnimateToActivity == null ? 0 : pullingDownAnimateToActivity.pullingBottomOffset)) * pullingDownAnimateProgress;
                     }
-
                     c.translate(0, getMeasuredHeight() - blurredViewBottomOffset - transitionOffset);
                     if (pullingDownDrawable == null) {
                         pullingDownDrawable = new ChatPullingDownDrawable(currentAccount, fragmentView, dialog_id, dialogFolderId, dialogFilterId, getTopicId(), themeDelegate);
-                        pullingDownDrawable.progressToBottomPanel = animatorPullingDownContainerVisibility.getFloatValue();
                         if (nextChannels != null && !nextChannels.isEmpty()) {
                             pullingDownDrawable.updateDialog(nextChannels.get(0));
                         } else if (isTopic) {
@@ -5393,11 +5003,9 @@ public class ChatActivity extends BaseFragment implements
                         }
                         pullingDownDrawable.onAttach();
                     }
-                    pullingDownDrawable.setWidth(getMeasuredWidth() - (isSideMenued() ? dp(SIDE_MENU_WIDTH) : 0));
+                    pullingDownDrawable.setWidth(getMeasuredWidth() - (isSideMenued() ? dp(64) : 0));
                     float progress = Math.min(1f, pullingDownOffset / AndroidUtilities.dp(110));
-                    c.translate(isSideMenued() ? lerp(dp(32), dp(SIDE_MENU_WIDTH), getSideMenuAlpha()) : 0,
-                        -(windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(10) +
-                        chatInputViewsContainer.getInputBubbleHeight() + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)));
+                    c.translate(isSideMenued() ? lerp(dp(32), dp(64), getSideMenuAlpha()) : 0, 0);
                     pullingDownDrawable.draw(c, chatListView, progress, 1f - pullingDownAnimateProgress);
 
                     c.restore();
@@ -5424,7 +5032,7 @@ public class ChatActivity extends BaseFragment implements
                     updateSkeletonColors();
                     updateSkeletonGradient();
 
-                    int lastTop = getHeight() - blurredViewBottomOffset - (int) (windowInsetsStateHolder.getAnimatedMaxBottomInset() + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)) - dp(44 + 7 + 9 - 3);
+                    int lastTop = getHeight() - blurredViewBottomOffset;
                     int j = 0;
 
                     int childMaxTop = Integer.MAX_VALUE;
@@ -5559,7 +5167,7 @@ public class ChatActivity extends BaseFragment implements
                         lastTop = messageSkeletons.isEmpty() ? getHeight() - blurredViewBottomOffset : messageSkeletons.get(0).lastBottom + AndroidUtilities.dp(3f);
                         int left = dp(noAvatar ? 3 : 51);
                         if (isSideMenued()) {
-                            left = lerp(left, dp(SIDE_MENU_WIDTH), getSideMenuAlpha());
+                            left = lerp(left, dp(64), getSideMenuAlpha());
                         }
                         for (int i = 0; i < messageSkeletons.size() && lastTop > blurredViewTopOffset; i++) {
                             lastTop -= dp(3f);
@@ -5651,7 +5259,6 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
-
             @Override
             protected void dispatchDraw(Canvas canvas) {
                 drawLaterRoundProgressCell = null;
@@ -5659,7 +5266,7 @@ public class ChatActivity extends BaseFragment implements
 
                 canvas.save();
                 if ((fragmentTransition == null || (fromPullingDownTransition && !toPullingDownTransition)) && !isInsideContainer) {
-                    // canvas.clipRect(0, chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4), getMeasuredWidth(), getMeasuredHeight() - blurredViewBottomOffset);
+                    canvas.clipRect(0, chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4), getMeasuredWidth(), getMeasuredHeight() - blurredViewBottomOffset);
                 }
                 selectorRect.setEmpty();
                 if (pullingDownOffset != 0) {
@@ -5681,14 +5288,11 @@ public class ChatActivity extends BaseFragment implements
                 canvas.restore();
             }
 
-            protected void drawChatForegroundElements(Canvas canvas, RectF position) {
+            private void drawChatForegroundElements(Canvas canvas) {
                 int size = drawTimeAfter.size();
                 if (size > 0) {
                     for (int a = 0; a < size; a++) {
                         ChatMessageCell cell = drawTimeAfter.get(a);
-                        if (quickRejectChild(cell, position)) {
-                            continue;
-                        }
                         canvas.save();
                         canvas.translate(cell.getLeft() + cell.getNonAnimationTranslationX(false), cell.getY() + cell.getPaddingTop());
                         cell.drawTime(canvas, cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f, true);
@@ -5700,9 +5304,6 @@ public class ChatActivity extends BaseFragment implements
                 if (size > 0) {
                     for (int a = 0; a < size; a++) {
                         ChatMessageCell cell = drawNamesAfter.get(a);
-                        if (quickRejectChild(cell, position)) {
-                            continue;
-                        }
                         float canvasOffsetX = cell.getLeft() + cell.getNonAnimationTranslationX(false);
                         float canvasOffsetY = cell.getY() + cell.getPaddingTop();
                         float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
@@ -5720,9 +5321,6 @@ public class ChatActivity extends BaseFragment implements
                 if (size > 0) {
                     for (int a = 0; a < size; a++) {
                         ChatMessageCell cell = drawCaptionAfter.get(a);
-                        if (quickRejectChild(cell, position)) {
-                            continue;
-                        }
                         boolean selectionOnly = false;
                         if (cell.getCurrentPosition() != null) {
                             selectionOnly = (cell.getCurrentPosition().flags & MessageObject.POSITION_FLAG_LEFT) == 0;
@@ -5762,9 +5360,6 @@ public class ChatActivity extends BaseFragment implements
                 if (size > 0) {
                     for (int a = 0; a < size; a++) {
                         ChatMessageCell cell = drawReactionsAfter.get(a);
-                        if (quickRejectChild(cell, position)) {
-                            continue;
-                        }
                         boolean selectionOnly = false;
                         if (cell.getCurrentPosition() != null) {
                             selectionOnly = (cell.getCurrentPosition().flags & MessageObject.POSITION_FLAG_LEFT) == 0;
@@ -5803,13 +5398,13 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
-            protected void drawChatBackgroundElements(Canvas canvas, RectF positionF) {
+            private void drawChatBackgroundElements(Canvas canvas) {
                 final int count = getChildCount();
                 MessageObject.GroupedMessages lastDrawnGroup = null;
 
                 for (int a = 0; a < count; a++) {
                     View child = getChildAt(a);
-                    if (child.getVisibility() == View.INVISIBLE || child.getVisibility() == View.GONE || quickRejectChild(child, positionF)) {
+                    if (child.getVisibility() == View.INVISIBLE || child.getVisibility() == View.GONE) {
                         continue;
                     }
                     if (chatAdapter.isBot && child instanceof BotHelpCell) {
@@ -6019,7 +5614,7 @@ public class ChatActivity extends BaseFragment implements
                     for (int i = 0; i < drawingGroups.size(); i++) {
                         final MessageObject.GroupedMessages group = drawingGroups.get(i);
                         if (group == scrimGroup) {
-                             // continue;
+                            continue;
                         }
                         float x = group.transitionParams.cell.getNonAnimationTranslationX(true);
                         float l = (group.transitionParams.left + x + group.transitionParams.offsetLeft);
@@ -6032,11 +5627,9 @@ public class ChatActivity extends BaseFragment implements
                             b += group.transitionParams.cell.getTranslationY();
                         }
 
-                        /*
                         if (t < chatListViewPaddingTop - chatListViewPaddingVisibleOffset - dp(20)) {
                             t = chatListViewPaddingTop - chatListViewPaddingVisibleOffset - dp(20);
                         }
-                        */
 
                         if (b > chatListView.getMeasuredHeight() + dp(20)) {
                             b = chatListView.getMeasuredHeight() + dp(20);
@@ -6056,10 +5649,8 @@ public class ChatActivity extends BaseFragment implements
                                 break;
                             }
                         }
-                        group.transitionParams.cell.drawBackground(canvas, (int) l, (int) t, (int) r, (int) b, group.transitionParams.pinnedTop, group.transitionParams.pinnedBotton, selected, 0);
-                        if (group != scrimGroup) {
-                            group.transitionParams.cell = null;
-                        }
+                        group.transitionParams.cell.drawBackground(canvas, (int) l, (int) t, (int) r, (int) b, group.transitionParams.pinnedTop, group.transitionParams.pinnedBotton, selected, contentView.getKeyboardHeight());
+                        group.transitionParams.cell = null;
                         group.transitionParams.drawCaptionLayout = group.hasCaption;
                         if (useScale) {
                             canvas.restore();
@@ -6090,7 +5681,7 @@ public class ChatActivity extends BaseFragment implements
                 boolean skipDraw = child == scrimView && scrimViewTask == null;
                 ChatMessageCell cell;
                 ChatActionCell actionCell = null;
-                float cilpTop = 0; // chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4);
+                float cilpTop = chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4);
                 boolean isAnimatingBounds = false;
                 if (child instanceof ChatMessageCell) {
                     cell = (ChatMessageCell) child;
@@ -6139,16 +5730,6 @@ public class ChatActivity extends BaseFragment implements
                 } else if (clipBottom != 0) {
                     canvas.save();
                 }
-
-                if (skipDraw) {
-                    /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        if (DownscaleScrollableNoiseSuppressor.isRecordingCanvas(canvas)) {
-                            skipDraw = false;
-                        }
-                    }*/
-                    skipDraw = false;
-                }
-
                 boolean result;
                 if (!skipDraw) {
                     boolean clipToGroupBounds = (cell != null && !cell.transitionParams.needsStopClipping) && (group != null && group.transitionParams.backgroundChangeBounds);
@@ -6482,9 +6063,11 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
                 super.onInitializeAccessibilityNodeInfo(info);
-                AccessibilityNodeInfo.CollectionInfo collection = info.getCollectionInfo();
-                if (collection != null) {
-                    info.setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(collection.getRowCount(), 1, false));
+                if (Build.VERSION.SDK_INT >= 19) {
+                    AccessibilityNodeInfo.CollectionInfo collection = info.getCollectionInfo();
+                    if (collection != null) {
+                        info.setCollectionInfo(AccessibilityNodeInfo.CollectionInfo.obtain(collection.getRowCount(), 1, false));
+                    }
                 }
             }
 
@@ -6495,9 +6078,20 @@ public class ChatActivity extends BaseFragment implements
                 }
                 return super.createAccessibilityNodeInfo();
             }
+
+            @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                chatListViewAttached = true;
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                super.onDetachedFromWindow();
+                chatListViewAttached = false;
+            }
         };
-        chatListView.addEdgeEffectListener(() -> invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL | BLUR_INVALIDATE_FLAG_CLIP));
-        if (currentEncryptedChat != null) {
+        if (currentEncryptedChat != null && Build.VERSION.SDK_INT >= 19) {
             chatListView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         }
         chatListView.setHideIfEmpty(false);
@@ -6514,10 +6108,8 @@ public class ChatActivity extends BaseFragment implements
         }
         chatListView.setAnimateEmptyView(true, RecyclerListView.EMPTY_VIEW_ANIMATION_TYPE_ALPHA_SCALE);
         chatListView.setScrollBarStyle(View.SCROLLBARS_OUTSIDE_OVERLAY);
-        chatListViewPaddingsAnimator = new ChatListViewPaddingsAnimator(chatListView);
         chatListViewPaddingTop = 0;
         paddingTopHeight = 0;
-        botDraftHeightController.setRecyclerView(chatListView);
         invalidateChatListViewTopPadding();
         if (MessagesController.getGlobalMainSettings().getBoolean("view_animations", true)) {
             chatListItemAnimator = new ChatListItemAnimator(this, chatListView, themeDelegate) {
@@ -6716,13 +6308,6 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
-            /*
-            @Override
-            public boolean canScrollVertically() {
-                return !isInPollAddOptionMode() && super.canScrollVertically();
-            }
-            */
-
             @Override
             public int scrollVerticallyBy(int dy, RecyclerView.Recycler recycler, RecyclerView.State state) {
                 if (dy < 0 && pullingDownOffset != 0) {
@@ -6755,8 +6340,7 @@ public class ChatActivity extends BaseFragment implements
                 if (!foundTopView) {
                     scrolled = super.scrollVerticallyBy(dy, recycler, state);
                 }
-                final boolean allowPullingDownScroll = !isInPollAddOptionMode() && !hasSelectedMessages();
-                if (allowPullingDownScroll && dy > 0 && scrolled == 0 && (ChatObject.isChannel(currentChat) && !currentChat.megagroup || isTopic && !UserObject.isBotForum(currentUser)) && chatMode != MODE_SAVED && chatMode != MODE_SCHEDULED && chatListView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING && !chatListView.isFastScrollAnimationRunning() && !chatListView.isMultiselect() && !isReport() && !MessagesController.getGlobalMainSettings().getBoolean("disableSlideToNextChannel", false)) {
+                if (dy > 0 && scrolled == 0 && (ChatObject.isChannel(currentChat) && !currentChat.megagroup || isTopic && !UserObject.isBotForum(currentUser)) && chatMode != MODE_SAVED && chatMode != MODE_SCHEDULED && chatListView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING && !chatListView.isFastScrollAnimationRunning() && !chatListView.isMultiselect() && !isReport()) {
                     if (pullingDownOffset == 0 && pullingDownDrawable != null) {
                         if (nextChannels != null && !nextChannels.isEmpty()) {
                             pullingDownDrawable.updateDialog(nextChannels.get(0));
@@ -6784,9 +6368,6 @@ public class ChatActivity extends BaseFragment implements
 
                     pullingDownOffset += dy * k;
                     ReactionsEffectOverlay.onScrolled((int) (dy * k));
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && scrollableViewNoiseSuppressor != null) {
-                        scrollableViewNoiseSuppressor.onScrolled(0, (dy * k));
-                    }
                     chatListView.invalidate();
                 }
                 if (pullingDownOffset == 0) {
@@ -6795,7 +6376,7 @@ public class ChatActivity extends BaseFragment implements
                     chatListView.setOverScrollMode(View.OVER_SCROLL_NEVER);
                 }
                 if (pullingDownDrawable != null) {
-                    animatorPullingDownContainerVisibility.setValue(pullingDownOffset > 0 && chatListView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING, true);
+                    pullingDownDrawable.showBottomPanel(pullingDownOffset > 0 && chatListView.getScrollState() == RecyclerView.SCROLL_STATE_DRAGGING);
                 }
                 return scrolled;
             }
@@ -6879,7 +6460,6 @@ public class ChatActivity extends BaseFragment implements
                     chatListView.setOverScrollMode(RecyclerView.OVER_SCROLL_ALWAYS);
                     textSelectionHelper.stopScrolling();
                     updateVisibleRows();
-                    invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL);
                     scrollByTouch = false;
                 } else {
                     if (groupEmojiPackHint != null && groupEmojiPackHint.shown()) {
@@ -6957,7 +6537,6 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 if (dy != 0) {
-                    invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_SCROLL);
                     contentView.invalidateBlur();
                     hideHints(true);
                 }
@@ -6984,11 +6563,8 @@ public class ChatActivity extends BaseFragment implements
                             updatePagedownButtonVisibility(true);
                         }
                     } else {
-                        final boolean isPageDownButtonVisible = sideControlsButtonsLayout.isButtonVisible(
-                            ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN);
-
                         if (dy > 0) {
-                            if (!isPageDownButtonVisible) {
+                            if (pagedownButton.getTag() == null) {
                                 totalDy += dy;
                                 if (totalDy > scrollValue) {
                                     totalDy = 0;
@@ -6998,7 +6574,7 @@ public class ChatActivity extends BaseFragment implements
                                 }
                             }
                         } else {
-                            if (pagedownButtonShowedByScroll && isPageDownButtonVisible) {
+                            if (pagedownButtonShowedByScroll && pagedownButton.getTag() != null) {
                                 totalDy += dy;
                                 if (totalDy < -scrollValue) {
                                     canShowPagedownButton = false;
@@ -7013,9 +6589,6 @@ public class ChatActivity extends BaseFragment implements
                 textSelectionHelper.onParentScrolled();
                 emojiAnimationsOverlay.onScrolled(dy);
                 ReactionsEffectOverlay.onScrolled(dy);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && scrollableViewNoiseSuppressor != null) {
-                    scrollableViewNoiseSuppressor.onScrolled(dx, dy);
-                }
 
                 checkTranslation(false);
 
@@ -7046,15 +6619,10 @@ public class ChatActivity extends BaseFragment implements
                 if (starReactionsOverlay != null) {
                     starReactionsOverlay.invalidate();
                 }
-                if (botDraftHeightController != null) {
-                    botDraftHeightController.onScroll();
-                }
             }
         });
 
         contentView.addView(chatListView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        contentView.addView(topPanelLayoutFade, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 120, Gravity.LEFT | Gravity.TOP));
-
 
         if (getDialogId() != getUserConfig().getClientUserId()) {
             selectionReactionsOverlay = new ChatSelectionReactionMenuOverlay(this, context);
@@ -7121,7 +6689,7 @@ public class ChatActivity extends BaseFragment implements
                 topicsTabs.selectTopic(topicId, true);
             }
         });
-        floatingTopicSeparator.setVisibility(View.INVISIBLE);
+        floatingTopicSeparator.setAlpha(0.f);
         contentView.addView(floatingTopicSeparator, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
 
         floatingDateView = new ChatActionCell(context, false, themeDelegate) {
@@ -7170,19 +6738,13 @@ public class ChatActivity extends BaseFragment implements
                     super.onDraw(canvas);
                 }
             }
-
-            @Override
-            public void setAlpha(float alpha) {
-                super.setAlpha(alpha);
-                setVisibility(alpha > 0 ? View.VISIBLE : INVISIBLE);
-            }
         };
         floatingDateView.setCustomDate((int) (System.currentTimeMillis() / 1000), false, false);
         floatingDateView.setAlpha(0.0f);
         floatingDateView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         floatingDateView.setInvalidateColors(true);
         contentView.addView(floatingDateView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
-        floatingDateView.setOnActionClickListener(view -> {
+        floatingDateView.setOnClickListener(view -> {
             if (floatingDateView.getAlpha() == 0 || actionBar.isActionModeShowed() || isReport()) {
                 return;
             }
@@ -7198,54 +6760,220 @@ public class ChatActivity extends BaseFragment implements
         });
 
         if (currentChat != null) {
-            pendingRequestsDelegate = new ChatActivityMemberRequestsDelegate(this, currentChat);
-            topPanelLayout.addView(pendingRequestsDelegate.getView(), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 40));
-            topPanelLayout.setPriority(pendingRequestsDelegate.getView(), 3);
-            topPanelLayout.setDebugName(pendingRequestsDelegate.getView(), "pendingRequestsDelegate");
-            pendingRequestsDelegate.setDelegate((v, a) -> topPanelLayout.setViewVisible(pendingRequestsDelegate.getView(), v, a));
+            pendingRequestsDelegate = new ChatActivityMemberRequestsDelegate(this, contentView, currentChat, this::invalidateChatListViewTopPadding);
             pendingRequestsDelegate.setChatInfo(chatInfo, false);
+            contentView.addView(pendingRequestsDelegate.getView(), ViewGroup.LayoutParams.MATCH_PARENT, pendingRequestsDelegate.getViewHeight());
+            pendingRequestsDelegate.setLeftMargin(getSideMenuWidth());
         }
-
-        floatingDateView.setOnLongClickListener(view -> {
-            if (getParentActivity() == null) {
-                return false;
-            }
-            AndroidUtilities.hideKeyboard(searchItem.getSearchField());
-            showDialog(AlertsCreator.createCalendarPickerDialog(getParentActivity(), 1375315200000L, this::jumpToDate, themeDelegate).create());
-            return true;
-        });
 
         pinnedMessageView = null;
 
         undoView = null;
         topUndoView = null;
         topChatPanelView = null;
+        topChatPanelView2 = null;
         reportSpamButton = null;
         emojiStatusSpamHint = null;
+        topViewSeparator1 = null;
+        topViewSeparator2 = null;
+        topViewSeparator3 = null;
         addToContactsButton = null;
         restartTopicButton = null;
         closeReportSpam = null;
         translateButton = null;
-        addProfilePictureButton = null;
         topicsTabs = null;
         botAdView = null;
         bizBotButton = null;
 
-        // topButtonsLayout = new ChatActivitySideControlsButtonsLayout(context, resourceProvider, blurredBackgroundColorProvider, glassBackgroundDrawableFactory);
-        // topButtonsLayout.setOnClickListener(this::onSideControlButtonOnClick);
-        // topButtonsLayout.setOnLongClickListener(this::onSideControlButtonOnLongClick);
-        // topButtonsLayout.setGravity(Gravity.TOP | Gravity.RIGHT);
-        // contentView.addView(topButtonsLayout, LayoutHelper.createFrame(57, 300, Gravity.RIGHT | Gravity.TOP));
+        pagedownButton = new FrameLayout(context);
+        pagedownButton.setVisibility(View.INVISIBLE);
+        contentView.addView(pagedownButton, LayoutHelper.createFrame(66, 61, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, -3, 5));
+        pagedownButton.setOnClickListener(view -> onPageDownClicked());
+        ScaleStateListAnimator.apply(pagedownButton, .13f, 2f);
 
-        sideControlsButtonsLayout = new ChatActivitySideControlsButtonsLayout(context, resourceProvider, blurredBackgroundColorProvider, glassBackgroundDrawableFactory);
-        sideControlsButtonsLayout.setOnClickListener(this::onSideControlButtonOnClick);
-        sideControlsButtonsLayout.setOnLongClickListener(this::onSideControlButtonOnLongClick);
-        contentView.addView(sideControlsButtonsLayout, LayoutHelper.createFrame(57, 300, Gravity.RIGHT | Gravity.BOTTOM));
+        searchUpButton = new FrameLayout(context);
+        searchUpButton.setVisibility(View.INVISIBLE);
+        contentView.addView(searchUpButton, LayoutHelper.createFrame(66, 61, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, -3, 5));
+        ImageView searchUpButtonImage = new ImageView(context);
+        searchUpButtonImage.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        Drawable drawable;
+        if (Build.VERSION.SDK_INT >= 21) {
+            searchUpButtonImage.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setOval(0, 0, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+                }
+            });
+            drawable = Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton), getThemedColor(Theme.key_listSelector));
+        } else {
+            drawable = Theme.createCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton));
+        }
+        Drawable shadowDrawable = context.getResources().getDrawable(R.drawable.floating_shadow).mutate();
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff000000, PorterDuff.Mode.MULTIPLY));
+        CombinedDrawable combinedDrawable = new CombinedDrawable(shadowDrawable, drawable, 0, 0);
+        combinedDrawable.setIconSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+        drawable = combinedDrawable;
+        searchUpButtonImage.setBackground(drawable);
+        searchUpButton.addView(searchUpButtonImage, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+        searchUpButton.setContentDescription(LocaleController.getString(R.string.AccDescrSearchNext));
+        searchUpButtonArrow = new ImageView(context);
+        searchUpButtonArrow.setScaleY(-1f);
+        searchUpButtonArrow.setImageResource(R.drawable.pagedown);
+        searchUpButtonArrow.setScaleType(ImageView.ScaleType.CENTER);
+        searchUpButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        searchUpButtonArrow.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        searchUpButton.addView(searchUpButtonArrow, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+        ScaleStateListAnimator.apply(searchUpButton, .12f, 2f);
 
-        contentView.addView(topPanelLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
+        searchDownButton = new FrameLayout(context);
+        searchDownButton.setVisibility(View.INVISIBLE);
+        contentView.addView(searchDownButton, LayoutHelper.createFrame(66, 61, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, -3, 5));
+        ImageView searchDownButtonImage = new ImageView(context);
+        searchDownButtonImage.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        if (Build.VERSION.SDK_INT >= 21) {
+            searchDownButtonImage.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setOval(0, 0, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+                }
+            });
+            drawable = Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton), getThemedColor(Theme.key_listSelector));
+        } else {
+            drawable = Theme.createCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton));
+        }
+        shadowDrawable = context.getResources().getDrawable(R.drawable.floating_shadow).mutate();
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff000000, PorterDuff.Mode.MULTIPLY));
+        combinedDrawable = new CombinedDrawable(shadowDrawable, drawable, 0, 0);
+        combinedDrawable.setIconSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+        drawable = combinedDrawable;
+        searchDownButtonImage.setBackground(drawable);
+        searchDownButton.addView(searchDownButtonImage, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+        searchDownButton.setContentDescription(LocaleController.getString(R.string.AccDescrSearchPrev));
+        searchDownButtonArrow = new ImageView(context);
+        searchDownButtonArrow.setImageResource(R.drawable.pagedown);
+        searchDownButtonArrow.setScaleType(ImageView.ScaleType.CENTER);
+        searchDownButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        searchDownButtonArrow.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        searchDownButton.addView(searchDownButtonArrow, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+        ScaleStateListAnimator.apply(searchDownButton, .12f, 2f);
+
+        searchUpButton.setOnClickListener(view -> {
+            if (chatMode == MODE_SEARCH) {
+                HashtagSearchController.getInstance(currentAccount).jumpToMessage(classGuid, hashtagSearchSelectedIndex + 1, searchType);
+            } else {
+                getMediaDataController().searchMessagesInChat(null, dialog_id, mergeDialogId, classGuid, reversed ? 2 : 1, threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
+                showMessagesSearchListView(false);
+            }
+        });
+        searchDownButton.setOnClickListener(view -> {
+            if (chatMode == MODE_SEARCH) {
+                HashtagSearchController.getInstance(currentAccount).jumpToMessage(classGuid, hashtagSearchSelectedIndex - 1, searchType);
+            } else {
+                getMediaDataController().searchMessagesInChat(null, dialog_id, mergeDialogId, classGuid, reversed ? 1 : 2, threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
+                showMessagesSearchListView(false);
+            }
+        });
+
+        mentiondownButton = new FrameLayout(context);
+        mentiondownButton.setVisibility(View.INVISIBLE);
+        contentView.addView(mentiondownButton, LayoutHelper.createFrame(46, 61, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 7, 5));
+        mentiondownButton.setOnClickListener(new View.OnClickListener() {
+
+            private void loadLastUnreadMention() {
+                wasManualScroll = true;
+                if (hasAllMentionsLocal) {
+                    getMessagesStorage().getUnreadMention(dialog_id, getTopicId(), param -> {
+                        if (param == 0) {
+                            hasAllMentionsLocal = false;
+                            loadLastUnreadMention();
+                        } else {
+                            scrollToMessageId(param, 0, false, 0, true, 0);
+                        }
+                    });
+                } else {
+                    final MessagesStorage messagesStorage = getMessagesStorage();
+                    TLRPC.TL_messages_getUnreadMentions req = new TLRPC.TL_messages_getUnreadMentions();
+                    req.peer = getMessagesController().getInputPeer(dialog_id);
+                    req.limit = 1;
+                    if (isTopic) {
+                        req.top_msg_id = (int) threadMessageId;
+                        req.flags |= 1;
+                    }
+                    req.add_offset = newMentionsCount - 1;
+                    getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                        TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
+                        if (error != null || res.messages.isEmpty()) {
+                            if (res != null) {
+                                newMentionsCount = res.count;
+                            } else {
+                                newMentionsCount = 0;
+                            }
+                            messagesStorage.resetMentionsCount(dialog_id, getTopicId(), newMentionsCount);
+                            if (newMentionsCount == 0) {
+                                hasAllMentionsLocal = true;
+                                showMentionDownButton(false, true);
+                            } else {
+                                mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
+                                loadLastUnreadMention();
+                            }
+                        } else {
+                            int id = res.messages.get(0).id;
+                            MessageObject object = messagesDict[0].get(id);
+                            messagesStorage.markMessageAsMention(dialog_id, id);
+                            if (object != null) {
+                                object.messageOwner.media_unread = true;
+                                object.messageOwner.mentioned = true;
+                            }
+                            scrollToMessageId(id, 0, false, 0, true, 0);
+                        }
+                    }));
+                }
+            }
+
+            @Override
+            public void onClick(View view) {
+                loadLastUnreadMention();
+            }
+        });
+        mentiondownButton.setOnLongClickListener(view -> {
+            scrimPopupWindow = ReadAllMentionsMenu.show(ReadAllMentionsMenu.TYPE_MENTIONS, getParentActivity(), getParentLayout(), contentView, view, getResourceProvider(), () -> {
+                for (int a = 0; a < messages.size(); a++) {
+                    MessageObject messageObject = messages.get(a);
+                    if (messageObject.messageOwner.mentioned && !messageObject.isContentUnread()) {
+                        messageObject.setContentIsRead();
+                    }
+                }
+                newMentionsCount = 0;
+                getMessagesController().markMentionsAsRead(dialog_id, getTopicId());
+                hasAllMentionsLocal = true;
+                showMentionDownButton(false, true);
+                if (scrimPopupWindow != null) {
+                    scrimPopupWindow.dismiss();
+                }
+            });
+            dimBehindView(mentiondownButton, true);
+            scrimPopupWindow.setOnDismissListener(() -> {
+                scrimPopupWindow = null;
+                menuDeleteItem = null;
+                scrimPopupWindowItems = null;
+                chatLayoutManager.setCanScrollVertically(true);
+                dimBehindView(false);
+                if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
+                    chatActivityEnterView.getEditField().setAllowDrawCursor(true);
+                }
+            });
+            try {
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            } catch (Exception ignored) {}
+            return true;
+        });
 
         updateMessageListAccessibilityVisibility();
-        mentionContainer = new MentionsContainerView(context, dialog_id, threadMessageId, ChatActivity.this, themeDelegate) {
+
+        reactionsMentiondownButton = new FrameLayout(context);
+        contentView.addView(reactionsMentiondownButton, LayoutHelper.createFrame(46, 61, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 7, 5));
+
+        mentionContainer = new MentionsContainerView(context, dialog_id, threadMessageId, ChatActivity.this, contentView, themeDelegate) {
 
             @Override
             protected boolean canOpen() {
@@ -7315,13 +7043,13 @@ public class ChatActivity extends BaseFragment implements
             mentionContainer.setAlpha(0f);
         }
         mentionContainer.setDialogId(dialog_id);
-        mentionContainer.setBackgroundDrawable(glassBackgroundDrawableFactoryFrosted.create(mentionContainer, blurredBackgroundColorProviderWhite));
         contentView.addView(mentionContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 110, Gravity.LEFT | Gravity.BOTTOM));
 
         contentPreviewViewerDelegate = new ContentPreviewViewer.ContentPreviewViewerDelegate() {
             @Override
             public void sendSticker(TLRPC.Document sticker, String query, Object parent, boolean notify, int scheduleDate, int scheduleRepeatPeriod) {
-                chatActivityEnterView.onStickerSelected(sticker, query, parent, null, true, notify, scheduleDate, scheduleRepeatPeriod);
+                // forkgram-classic: upstream sig added `int scheduleRepeatPeriod` last.
+                chatActivityEnterView.onStickerSelected(sticker, query, parent, null, true, notify, scheduleDate, 0);
             }
 
             @Override
@@ -7434,9 +7162,7 @@ public class ChatActivity extends BaseFragment implements
                 if (searchingForUser && searchContainer != null && searchContainer.getVisibility() == View.VISIBLE) {
                     searchUserMessages(user, null);
                 } else {
-                    SharedPreferences preferences = MessagesController.getGlobalMainSettings();
-                    final boolean mentionByName = !user.bot && preferences.getBoolean("mentionByName", false);
-                    if (UserObject.getPublicUsername(user) != null && !mentionByName) {
+                    if (UserObject.getPublicUsername(user) != null) {
                         chatActivityEnterView.replaceWithText(start, len, "@" + UserObject.getPublicUsername(user) + " ", false);
                     } else {
                         String name = UserObject.getFirstName(user, false);
@@ -7577,34 +7303,174 @@ public class ChatActivity extends BaseFragment implements
             return false;
         });
 
-        if (!isInsideContainer) {
-            fragmentLocationContextViewWrapper = new FrameLayout(context);
-            topPanelLayout.addView(fragmentLocationContextViewWrapper);
-            topPanelLayout.setPriority(fragmentLocationContextViewWrapper, 6);
-            topPanelLayout.setDebugName(fragmentLocationContextViewWrapper, "fragment location");
-            topPanelLayout.setViewVisible(fragmentLocationContextViewWrapper, true, false);
-            fragmentLocationContextView = new FragmentContextView(context, this, null, true, themeDelegate) {
+        pagedownButtonImage = new ImageView(context);
+        pagedownButtonImage.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        if (Build.VERSION.SDK_INT >= 21) {
+            pagedownButtonImage.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
-                public void setVisibility(int visibility) {
-                    topPanelLayout.setViewVisible(fragmentLocationContextViewWrapper, visibility == VISIBLE);
+                public void getOutline(View view, Outline outline) {
+                    outline.setOval(0, 0, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
                 }
-            };
-            fragmentContextViewWrapper = new FrameLayout(context);
-            topPanelLayout.addView(fragmentContextViewWrapper);
-            topPanelLayout.setPriority(fragmentContextViewWrapper, 5);
-            topPanelLayout.setDebugName(fragmentContextViewWrapper, "fragment context");
-            topPanelLayout.setViewVisible(fragmentContextViewWrapper, true, false);
-            fragmentContextView = new FragmentContextView(context, this, null, false, themeDelegate) {
-                @Override
-                public void setVisibility(int visibility) {
-                    topPanelLayout.setViewVisible(fragmentContextViewWrapper, visibility == VISIBLE);
-                }
-            };
+            });
+            drawable = Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton), getThemedColor(Theme.key_listSelector));
+        } else {
+            drawable = Theme.createCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton));
+        }
+        shadowDrawable = context.getResources().getDrawable(R.drawable.floating_shadow).mutate();
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff000000, PorterDuff.Mode.MULTIPLY));
+        combinedDrawable = new CombinedDrawable(shadowDrawable, drawable, 0, 0);
+        combinedDrawable.setIconSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+        drawable = combinedDrawable;
+        pagedownButtonImage.setBackground(drawable);
 
-            fragmentContextView.isInsideBubble = true;
-            fragmentLocationContextView.isInsideBubble = true;
-            fragmentContextViewWrapper.addView(fragmentContextView);
-            fragmentLocationContextViewWrapper.addView(fragmentLocationContextView);
+        pagedownButton.addView(pagedownButtonImage, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+        pagedownButton.setContentDescription(LocaleController.getString(R.string.AccDescrPageDown));
+
+        pagedownButtonArrow = new ImageView(context);
+        pagedownButtonArrow.setImageResource(R.drawable.pagedown);
+        pagedownButtonArrow.setScaleType(ImageView.ScaleType.CENTER);
+        pagedownButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        pagedownButtonArrow.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        pagedownButtonArrow.setPivotX(AndroidUtilities.dp(23));
+        pagedownButtonArrow.setPivotY(AndroidUtilities.dp(33));
+        pagedownButton.addView(pagedownButtonArrow, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+
+        pagedownButtonLoading = new ImageView(context);
+        pagedownButtonLoading.setScaleType(ImageView.ScaleType.CENTER);
+        pagedownButtonLoadingDrawable = new CircularProgressDrawable(AndroidUtilities.dp(18), AndroidUtilities.dp(1.7f), getThemedColor(Theme.key_chat_goDownButton));
+        pagedownButtonLoadingDrawable.setAngleOffset(90);
+        pagedownButtonLoading.setImageDrawable(pagedownButtonLoadingDrawable);
+        pagedownButtonLoading.setAlpha(0f);
+        pagedownButtonLoading.setVisibility(View.GONE);
+        pagedownButton.addView(pagedownButtonLoading, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
+
+        pagedownButtonCounter = new CounterView(context, themeDelegate) {
+            @Override
+            public void invalidate() {
+                if (isInOutAnimation()) {
+                    contentView.invalidate();
+                }
+                super.invalidate();
+            }
+        };
+        pagedownButtonCounter.setReverse(true);
+        pagedownButton.addView(pagedownButtonCounter, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 28, Gravity.TOP | Gravity.LEFT));
+
+        mentiondownButtonImage = new ImageView(context);
+        mentiondownButtonImage.setImageResource(R.drawable.mentionbutton);
+        mentiondownButtonImage.setScaleType(ImageView.ScaleType.CENTER);
+        mentiondownButtonImage.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        mentiondownButtonImage.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        if (Build.VERSION.SDK_INT >= 21) {
+            pagedownButtonImage.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setOval(0, 0, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+                }
+            });
+            drawable = Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton), getThemedColor(Theme.key_listSelector));
+        } else {
+            drawable = Theme.createCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton));
+        }
+        shadowDrawable = context.getResources().getDrawable(R.drawable.floating_shadow).mutate();
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff000000, PorterDuff.Mode.MULTIPLY));
+        combinedDrawable = new CombinedDrawable(shadowDrawable, drawable, 0, 0);
+        combinedDrawable.setIconSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+        drawable = combinedDrawable;
+        mentiondownButtonImage.setBackgroundDrawable(drawable);
+
+        mentiondownButton.addView(mentiondownButtonImage, LayoutHelper.createFrame(46, 46, Gravity.LEFT | Gravity.BOTTOM));
+
+        mentiondownButtonCounter = new SimpleTextView(context);
+        mentiondownButtonCounter.setVisibility(View.INVISIBLE);
+        mentiondownButtonCounter.setTypeface(AndroidUtilities.bold());
+        mentiondownButtonCounter.setTextSize(13);
+        mentiondownButtonCounter.setTextColor(getThemedColor(Theme.key_chat_goDownButtonCounter));
+        mentiondownButtonCounter.setGravity(Gravity.CENTER);
+        mentiondownButtonCounter.setBackgroundDrawable(Theme.createRoundRectDrawable(AndroidUtilities.dp(11.5f), getThemedColor(Theme.key_chat_goDownButtonCounterBackground)));
+        mentiondownButtonCounter.setMinWidth(AndroidUtilities.dp(23));
+        mentiondownButtonCounter.setPadding(AndroidUtilities.dp(8), AndroidUtilities.dp(1), AndroidUtilities.dp(8), 0);
+        mentiondownButton.addView(mentiondownButtonCounter, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 23, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
+        mentiondownButton.setContentDescription(LocaleController.getString(R.string.AccDescrMentionDown));
+
+        reactionsMentiondownButton.setOnClickListener(view -> {
+            wasManualScroll = true;
+            getMessagesController().getNextReactionMention(dialog_id, getTopicId(), reactionsMentionCount, (messageId) -> {
+                if (messageId == 0) {
+                    reactionsMentionCount = 0;
+                    updateReactionsMentionButton(true);
+                    getMessagesController().markReactionsAsRead(dialog_id, getTopicId());
+                } else {
+                    updateReactionsMentionButton(true);
+                    scrollToMessageId(messageId, 0, false, 0, true, 0);
+                }
+            });
+        });
+        reactionsMentiondownButton.setOnLongClickListener(view -> {
+            scrimPopupWindow = ReadAllMentionsMenu.show(ReadAllMentionsMenu.TYPE_REACTIONS, getParentActivity(), getParentLayout(), contentView, view, getResourceProvider(), () -> {
+                for (int i = 0; i < messages.size(); i++) {
+                    messages.get(i).markReactionsAsRead();
+                }
+                reactionsMentionCount = 0;
+                updateReactionsMentionButton(true);
+                getMessagesController().markReactionsAsRead(dialog_id, getTopicId());
+                if (scrimPopupWindow != null) {
+                    scrimPopupWindow.dismiss();
+                }
+            });
+            dimBehindView(reactionsMentiondownButton, true);
+            scrimPopupWindow.setOnDismissListener(() -> {
+                scrimPopupWindow = null;
+                menuDeleteItem = null;
+                scrimPopupWindowItems = null;
+                chatLayoutManager.setCanScrollVertically(true);
+                dimBehindView(false);
+                if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
+                    chatActivityEnterView.getEditField().setAllowDrawCursor(true);
+                }
+            });
+            try {
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            } catch (Exception ignored) {}
+            return false;
+        });
+        reactionsMentiondownButton.setVisibility(View.INVISIBLE);
+        reactionsMentiondownButtonImage = new ImageView(context);
+        reactionsMentiondownButtonImage.setImageResource(R.drawable.reactionbutton);
+        reactionsMentiondownButtonImage.setScaleType(ImageView.ScaleType.CENTER);
+        reactionsMentiondownButtonImage.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        if (Build.VERSION.SDK_INT >= 21) {
+            reactionsMentiondownButtonImage.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setOval(0, 0, AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+                }
+            });
+            drawable = Theme.createSimpleSelectorCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton), getThemedColor(Theme.key_listSelector));
+        } else {
+            drawable = Theme.createCircleDrawable(AndroidUtilities.dp(42), getThemedColor(Theme.key_chat_goDownButton));
+        }
+        shadowDrawable = context.getResources().getDrawable(R.drawable.floating_shadow).mutate();
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(0xff000000, PorterDuff.Mode.MULTIPLY));
+        combinedDrawable = new CombinedDrawable(shadowDrawable, drawable, 0, 0);
+        combinedDrawable.setIconSize(AndroidUtilities.dp(42), AndroidUtilities.dp(42));
+        drawable = combinedDrawable;
+        reactionsMentiondownButtonImage.setBackgroundDrawable(drawable);
+        reactionsMentiondownButton.addView(reactionsMentiondownButtonImage, LayoutHelper.createFrame(46, 46, Gravity.LEFT | Gravity.BOTTOM));
+        reactionsMentiondownButtonCounter = new CounterView(context, themeDelegate);
+        reactionsMentiondownButton.addView(reactionsMentiondownButtonCounter, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 28, Gravity.TOP | Gravity.LEFT));
+        reactionsMentiondownButton.setContentDescription(LocaleController.getString(R.string.AccDescrReactionMentionDown));
+
+        if (!isInsideContainer) {
+            final boolean isSideMenued = !isSubscriberSuggestions && ChatObject.isMonoForum(currentChat) || ChatObject.isForum(currentChat) && ChatObject.areTabsEnabled(currentChat);
+            fragmentLocationContextView = new FragmentContextView(context, this, null, true, themeDelegate, isSideMenued);
+            fragmentContextView = new FragmentContextView(context, this, null, false, themeDelegate, isSideMenued);
+            contentView.addView(fragmentLocationContextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38, Gravity.TOP | Gravity.LEFT, 0, -36, 0, 0));
+            contentView.addView(fragmentContextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 38, Gravity.TOP | Gravity.LEFT, 0, -36, 0, 0));
+
+            fragmentContextView.setAdditionalContextView(fragmentLocationContextView);
+            fragmentLocationContextView.setAdditionalContextView(fragmentContextView);
+
             fragmentContextView.setEnabled(!inPreviewMode);
             fragmentLocationContextView.setEnabled(!inPreviewMode);
 
@@ -7613,20 +7479,9 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
-
-
-
         messagesSearchListContainer = new FrameLayout(context);
-
-        BlurredBackgroundDrawable searchContainerDrawable = glassBackgroundDrawableFactoryFrosted.create(messagesSearchListContainer, blurredBackgroundColorProviderWhite);
-        searchContainerDrawable.setPadding(dp(5));
-        searchContainerDrawable.setRadius(dp(22));
-
-        messagesSearchListContainer.setBackground(searchContainerDrawable);
-        messagesSearchListContainer.setClipToOutline(true);
-        messagesSearchListContainer.setOutlineProvider(searchContainerDrawable.getViewOutlineProvider());
+        messagesSearchListContainer.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         messagesSearchListContainer.setVisibility(View.GONE);
-        messagesSearchListContainer.setPadding(dp(5), dp(5), dp(5), dp(5));
         messagesSearchListContainer.setAlpha(0.0f);
         contentView.addView(messagesSearchListContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 48));
 
@@ -7803,7 +7658,6 @@ public class ChatActivity extends BaseFragment implements
                                 }
                             }
                         };
-                        container.chatActivity.navbarContentSourceWallpaper.setSource(navbarContentSourceWallpaper);
                         container.chatActivity.parentThemeDelegate = themeDelegate;
                         container.chatActivity.parentChatActivity = ChatActivity.this;
                         container.chatActivity.chatActivityDelegate = new ChatActivityDelegate() {
@@ -7824,7 +7678,6 @@ public class ChatActivity extends BaseFragment implements
                         ((PublicStoriesList) view).setTabs(parentChatActivity != null ? parentChatActivity.hashtagSearchTabs.isShown() : hashtagSearchTabs.isShown());
                         ((PublicStoriesList) view).setQuery("", searchingHashtag);
                     }
-                    ViewCompat.requestApplyInsets(view);
                 }
 
                 @Override
@@ -7868,7 +7721,7 @@ public class ChatActivity extends BaseFragment implements
         overlayView = new View(context);
         overlayView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                checkRecordLocked(true, false);
+                checkRecordLocked(false);
             }
             overlayView.getParent().requestDisallowInterceptTouchEvent(true);
             return true;
@@ -7879,16 +7732,32 @@ public class ChatActivity extends BaseFragment implements
 
         instantCameraView = null;
 
+        bottomMessagesActionContainer = new BlurredFrameLayout(context, contentView) {
+            private Rect blurBounds = new Rect();
+            @Override
+            public void onDraw(Canvas canvas) {
+                int bottom = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                Theme.chat_composeShadowDrawable.setBounds(0, 0, getMeasuredWidth(), bottom);
+                Theme.chat_composeShadowDrawable.draw(canvas);
+                blurBounds.set(0, bottom, getMeasuredWidth(), getMeasuredHeight());
+                contentView.drawBlurRect(canvas, getY(), blurBounds, getThemedPaint(Theme.key_paint_chatComposeBackground), false);
+            }
+        };
+        bottomMessagesActionContainer.drawBlur = false;
+        bottomMessagesActionContainer.isTopView = false;
+        bottomMessagesActionContainer.setVisibility(View.INVISIBLE);
+        bottomMessagesActionContainer.setWillNotDraw(false);
+        bottomMessagesActionContainer.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        contentView.addView(bottomMessagesActionContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 51, Gravity.BOTTOM));
+        bottomMessagesActionContainer.setOnTouchListener((v, event) -> true);
+        replyButton = null;
+        forwardButton = null;
+
         chatActivityEnterView = new ChatActivityEnterView(getParentActivity(), contentView, this, chatMode != MODE_EDIT_BUSINESS_LINK, themeDelegate) {
 
             int lastContentViewHeight;
             int messageEditTextPredrawHeigth;
             int messageEditTextPredrawScrollY;
-
-            @Override
-            protected void onChangedIslandTotalHeight(float h) {
-                checkUi_inputIslandHeight();
-            }
 
             @Override
             public boolean onInterceptTouchEvent(MotionEvent ev) {
@@ -7931,12 +7800,6 @@ public class ChatActivity extends BaseFragment implements
             }
 
             @Override
-            public void setVisibility(int visibility) {
-                super.setVisibility(visibility);
-                bottomViewsVisibilityController.setViewVisible(MESSAGE_INPUT_CONTAINER, visibility == VISIBLE, getMeasuredWidth() > 0);
-            }
-
-            @Override
             public void checkAnimation() {
                 if (actionBar.isActionModeShowed() || isReport()) {
                     if (messageEditTextAnimator != null) {
@@ -7952,25 +7815,38 @@ public class ChatActivity extends BaseFragment implements
                     int t = getBackgroundTop();
                     if (chatActivityEnterViewAnimateFromTop != 0 && t != chatActivityEnterViewAnimateFromTop && lastContentViewHeight == contentView.getMeasuredHeight()) {
                         int dy = animatedTop + chatActivityEnterViewAnimateFromTop - t;
-                        setAnimatedTop(dy);
+                        animatedTop = dy;
                         messageEditTextContainer.invalidate();
                         if (changeBoundAnimator != null) {
                             changeBoundAnimator.removeAllListeners();
                             changeBoundAnimator.cancel();
                         }
 
-                        // chatListView.setTranslationY(dy);
+                        chatListView.setTranslationY(dy);
                         if (topView != null && topView.getVisibility() == View.VISIBLE) {
-                            topView.setTranslationY(animatedTop + (1f - getTopViewEnterProgress()) * topView.getLayoutParams().height);
+                            topView.setTranslationY(animatedTop + (1f - topViewEnterProgress) * topView.getLayoutParams().height);
+                            if (topLineView != null) {
+                                topLineView.setTranslationY(animatedTop);
+                            }
+                        }
+                        if (mentionContainer != null) {
+                            mentionContainer.setTranslationY(dy);
                         }
 
                         changeBoundAnimator = ValueAnimator.ofFloat(dy, 0);
                         changeBoundAnimator.addUpdateListener(a -> {
                             float top = (float) a.getAnimatedValue();
-                            setAnimatedTop((int) top);
+                            animatedTop = (int) top;
                             if (topView != null && topView.getVisibility() == View.VISIBLE) {
-                                topView.setTranslationY(top + (1f - getTopViewEnterProgress()) * topView.getLayoutParams().height);
+                                topView.setTranslationY(top + (1f - topViewEnterProgress) * topView.getLayoutParams().height);
+                                if (topLineView != null) {
+                                    topLineView.setTranslationY(top);
+                                }
                             } else {
+                                if (mentionContainer != null) {
+                                    mentionContainer.setTranslationY(top);
+                                }
+                                chatListView.setTranslationY(top);
                                 invalidateChatListViewTopPadding();
                                 invalidateMessagesVisiblePart();
                             }
@@ -7980,9 +7856,17 @@ public class ChatActivity extends BaseFragment implements
                         changeBoundAnimator.addListener(new AnimatorListenerAdapter() {
                             @Override
                             public void onAnimationEnd(Animator animation) {
-                                setAnimatedTop(0);
+                                animatedTop = 0;
                                 if (topView != null && topView.getVisibility() == View.VISIBLE) {
-                                    topView.setTranslationY(animatedTop + (1f - getTopViewEnterProgress()) * topView.getLayoutParams().height);
+                                    topView.setTranslationY(animatedTop + (1f - topViewEnterProgress) * topView.getLayoutParams().height);
+                                    if (topLineView != null) {
+                                        topLineView.setTranslationY(animatedTop);
+                                    }
+                                } else {
+                                    chatListView.setTranslationY(0);
+                                    if (mentionContainer != null) {
+                                        mentionContainer.setTranslationY(0);
+                                    }
                                 }
                                 changeBoundAnimator = null;
                             }
@@ -8017,6 +7901,9 @@ public class ChatActivity extends BaseFragment implements
 
                     chatActivityEnterViewAnimateBeforeSending = false;
                 }
+                if (topicsTabs != null) {
+                    topicsTabs.setBottomMargin(chatActivityEnterView.getHeightWithTopView());
+                }
             }
 
             @Override
@@ -8030,6 +7917,19 @@ public class ChatActivity extends BaseFragment implements
                     messageEditTextPredrawScrollY = messageEditText.getScrollY();
                     contentView.invalidate();
                     chatActivityEnterViewAnimateFromTop = chatActivityEnterView.getBackgroundTop();
+                    if (topicsTabs != null) {
+                        topicsTabs.setBottomMargin(chatActivityEnterView.getHeightWithTopView());
+                    }
+                }
+            }
+
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+                if (chatListView != null && actionBar != null && actionBar.isActionModeShowed()) {
+                    chatListView.setTranslationY(chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(51));
+                } else if (chatListView != null && searchExpandProgress > 0) {
+                    chatListView.setTranslationY(searchExpandProgress * (chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(searchContainerHeight)));
                 }
             }
 
@@ -8042,7 +7942,6 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         };
-        chatActivityEnterView.setVisibility(View.VISIBLE);
         chatActivityEnterView.getEditField().adaptiveCreateLinkDialog = true;
         if (chatMode == MODE_EDIT_BUSINESS_LINK) {
             chatActivityEnterView.setDelegate(new ChatActivityEnterView.ChatActivityEnterViewDelegate() {
@@ -8119,10 +8018,6 @@ public class ChatActivity extends BaseFragment implements
         } else {
             chatActivityEnterView.setDelegate(new ChatActivityEnterViewDelegate());
         }
-        if (chatMode == MODE_SCHEDULED || isComments) {
-            chatActivityEnterView.setSideButtonsForAttach(sideControlsButtonsLayout);
-        }
-        chatActivityEnterView.setInAppInsetsController(windowInsetsStateHolder);
         chatActivityEnterView.setDialogId(dialog_id, currentAccount);
         if (chatInfo != null) {
             chatActivityEnterView.setChatInfo(chatInfo);
@@ -8132,7 +8027,6 @@ public class ChatActivity extends BaseFragment implements
         chatActivityEnterView.updateBotWebView(false);
         chatActivityEnterView.setMinimumHeight(AndroidUtilities.dp(51));
         chatActivityEnterView.setAllowStickersAndGifs(true, true, currentEncryptedChat == null || AndroidUtilities.getPeerLayerVersion(currentEncryptedChat.layer) >= 46);
-        chatActivityEnterView.shouldDrawBackground = false;
         if (textToSet != null) {
             chatActivityEnterView.setFieldText(textToSet);
             textToSet = null;
@@ -8143,55 +8037,11 @@ public class ChatActivity extends BaseFragment implements
         if (!ChatObject.isChannel(currentChat) || currentChat.megagroup) {
             chatActivityEnterView.setBotInfo(botInfo, false);
         }
-        // contentView.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM));
-
-        chatActivityEnterView.setViewParentForEmoji(chatInputInAppContainer);
-        checkSendButtonBlockedByTyping(false);
-
-        chatInputBubbleContainer.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 7, 0, 7, 0));
-
-        int chatListIndex = contentView.indexOfChild(chatListView);
-        chatListIndex = chatListIndex < 0 ? contentView.getChildCount() : (chatListIndex + 1);
-
-        roundVideoRecordBackground = new View(context);
-        roundVideoRecordBackground.setVisibility(View.GONE);
-        BlurredBackgroundDrawable d = navbarContentDrawableFactory.create(roundVideoRecordBackground);
-        d.setAlpha(232);
-        roundVideoRecordBackground.setBackground(d);
-
-        contentView.addView(roundVideoRecordBackground, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        contentView.addView(chatInputViewsContainer.getFadeView(), chatListIndex, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        contentView.addView(chatInputViewsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-
+        contentView.addView(chatActivityEnterView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM));
         if (chatMode != MODE_EDIT_BUSINESS_LINK) {
             chatActivityEnterView.checkChannelRights();
         }
 
-        actionsButtonsLayout = new ChatActivityActionsButtonsLayout(context, resourceProvider, blurredBackgroundColorProvider, glassBackgroundDrawableFactory);
-        actionsButtonsLayout.setForwardButtonOnClickListener(v -> openForward(false));
-        actionsButtonsLayout.setGroupMediaButtonOnClickListener(v -> showAnonymShareAlert(true));
-        actionsButtonsLayout.setReplyButtonOnClickListener(v -> {
-            MessageObject messageObject = null;
-            for (int a = 1; a >= 0; a--) {
-                if (messageObject == null && selectedMessagesIds[a].size() != 0) {
-                    messageObject = messagesDict[a].get(selectedMessagesIds[a].keyAt(0));
-                }
-                selectedMessagesIds[a].clear();
-                selectedMessagesCanCopyIds[a].clear();
-                selectedMessagesCanStarIds[a].clear();
-            }
-            hideActionMode();
-            if (messageObject != null && (messageObject.messageOwner.id > 0 || messageObject.messageOwner.id < 0 && currentEncryptedChat != null)) {
-                showFieldPanelForReply(messageObject);
-            }
-            updatePinnedMessageView(true);
-            updateVisibleRows();
-            updateSelectedMessageReactions();
-        });
-        bottomViewsVisibilityController.setViewVisible(MESSAGE_ACTION_CONTAINER, false, false);
-        actionsButtonsLayout.setPadding(0, dp(56), 0, 0);
-        actionsButtonsLayout.setClipToPadding(false);
-        chatInputBubbleContainer.addView(actionsButtonsLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 106, Gravity.BOTTOM));
         chatActivityEnterView.setSuggestionButtonVisible(ChatObject.isMonoForum(currentChat), false);
 
         chatActivityEnterTopView = new ChatActivityEnterTopView(context) {
@@ -8203,6 +8053,9 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (getVisibility() != GONE) {
                     hideHints(true);
+                    if (chatListView != null) {
+                        chatListView.setTranslationY(translationY);
+                    }
                     if (progressView != null) {
                         progressView.setTranslationY(translationY);
                     }
@@ -8223,19 +8076,24 @@ public class ChatActivity extends BaseFragment implements
             public void setVisibility(int visibility) {
                 super.setVisibility(visibility);
                 if (visibility == GONE) {
+                    if (chatListView != null) {
+                        chatListView.setTranslationY(0);
+                    }
                     if (progressView != null) {
                         progressView.setTranslationY(0);
                     }
                 }
             }
         };
-        chatActivityEnterView.addTopView(chatActivityEnterTopView, 48);
+        replyLineView = new View(context);
+        replyLineView.setBackgroundColor(getThemedColor(Theme.key_chat_replyPanelLine));
+        chatActivityEnterView.addTopView(chatActivityEnterTopView, replyLineView, 48);
 
         if (chatMode == MODE_EDIT_BUSINESS_LINK) {
             chatActivityEnterView.setEditingBusinessLink(businessLink);
         }
 
-        replyLayout = new ChatReplyContainer(context, themeDelegate);
+        final FrameLayout replyLayout = new FrameLayout(context);
         chatActivityEnterTopView.addReplyView(replyLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.NO_GRAVITY, 0, 0, 52, 0));
 
         boolean[] byButtonPress = new boolean[1];
@@ -8259,6 +8117,16 @@ public class ChatActivity extends BaseFragment implements
                         openAttachMenu();
                     };
                     open.run(ChatAttachAlert.EDITMEDIA_TYPE_ANY);
+//                    if (editingMessageObject.hasValidGroupId()) {
+//                        open.run(-1);
+//                    } else {
+//                        ItemOptions.makeOptions(ChatActivity.this, replyLayout, true)
+//                            .add(editingMessageObject.isMediaEmpty() ? R.drawable.msg_addphoto : R.drawable.msg_photos, getString(editingMessageObject.isMediaEmpty() ? R.string.MessageAddPhotoVideo : R.string.MessageReplacePhotoVideo), () -> open.run(ChatAttachAlert.EDITMEDIA_TYPE_PHOTOVIDEO))
+//                            .add(editingMessageObject.isMediaEmpty() ? R.drawable.menu_sendfile_plus : R.drawable.msg_sendfile, getString(editingMessageObject.isMediaEmpty() ? R.string.MessageAddFile : R.string.MessageReplaceFile), () -> open.run(ChatAttachAlert.EDITMEDIA_TYPE_FILE))
+//                            .add(editingMessageObject.isMediaEmpty() ? R.drawable.files_music : R.drawable.files_music, getString(editingMessageObject.isMediaEmpty() ? R.string.MessageAddMusic : R.string.MessageReplaceMusic), () -> open.run(ChatAttachAlert.EDITMEDIA_TYPE_MUSIC))
+//                            .setDrawScrim(false).setGravity(Gravity.LEFT).forceTop(true).translate(0, dp(48))
+//                            .show();
+//                    }
                 } else {
                     scrollToMessageId(editingMessageObject.getId(), 0, true, 0, true, 0);
                 }
@@ -8297,11 +8165,18 @@ public class ChatActivity extends BaseFragment implements
             return false;
         });
 
+        replyIconImageView = new ImageView(context);
+        replyIconImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_replyPanelIcons), PorterDuff.Mode.MULTIPLY));
+        replyIconImageView.setScaleType(ImageView.ScaleType.CENTER);
+        replyLayout.addView(replyIconImageView, LayoutHelper.createFrame(52, 46, Gravity.TOP | Gravity.LEFT));
+
         replyCloseImageView = new ImageView(context);
-        replyCloseImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.MULTIPLY));
+        replyCloseImageView.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_replyPanelClose), PorterDuff.Mode.MULTIPLY));
         replyCloseImageView.setImageResource(R.drawable.input_clear);
         replyCloseImageView.setScaleType(ImageView.ScaleType.CENTER);
-        replyCloseImageView.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, AndroidUtilities.dp(19)));
+        if (Build.VERSION.SDK_INT >= 21) {
+            replyCloseImageView.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, AndroidUtilities.dp(18)));
+        }
         chatActivityEnterTopView.addView(replyCloseImageView, LayoutHelper.createFrame(52, 46, Gravity.RIGHT | Gravity.TOP, 0, 0.5f, 0, 0));
         replyCloseImageView.setOnClickListener(v -> {
             messageSuggestionParams = null;
@@ -8315,8 +8190,6 @@ public class ChatActivity extends BaseFragment implements
             } else if (fieldPanelShown == 3) {
                 openAnotherForward();
             } else if (fieldPanelShown == 4) {
-                forkExtractMediaActive = false;
-                forkExtractMediaFrozenWebPage = null;
                 foundWebPage = null;
                 if (messagePreviewParams != null) {
                     messagePreviewParams.updateLink(currentAccount, null, null, replyingMessageObject == threadMessageObject ? null : replyingMessageObject, replyingQuote, editingMessageObject);
@@ -8335,18 +8208,57 @@ public class ChatActivity extends BaseFragment implements
             }
         });
 
-        forkExtractMediaButton = new ImageView(context);
-        forkExtractMediaButton.setImageResource(R.drawable.input_extract_media);
-        forkExtractMediaButton.setScaleType(ImageView.ScaleType.CENTER);
-        forkExtractMediaButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_glass_defaultIcon), PorterDuff.Mode.MULTIPLY));
-        forkExtractMediaButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, AndroidUtilities.dp(19)));
-        forkExtractMediaButton.setContentDescription(LocaleController.getString(R.string.ExtractMediaFromPreview));
-        forkExtractMediaButton.setVisibility(View.GONE);
-        chatActivityEnterTopView.addView(forkExtractMediaButton, LayoutHelper.createFrame(52, 46, Gravity.RIGHT | Gravity.TOP, 0, 0.5f, 52, 0));
-        forkExtractMediaButton.setOnClickListener(v -> forkToggleExtractMedia());
+        replyNameTextView = new SimpleTextView(context);
+        replyNameTextView.setTextSize(14);
+        replyNameTextView.setTextColor(getThemedColor(Theme.key_chat_replyPanelName));
+        replyNameTextView.setTypeface(AndroidUtilities.bold());
+        replyLayout.addView(replyNameTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 52, 6, 0, 0));
+
+        replyObjectTextView = new SimpleTextView(context);
+        replyObjectTextView.setTextSize(14);
+        replyObjectTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+        replyObjectTextView.setLinkTextColor(getThemedColor(Theme.key_chat_messageLinkIn));
+        replyLayout.addView(replyObjectTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 52, 24, 0, 0));
+
+        replyObjectHintTextView = new SimpleTextView(context);
+        replyObjectHintTextView.setTextSize(14);
+        replyObjectHintTextView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
+        replyObjectHintTextView.setText(LocaleController.getString(R.string.TapForForwardingOptions));
+        replyObjectHintTextView.setAlpha(0f);
+        replyLayout.addView(replyObjectHintTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 52, 24, 0, 0));
+
+        SpoilerEffect replySpoilerEffect = new SpoilerEffect();
+        replyImageView = new BackupImageView(context) {
+            Path path = new Path();
+
+            @Override
+            public void draw(Canvas canvas) {
+                super.draw(canvas);
+
+                if (replyImageHasMediaSpoiler) {
+                    path.rewind();
+                    AndroidUtilities.rectTmp.set(imageReceiver.getImageX(), imageReceiver.getImageY(), imageReceiver.getImageX2(), imageReceiver.getImageY2());
+                    path.addRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(2), AndroidUtilities.dp(2), Path.Direction.CW);
+
+                    canvas.save();
+                    canvas.clipPath(path);
+
+                    int sColor = Color.WHITE;
+                    replySpoilerEffect.setColor(ColorUtils.setAlphaComponent(sColor, (int) (Color.alpha(sColor) * 0.325f)));
+                    replySpoilerEffect.setBounds((int) imageReceiver.getImageX(), (int) imageReceiver.getImageY(), (int) imageReceiver.getImageX2(), (int) imageReceiver.getImageY2());
+                    replySpoilerEffect.draw(canvas);
+                    invalidate();
+
+                    canvas.restore();
+                }
+            }
+        };
+        replyImageView.setRoundRadius(AndroidUtilities.dp(2));
+        replyLayout.addView(replyImageView, LayoutHelper.createFrame(34, 34, Gravity.TOP | Gravity.LEFT, 52, 6, 0, 0));
+
         contentView.addView(
             suggestEmojiPanel = new SuggestEmojiView(context, currentAccount, chatActivityEnterView, themeDelegate),
-            LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 160, Gravity.LEFT | Gravity.BOTTOM, 7, 0, 7, 0)
+            LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 160, Gravity.LEFT | Gravity.BOTTOM)
         );
         suggestEmojiPanel.setVisibility(allowStickersPanel && !isInPreviewMode() && (chatActivityEnterView == null || !chatActivityEnterView.isStickersExpanded()) ? View.VISIBLE : View.GONE);
 
@@ -8374,14 +8286,14 @@ public class ChatActivity extends BaseFragment implements
 
                 @Override
                 public void updateColors() {
-                    final int leftInset = firstButton ? dp(4) : 0;
-                    setBackground(Theme.createInsetRoundRectDrawable(getThemedColor(Theme.key_chat_replyPanelName) & 0x19ffffff, dp(19), leftInset, dp(3), 0, dp(3)));
+                    final int leftInset = firstButton ? AndroidUtilities.dp(14) : 0;
+                    setBackground(Theme.createCircleSelectorDrawable(getThemedColor(Theme.key_chat_replyPanelName) & 0x19ffffff, leftInset, 0));
                     getImageView().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_replyPanelName), PorterDuff.Mode.MULTIPLY));
                     getTextView().setTextColor(getThemedColor(Theme.key_chat_replyPanelName));
                 }
             };
             button.setOrientation(LinearLayout.HORIZONTAL);
-            ViewHelper.setPadding(button, 12, 0, 12, 0);
+            ViewHelper.setPadding(button, 10, 0, 10, 0);
             editView.addButton(button, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
 
             final ImageView imageView = new ImageView(context);
@@ -8417,9 +8329,11 @@ public class ChatActivity extends BaseFragment implements
 
         bottomOverlay = new FrameLayout(context) {
             @Override
-            public void setVisibility(int visibility) {
-                super.setVisibility(visibility);
-                bottomViewsVisibilityController.setViewVisible(BOTTOM_OVERLAY_TEXT_CONTAINER, visibility == VISIBLE, getMeasuredWidth() > 0);
+            public void onDraw(Canvas canvas) {
+                int bottom = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                Theme.chat_composeShadowDrawable.setBounds(0, 0, getMeasuredWidth(), bottom);
+                Theme.chat_composeShadowDrawable.draw(canvas);
+                canvas.drawRect(0, bottom, getMeasuredWidth(), getMeasuredHeight(), getThemedPaint(Theme.key_paint_chatComposeBackground));
             }
         };
         bottomOverlay.setWillNotDraw(false);
@@ -8427,7 +8341,8 @@ public class ChatActivity extends BaseFragment implements
         bottomOverlay.setFocusable(true);
         bottomOverlay.setFocusableInTouchMode(true);
         bottomOverlay.setClickable(true);
-        chatInputBubbleContainer.addView(bottomOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44, Gravity.BOTTOM, 7, 0, 7, 0));
+        bottomOverlay.setPadding(0, AndroidUtilities.dp(2), 0, 0);
+        contentView.addView(bottomOverlay, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 51, Gravity.BOTTOM));
 
         bottomOverlayText = new TextView(context);
         bottomOverlayText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
@@ -8437,84 +8352,43 @@ public class ChatActivity extends BaseFragment implements
         bottomOverlayText.setLineSpacing(AndroidUtilities.dp(2), 1);
         bottomOverlayText.setTextColor(getThemedColor(Theme.key_chat_secretChatStatusText));
         bottomOverlayText.setPadding(dp(24), 0, dp(24), 0);
-        bottomOverlay.addView(bottomOverlayText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
+        bottomOverlay.addView(bottomOverlayText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER, 0, 0, 0, 0));
 
-
-        bottomChannelButtonsLayout = new ChatActivityChannelButtonsLayout(context, resourceProvider, blurredBackgroundColorProvider, glassBackgroundDrawableFactory) {
+        bottomOverlayChat = new BlurredFrameLayout(context, contentView) {
             @Override
-            public void setVisibility(int visibility) {
-                super.setVisibility(visibility);
-                bottomViewsVisibilityController.setViewVisible(BOTTOM_OVERLAY_CHAT_CONTAINER, visibility == VISIBLE, getMeasuredWidth() > 0);
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                int allWidth = MeasureSpec.getSize(widthMeasureSpec);
+                FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) bottomOverlayChatText.getLayoutParams();
+                layoutParams.width = allWidth;
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            }
+
+            private Rect blurBounds = new Rect();
+            @Override
+            protected void dispatchDraw(Canvas canvas) {
+                int bottom = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                Theme.chat_composeShadowDrawable.setBounds(0, 0, getMeasuredWidth(), bottom);
+                Theme.chat_composeShadowDrawable.draw(canvas);
+                if (SharedConfig.chatBlurEnabled()) {
+                    if (backgroundPaint == null) {
+                        backgroundPaint = new Paint();
+                    }
+                    backgroundPaint.setColor(getThemedColor(Theme.key_chat_messagePanelBackground));
+                    blurBounds.set(0, bottom, getMeasuredWidth(), getMeasuredHeight());
+                    contentView.drawBlurRect(canvas, getY(), blurBounds, backgroundPaint, false);
+                } else {
+                    canvas.drawRect(0, bottom, getMeasuredWidth(), getMeasuredHeight(), getThemedPaint(Theme.key_paint_chatComposeBackground));
+                }
+                super.dispatchDraw(canvas);
             }
         };
-        bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
-        bottomChannelButtonsLayout.setClipChildren(false);
-        bottomChannelButtonsLayout.setAccentColor(getThemedColor(Theme.key_featuredStickers_addButton));
-        bottomChannelButtonsLayout.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_SEARCH, v -> {
-            openSearchWithText(isSupportedTags() ? "" : null);
-        });
-        bottomChannelButtonsLayout.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_GIGA_GROUP_INFO, v -> {
-            createUndoView();
-            undoView.showWithAction(dialog_id, UndoView.ACTION_TEXT_INFO, LocaleController.getString(R.string.BroadcastGroupInfo));
-        });
-        bottomChannelButtonsLayout.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_GIFT, v -> {
-            HintsController.Hint.ChannelGiftHint.doNotShowAgain();
-            showDialog(new GiftSheet(getContext(), currentAccount, getDialogId(), null, null));
-        });
-        bottomChannelButtonsLayout.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_DIRECT, v -> {
-            HintsController.Hint.ChannelSuggestHint.doNotShowAgain();
-            if (currentChat != null && currentChat.linked_monoforum_id != 0) {
-                getMessagesController().putMonoForumLinkedChat(currentChat.id, currentChat.linked_monoforum_id);
-                Bundle bundle = new Bundle();
-                bundle.putLong("chat_id", currentChat.linked_monoforum_id);
-                bundle.putInt("chatMode", MODE_SUGGESTIONS);
-                bundle.putBoolean("isSubscriberSuggestions", true);
-                presentFragment(new ChatActivity(bundle));
-            }
-        });
-        bottomChannelButtonsLayout.setButtonOnFullyVisibleListener(ChatActivityChannelButtonsLayout.BUTTON_GIFT, (v, id, firstTime) -> {
-            if (bottomGiftHintView == null && firstTime && (bottomSuggestHintView == null || !bottomSuggestHintView.shown()) && HintsController.Hint.ChannelGiftHint.show()) {
-                AndroidUtilities.runOnUIThread(() -> {
-                    if (getContext() == null) return;
-                    final float offset = windowInsetsStateHolder.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / AndroidUtilities.density;
-                    final float translate = (contentView.getWidth() - (v.getX() + v.getWidth()) + v.getWidth() / 2f) / AndroidUtilities.density;
-
-                    bottomGiftHintView = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);
-                    bottomGiftHintView.setPadding(dp(7.33f), 0, dp(7.33f), 0);
-                    bottomGiftHintView.setMultilineText(false);
-                    bottomGiftHintView.setText(getString(R.string.Gift2ChannelSendHint));
-                    bottomGiftHintView.setJoint(1, -translate + 7.33f);
-                    contentView.addView(bottomGiftHintView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 100, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, offset + 50));
-                    bottomGiftHintView.setOnHiddenListener(() -> AndroidUtilities.removeFromParent(bottomGiftHintView));
-                    bottomGiftHintView.show();
-                    HintsController.Hint.ChannelGiftHint.increment();
-                }, 400);
-            }
-        });
-        bottomChannelButtonsLayout.setButtonOnFullyVisibleListener(ChatActivityChannelButtonsLayout.BUTTON_DIRECT, (v, id, firstTime) -> {
-            if (bottomSuggestHintView == null && firstTime && HintsController.Hint.ChannelSuggestHint.show()) {
-                AndroidUtilities.runOnUIThread(() -> {
-                    if (getContext() == null) return;
-                    final float offset = windowInsetsStateHolder.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / AndroidUtilities.density;
-                    final float translate = (contentView.getWidth() - (v.getX() + v.getWidth()) + v.getWidth() / 2f) / AndroidUtilities.density;
-
-                    bottomSuggestHintView = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);
-                    bottomSuggestHintView.setPadding(dp(7.33f), 0, dp(7.33f), 0);
-                    bottomSuggestHintView.setMultilineText(false);
-                    bottomSuggestHintView.setText(getString(R.string.Suggest2ChannelSendHint), true);
-                    bottomSuggestHintView.setJoint(1, -translate + 7.33f);
-                    contentView.addView(bottomSuggestHintView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 100, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, offset + 50));
-                    bottomSuggestHintView.setOnHiddenListener(() -> AndroidUtilities.removeFromParent(bottomSuggestHintView));
-                    bottomSuggestHintView.show();
-                    HintsController.Hint.ChannelSuggestHint.increment();
-                }, 400);
-            }
-        });
-        bottomChannelButtonsLayout.setOnButtonsTotalWidthChanged((l, r) -> {
-            chatInputViewsContainer.setInputBubbleOffsets(l, r);
-        });
-
-        chatInputBubbleContainer.addView(bottomChannelButtonsLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 56, Gravity.BOTTOM, 0, 0, 0, (44 - 56) / 2));
+        bottomOverlayChat.isTopView = false;
+        bottomOverlayChat.drawBlur = false;
+        bottomOverlayChat.setWillNotDraw(false);
+        bottomOverlayChat.setPadding(0, AndroidUtilities.dp(1.5f), 0, 0);
+        bottomOverlayChat.setVisibility(View.INVISIBLE);
+        bottomOverlayChat.setClipChildren(false);
+        contentView.addView(bottomOverlayChat, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 51, Gravity.BOTTOM));
 
         bottomOverlayStartButton = new TextView(context) {
             CellFlickerDrawable cellFlickerDrawable;
@@ -8529,26 +8403,31 @@ public class ChatActivity extends BaseFragment implements
                 }
                 cellFlickerDrawable.setParentWidth(getMeasuredWidth());
                 AndroidUtilities.rectTmp.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
-                cellFlickerDrawable.draw(canvas, AndroidUtilities.rectTmp, AndroidUtilities.dp(22), null);
+                cellFlickerDrawable.draw(canvas, AndroidUtilities.rectTmp, AndroidUtilities.dp(4), null);
                 invalidate();
             }
+
+            @Override
+            public void setVisibility(int visibility) {
+                super.setVisibility(visibility);
+
+                ViewGroup.LayoutParams params = bottomOverlayChat.getLayoutParams();
+                params.height = AndroidUtilities.dp(visibility == VISIBLE ? 51 + 8 * 2 : 51);
+            }
         };
-        bottomOverlayStartButton.setBackground(Theme.AdaptiveRipple.filledRect(getThemedColor(Theme.key_featuredStickers_addButton), 22));
+        bottomOverlayStartButton.setBackground(Theme.AdaptiveRipple.filledRect(getThemedColor(Theme.key_featuredStickers_addButton), 8));
         bottomOverlayStartButton.setTextColor(getThemedColor(Theme.key_featuredStickers_buttonText));
-        bottomOverlayStartButton.setText(LocaleController.getString(R.string.BotStart2));
-        bottomOverlayStartButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        bottomOverlayStartButton.setText(LocaleController.getString(R.string.BotStart));
+        bottomOverlayStartButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
         bottomOverlayStartButton.setGravity(Gravity.CENTER);
         bottomOverlayStartButton.setTypeface(AndroidUtilities.bold());
-        bottomOverlayStartButton.setVisibility(View.INVISIBLE);
+        bottomOverlayStartButton.setVisibility(View.GONE);
         bottomOverlayStartButton.setOnClickListener(v -> bottomOverlayChatText.callOnClick());
-        bottomOverlayStartButton.setPadding(dp(31), 0, dp(31), 0);
-        ScaleStateListAnimator.apply(bottomOverlayStartButton, 0.02f, 1.2f);
-        bottomChannelButtonsLayout.getContainer().addView(bottomOverlayStartButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 38, Gravity.CENTER, 3, 3, 3, 3));
-        bottomChannelButtonsLayout.makeViewWrapContent(bottomOverlayStartButton);
+        bottomOverlayChat.addView(bottomOverlayStartButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER, 8, 8, 8, 8));
 
-        if (currentUser != null && currentUser.bot && currentUser.id != UserObject.VERIFY && !UserObject.isDeleted(currentUser) && !UserObject.isReplyUser(currentUser) && !isInScheduleMode() && chatMode != MODE_PINNED && chatMode != MODE_SAVED && !isReport()) {
+        if (currentUser != null && currentUser.bot && currentUser.id != UserObject.VERIFY && !UserObject.isDeleted(currentUser) && !UserObject.isReplyUser(currentUser) && !isInScheduleMode() && chatMode != MODE_PINNED && chatMode != MODE_SAVED && !isReport() && !UserObject.isBotForum(currentUser)) {
             bottomOverlayStartButton.setVisibility(View.VISIBLE);
-            bottomChannelButtonsLayout.setVisibility(View.VISIBLE);
+            bottomOverlayChat.setVisibility(View.VISIBLE);
         }
 
         bottomOverlayLinksText = new LinkSpanDrawable.LinksTextView(context, themeDelegate);
@@ -8557,7 +8436,7 @@ public class ChatActivity extends BaseFragment implements
         bottomOverlayLinksText.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
         bottomOverlayLinksText.setTextColor(getThemedColor(Theme.key_graySectionText));
         bottomOverlayLinksText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-        bottomChannelButtonsLayout.getContainer().addView(bottomOverlayLinksText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
+        bottomOverlayChat.addView(bottomOverlayLinksText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER, 0, 0, 0, 0));
         bottomOverlayLinksText.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
         bottomOverlayLinksText.setOnClickListener(v -> {
             if (chatMode == MODE_DEFAULT && getMessagesController().freezeUntilDate > getConnectionsManager().getCurrentTime() && !AccountFrozenAlert.isSpamBot(currentAccount, currentUser)) {
@@ -8578,17 +8457,25 @@ public class ChatActivity extends BaseFragment implements
                 setCounter(0);
             }
 
+            // forkgram-classic: BotHelpCell.isTouchFullWidth was removed upstream;
+            // drop the @Override so this becomes a dead helper.
+            protected boolean isTouchFullWidth() {
+                return botInfo != null;
+            }
+
             @Override
             protected Theme.ResourcesProvider getResourceProvider() {
                 return themeDelegate;
             }
+
+            @Override
+            protected float getTopOffset() {
+                return -dp(2);
+            }
         };
-        bottomChannelButtonsLayout.getContainer().addView(bottomOverlayChatText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, 0));
+        bottomOverlayChat.addView(bottomOverlayChatText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, 0, 0, 1.5f, 0, 0));
         bottomOverlayChatText.setOnClickListener(view -> {
             if (getParentActivity() == null || pullingDownOffset != 0) {
-                return;
-            }
-            if (MessagesController.getGlobalMainSettings().getBoolean("hideBottomButton", false)) {
                 return;
             }
             if (chatMode == MODE_SAVED) {
@@ -8692,12 +8579,13 @@ public class ChatActivity extends BaseFragment implements
                     }
                 } else {
                     boolean canDeleteHistory = chatInfo != null && chatInfo.can_delete_channel;
-                    AlertsCreator.createClearOrDeleteDialogAlert(ChatActivity.this, false, currentChat, currentUser, currentEncryptedChat != null, true, false, canDeleteHistory, (param) -> {
+                    // forkgram-classic: 11-arg sig adds `boolean second` and `boolean forceDeleteForAll`.
+                    AlertsCreator.createClearOrDeleteDialogAlert(ChatActivity.this, false, false, currentChat, currentUser, currentEncryptedChat != null, true, false, canDeleteHistory, (param) -> {
                         getNotificationCenter().removeObserver(ChatActivity.this, NotificationCenter.closeChats);
                         getNotificationCenter().postNotificationName(NotificationCenter.closeChats);
                         finishFragment();
                         getNotificationCenter().postNotificationName(NotificationCenter.needDeleteDialog, dialog_id, currentUser, currentChat, param);
-                    });
+                    }, themeDelegate);
                 }
             }
         });
@@ -8709,7 +8597,22 @@ public class ChatActivity extends BaseFragment implements
         bottomOverlayProgress.setScaleX(0.1f);
         bottomOverlayProgress.setScaleY(0.1f);
         bottomOverlayProgress.setAlpha(1.0f);
-        bottomChannelButtonsLayout.getContainer().addView(bottomOverlayProgress, LayoutHelper.createFrame(30, 30, Gravity.CENTER));
+        bottomOverlayChat.addView(bottomOverlayProgress, LayoutHelper.createFrame(30, 30, Gravity.CENTER));
+
+        bottomOverlayImage = new ImageView(context);
+        int color = getThemedColor(Theme.key_chat_fieldOverlayText);
+        bottomOverlayImage.setImageResource(R.drawable.msg_help);
+        bottomOverlayImage.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
+        bottomOverlayImage.setScaleType(ImageView.ScaleType.CENTER);
+        if (Build.VERSION.SDK_INT >= 21) {
+            bottomOverlayImage.setBackgroundDrawable(Theme.createSelectorDrawable(Color.argb(24, Color.red(color), Color.green(color), Color.blue(color)), 1));
+        }
+        bottomOverlayChat.addView(bottomOverlayImage, LayoutHelper.createFrame(48, 48, Gravity.RIGHT | Gravity.TOP, 3, 1.5f, 0, 0));
+        bottomOverlayImage.setContentDescription(LocaleController.getString(R.string.SettingsHelp));
+        bottomOverlayImage.setOnClickListener(v -> {
+            createUndoView();
+            undoView.showWithAction(dialog_id, UndoView.ACTION_TEXT_INFO, LocaleController.getString(R.string.BroadcastGroupInfo));
+        });
 
         contentView.addView(messageEnterTransitionContainer = new MessageEnterTransitionContainer(contentView, currentAccount));
 
@@ -8756,7 +8659,7 @@ public class ChatActivity extends BaseFragment implements
 
         flagSecure = new FlagSecureReason(getParentActivity().getWindow(), () ->
             currentEncryptedChat != null ||
-            isPeerNoForwards()
+            getMessagesController().isChatNoForwards(currentChat)
         );
 
         if (oldMessage != null) {
@@ -8822,19 +8725,17 @@ public class ChatActivity extends BaseFragment implements
 
         contentView.addView(fireworksOverlay = new FireworksOverlay(context), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
-        if (getDialogId() < 0 && chatMode == MODE_DEFAULT && !isInsideContainer && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            messageMetricsView = new ChatActivityMessageMetricsView(context);
-            messageMetricsView.init(currentAccount, getDialogId(), contentView, chatListView);
-            messageMetricsView.setIsUserActive();
-            contentView.addView(messageMetricsView);
-        }
-
         checkInstantSearch();
         if (replyingMessageObject != null) {
             chatActivityEnterView.setReplyingMessageObject(replyingMessageObject, replyingQuote);
         }
 
-        ViewGroup decorView = (ViewGroup) getParentActivity().getWindow().getDecorView();
+        ViewGroup decorView;
+        if (Build.VERSION.SDK_INT >= 21) {
+            decorView = (ViewGroup) getParentActivity().getWindow().getDecorView();
+        } else {
+            decorView = contentView;
+        }
         pinchToZoomHelper = new PinchToZoomHelper(decorView, contentView) {
             @Override
             protected void drawOverlays(Canvas canvas, float alpha, float parentOffsetX, float parentOffsetY, float clipTop, float clipBottom) {
@@ -8938,16 +8839,12 @@ public class ChatActivity extends BaseFragment implements
 
         if (isTopic) {
             reactionsMentionCount = forumTopic.unread_reactions_count;
-            pollVotesMentionCount = forumTopic.unread_poll_votes_count;
             updateReactionsMentionButton(false);
-            updatePollVotesMentionButton(false);
         } else {
             TLRPC.Dialog dialog = getMessagesController().dialogs_dict.get(dialog_id);
             if (dialog != null) {
                 reactionsMentionCount = dialog.unread_reactions_count;
-                pollVotesMentionCount = dialog.unread_poll_votes_count;
                 updateReactionsMentionButton(false);
-                updatePollVotesMentionButton(false);
             }
         }
 
@@ -9042,12 +8939,6 @@ public class ChatActivity extends BaseFragment implements
             contentView.addView(actionBarSearchTags, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.FILL_HORIZONTAL | Gravity.TOP));
         }
 
-        final BlurredBackgroundDrawable topPanelLayoutBackground = glassBackgroundDrawableFactory.create(topPanelLayout, BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate));
-        topPanelLayoutBackground.setRadius(dp(18));
-        topPanelLayoutBackground.setPadding(dp(7));
-        topPanelLayout.setPadding(dp(7) + getSideMenuWidth(), dp(7), dp(7), dp(7));
-        topPanelLayout.setBlurredBackground(topPanelLayoutBackground);
-
         if (chatMode == MODE_SEARCH) {
             messagesSearchListContainer.setVisibility(View.VISIBLE);
             messagesSearchListContainer.setAlpha(1.0f);
@@ -9056,61 +8947,17 @@ public class ChatActivity extends BaseFragment implements
             updateSearchListEmptyView();
         }
 
-        final boolean useTabsView = (!isSubscriberSuggestions && ChatObject.isMonoForum(currentChat)
+        final boolean useTabsView = !isSubscriberSuggestions && ChatObject.isMonoForum(currentChat)
             || ChatObject.isForum(currentChat) && ChatObject.areTabsEnabled(currentChat)
-            || UserObject.isBotForum(currentUser)) && chatMode != MODE_PINNED;
+            || UserObject.isBotForum(currentUser);
 
         if (useTabsView) {
             createTopicsTabs();
         }
 
-        if (context instanceof LaunchActivity) {
-            windowInsetsStateHolder.setupAnimatedInsetsProvider(((LaunchActivity) context).getRootAnimatedInsetsListener(), fragmentView);
-        }
-
-        onBottomItemsVisibilityChanged();
-        ViewCompat.setOnApplyWindowInsetsListener(fragmentView, this::onApplyWindowInsets);
         Timer.finish(t);
 
         return fragmentView;
-    }
-
-    private boolean lastImeVisible;
-
-    @NonNull
-    private WindowInsetsCompat onApplyWindowInsets(@NonNull View v, @NonNull WindowInsetsCompat insets) {
-        windowInsetsStateHolder.setInsets(insets);
-        checkUi_chatListViewPaddings();
-
-        final boolean keyboardVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
-        if (lastImeVisible != keyboardVisible) {
-            lastImeVisible = keyboardVisible;
-            contentView.notifyHeightChanged();
-        }
-
-        if (searchViewPager != null) {
-            ViewCompat.dispatchApplyWindowInsets(searchViewPager, insets);
-        }
-
-        return WindowInsetsCompat.CONSUMED;
-    }
-
-    private boolean lastInAppInputVisible;
-    private void checkInsets() {
-        chatInputViewsContainer.checkInsets();
-        updatePagedownButtonsPosition();
-        updateBotforumTabsBottomMargin();
-        checkUi_botMenuPosition();
-        checkUi_BlurHeight();
-        checkUi_emptyContainerPosition();
-        checkUi_chatListViewPaddings();
-        invalidateClipRectForBackgroundAndChatList();
-
-        final boolean inAppInputVisible = windowInsetsStateHolder.inAppViewIsVisible();
-        if (lastInAppInputVisible != inAppInputVisible) {
-            lastInAppInputVisible = inAppInputVisible;
-            checkSystemBarColors();
-        }
     }
 
     private void checkBotMessageHint() {
@@ -9394,13 +9241,6 @@ public class ChatActivity extends BaseFragment implements
         return true;
     }
 
-    private void checkSendButtonBlockedByTyping(boolean animated) {
-        if (chatActivityEnterView != null) {
-            chatActivityEnterView.setBlockedByStreaming(BotForumHelper.getInstance(currentAccount)
-                    .hasBotForumDrafts(dialog_id, (int) getTopicId()), animated);
-        }
-    }
-
     private LongSparseArray<ArrayList<MessageObject>> filteredMessagesByDays;
     private LongSparseArray<MessageObject> filteredMessagesDict;
 
@@ -9619,7 +9459,61 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void createBottomMessagesActionButtons() {
+        if (replyButton != null || getContext() == null) {
+            return;
+        }
 
+        if (!isInsideContainer) {
+            replyButton = new TextView(getContext());
+            replyButton.setText(LocaleController.getString(R.string.Reply));
+            replyButton.setGravity(Gravity.CENTER_VERTICAL);
+            replyButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+            replyButton.setPadding(AndroidUtilities.dp(14), 0, AndroidUtilities.dp(21), 0);
+            replyButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
+            replyButton.setTextColor(getThemedColor(Theme.key_actionBarActionModeDefaultIcon));
+            replyButton.setCompoundDrawablePadding(AndroidUtilities.dp(7));
+            replyButton.setTypeface(AndroidUtilities.bold());
+            Drawable image = getContext().getResources().getDrawable(R.drawable.input_reply).mutate();
+            image.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.MULTIPLY));
+            replyButton.setCompoundDrawablesWithIntrinsicBounds(image, null, null, null);
+            replyButton.setOnClickListener(v -> {
+                MessageObject messageObject = null;
+                for (int a = 1; a >= 0; a--) {
+                    if (messageObject == null && selectedMessagesIds[a].size() != 0) {
+                        messageObject = messagesDict[a].get(selectedMessagesIds[a].keyAt(0));
+                    }
+                    selectedMessagesIds[a].clear();
+                    selectedMessagesCanCopyIds[a].clear();
+                    selectedMessagesCanStarIds[a].clear();
+                }
+                hideActionMode();
+                if (messageObject != null && (messageObject.messageOwner.id > 0 || messageObject.messageOwner.id < 0 && currentEncryptedChat != null)) {
+                    showFieldPanelForReply(messageObject);
+                }
+                updatePinnedMessageView(true);
+                updateVisibleRows();
+                updateSelectedMessageReactions();
+            });
+            bottomMessagesActionContainer.addView(replyButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP));
+        }
+
+        forwardButton = new TextView(getContext());
+        forwardButton.setText(LocaleController.getString(R.string.Forward));
+        forwardButton.setGravity(Gravity.CENTER_VERTICAL);
+        forwardButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        forwardButton.setPadding(AndroidUtilities.dp(21), 0, AndroidUtilities.dp(21), 0);
+        forwardButton.setCompoundDrawablePadding(AndroidUtilities.dp(6));
+        forwardButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
+        forwardButton.setTextColor(getThemedColor(Theme.key_actionBarActionModeDefaultIcon));
+        forwardButton.setTypeface(AndroidUtilities.bold());
+        Drawable image = getContext().getResources().getDrawable(R.drawable.input_forward).mutate();
+        image.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarActionModeDefaultIcon), PorterDuff.Mode.MULTIPLY));
+        forwardButton.setCompoundDrawablesWithIntrinsicBounds(image, null, null, null);
+        forwardButton.setOnClickListener(v -> openForward(false));
+        bottomMessagesActionContainer.addView(forwardButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.RIGHT | Gravity.TOP));
+        if (getDialogId() == UserObject.VERIFY) {
+            forwardButton.setVisibility(View.GONE);
+        }
     }
 
     private void checkInstantSearch() {
@@ -9653,7 +9547,7 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
-        topChatPanelView = new FrameLayout(getContext()) {
+        topChatPanelView = new BlurredFrameLayout(getContext(), contentView) {
 
             private boolean ignoreLayout;
 
@@ -9662,7 +9556,7 @@ public class ChatActivity extends BaseFragment implements
                 int width = MeasureSpec.getSize(widthMeasureSpec);
                 int leftMargin = 0;
                 if (isSideMenued()) {
-                    width -= dp(SIDE_MENU_WIDTH);
+                    width -= dp(64);
                     leftMargin += dp(32);
                 }
                 if (addToContactsButton != null && addToContactsButton.getVisibility() == VISIBLE && reportSpamButton != null && reportSpamButton.getVisibility() == VISIBLE) {
@@ -9704,22 +9598,33 @@ public class ChatActivity extends BaseFragment implements
                 super.requestLayout();
             }
         };
+        topChatPanelView.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
+        topChatPanelView.backgroundPaddingBottom = dp(2);
+        topChatPanelView.setTag(1);
+        topChatPanelViewOffset = -AndroidUtilities.dp(50);
         invalidateChatListViewTopPadding();
         topChatPanelView.setClickable(true);
-        topPanelLayout.addView(topChatPanelView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 44));
-        topPanelLayout.setPriority(topChatPanelView, 2);
-        topPanelLayout.setDebugName(topChatPanelView, "top chat panel view");
+        topChatPanelView.setVisibility(View.GONE);
+        topChatPanelView.setBackgroundResource(R.drawable.blockpanel_shadow);
+        topChatPanelView.getBackground().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
+        int index = 8;
+        if (pinnedMessageView != null && pinnedMessageView.getParent() == contentView) {
+            index = contentView.indexOfChild(pinnedMessageView) + 1;
+        }
+        contentView.addView(topChatPanelView, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.TOP | Gravity.LEFT));
 
         reportSpamButton = new TextView(getContext());
         reportSpamButton.setTextColor(getThemedColor(Theme.key_text_RedBold));
-        reportSpamButton.setBackground(Theme.createInsetRoundRectDrawable(getThemedColor(Theme.key_text_RedBold) & 0x19ffffff, dp(18), dp(4)));
+        if (Build.VERSION.SDK_INT >= 21) {
+            reportSpamButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_text_RedBold) & 0x19ffffff, 3));
+        }
         reportSpamButton.setTag(Theme.key_text_RedBold);
         reportSpamButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         reportSpamButton.setTypeface(AndroidUtilities.bold());
         reportSpamButton.setSingleLine(true);
         reportSpamButton.setMaxLines(1);
         reportSpamButton.setGravity(Gravity.CENTER);
-        topChatPanelView.addView(reportSpamButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP));
+        topChatPanelView.addView(reportSpamButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 1));
         reportSpamButton.setOnClickListener(v2 -> AlertsCreator.showBlockReportSpamAlert(ChatActivity.this, dialog_id, currentUser, currentChat, currentEncryptedChat, reportSpamButton.getTag(R.id.object_tag) != null, chatInfo, param -> {
             if (param == 0) {
                 updateTopPanel(true);
@@ -9731,13 +9636,24 @@ public class ChatActivity extends BaseFragment implements
         emojiStatusSpamHint = new LinkSpanDrawable.LinksTextView(getContext(), themeDelegate);
         emojiStatusSpamHint.setTextColor(getThemedColor(Theme.key_chat_topPanelMessage));
         emojiStatusSpamHint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13.3f);
-        emojiStatusSpamHint.setDisablePaddingsOffset(true);
-        emojiStatusSpamHint.setLinkTextColor(getThemedColor(Theme.key_telegram_color_text));
         emojiStatusSpamHint.setGravity(Gravity.CENTER);
-        emojiStatusSpamHint.setPadding(0, dp(9), 0, dp(9));
-        topPanelLayout.addView(emojiStatusSpamHint, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 25, 0, 25, 0));
-        topPanelLayout.setPriority(emojiStatusSpamHint, 8);
-        topPanelLayout.setDebugName(emojiStatusSpamHint, "emoji status spam hint");
+        emojiStatusSpamHint.setVisibility(View.GONE);
+        emojiStatusSpamHint.setLinkTextColor(getThemedColor(Theme.key_windowBackgroundWhiteLinkText));
+        topChatPanelView.addView(emojiStatusSpamHint, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 25, 0, 25, 1));
+
+        topViewSeparator1 = new View(getContext());
+        topViewSeparator1.setVisibility(View.GONE);
+        topViewSeparator1.setBackgroundColor(getThemedColor(Theme.key_divider));
+        topViewSeparator1.setAlpha(.5f);
+        topChatPanelView.addView(topViewSeparator1, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 2));
+        topViewSeparator2 = new View(getContext());
+        topViewSeparator2.setVisibility(View.GONE);
+        topViewSeparator2.setBackgroundColor(getThemedColor(Theme.key_divider));
+        topChatPanelView.addView(topViewSeparator2, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.LEFT | Gravity.TOP, 10, 48, 10, 1));
+        topViewSeparator3 = new View(getContext());
+        topViewSeparator3.setVisibility(View.GONE);
+        topViewSeparator3.setBackgroundColor(getThemedColor(Theme.key_divider));
+        topChatPanelView.addView(topViewSeparator3, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 1f / AndroidUtilities.density, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 38));
 
         addToContactsButton = new TextView(getContext());
         addToContactsButton.setTextColor(getThemedColor(Theme.key_chat_addContact));
@@ -9748,8 +9664,10 @@ public class ChatActivity extends BaseFragment implements
         addToContactsButton.setMaxLines(1);
         addToContactsButton.setPadding(AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4), 0);
         addToContactsButton.setGravity(Gravity.CENTER);
-        addToContactsButton.setBackground(Theme.createInsetRoundRectDrawable(getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, dp(18), dp(4)));
-        topChatPanelView.addView(addToContactsButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP));
+        if (Build.VERSION.SDK_INT >= 21) {
+            addToContactsButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, 3));
+        }
+        topChatPanelView.addView(addToContactsButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 1));
         addToContactsButton.setOnClickListener(v -> {
             if (addToContactsButtonArchive) {
                 getMessagesController().addDialogToFolder(dialog_id, 0, 0, 0);
@@ -9806,11 +9724,11 @@ public class ChatActivity extends BaseFragment implements
         restartTopicButton.setMaxLines(1);
         restartTopicButton.setPadding(AndroidUtilities.dp(4), 0, AndroidUtilities.dp(4), 0);
         restartTopicButton.setGravity(Gravity.CENTER);
-        restartTopicButton.setText(LocaleController.getString(R.string.RestartTopic));
-        restartTopicButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, 3));
-        topPanelLayout.addView(restartTopicButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-        topPanelLayout.setPriority(restartTopicButton, 4);
-        topPanelLayout.setDebugName(restartTopicButton, "restart topic button");
+        restartTopicButton.setText(LocaleController.getString(R.string.RestartTopic).toUpperCase());
+        if (Build.VERSION.SDK_INT >= 21) {
+            restartTopicButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, 3));
+        }
+        topChatPanelView.addView(restartTopicButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 1));
         restartTopicButton.setOnClickListener(v -> {
             if (forumTopic != null) {
                 getMessagesController().getTopicsController().toggleCloseTopic(currentChat.id, forumTopic.id, forumTopic.closed = false);
@@ -9823,10 +9741,12 @@ public class ChatActivity extends BaseFragment implements
         closeReportSpam = new ImageView(getContext());
         closeReportSpam.setImageResource(R.drawable.miniplayer_close);
         closeReportSpam.setContentDescription(LocaleController.getString(R.string.Close));
-        closeReportSpam.setBackground(Theme.createCircleSelectorDrawable(getThemedColor(Theme.key_listSelector), 0, 0));
+        if (Build.VERSION.SDK_INT >= 21) {
+            closeReportSpam.setBackground(Theme.AdaptiveRipple.circle(getThemedColor(Theme.key_chat_topPanelClose)));
+        }
         closeReportSpam.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelClose), PorterDuff.Mode.MULTIPLY));
         closeReportSpam.setScaleType(ImageView.ScaleType.CENTER);
-        topChatPanelView.addView(closeReportSpam, LayoutHelper.createFrame(34, 34, Gravity.RIGHT | Gravity.TOP, 0, 5, 5, 0));
+        topChatPanelView.addView(closeReportSpam, LayoutHelper.createFrame(36, 36, Gravity.RIGHT | Gravity.TOP, 0, 6, 2, 0));
         closeReportSpam.setOnClickListener(v -> {
             long did = dialog_id;
             if (currentEncryptedChat != null) {
@@ -9839,13 +9759,36 @@ public class ChatActivity extends BaseFragment implements
         });
     }
 
+    private void createTopPanel2() {
+        if (contentView == null || topChatPanelView2 != null || getContext() == null) {
+            return;
+        }
+
+        topChatPanelView2 = new BlurredFrameLayout(getContext(), contentView);
+        topChatPanelView2.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
+        topChatPanelView2.backgroundPaddingBottom = AndroidUtilities.dp(2);
+        topChatPanelView2.setPadding(0, 0, 0, dp(2));
+        topChatPanelView2.setTag(1);
+        topChatPanelView2Offset = -AndroidUtilities.dp(50);
+        invalidateChatListViewTopPadding();
+        topChatPanelView2.setClickable(true);
+        topChatPanelView2.setVisibility(View.GONE);
+        topChatPanelView2.setBackgroundResource(R.drawable.blockpanel_shadow);
+        topChatPanelView2.getBackground().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
+        int index = 8;
+        if (pinnedMessageView != null && pinnedMessageView.getParent() == contentView) {
+            index = contentView.indexOfChild(pinnedMessageView) + 1;
+        }
+        contentView.addView(topChatPanelView2, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.TOP | Gravity.LEFT));
+    }
+
     private void createTranslateButton() {
         if (translateButton != null || getContext() == null) {
             return;
         }
 
         createTopPanel();
-        if (topPanelLayout == null) {
+        if (topChatPanelView == null) {
             return;
         }
         translateButton = new TranslateButton(getContext(), this, themeDelegate) {
@@ -9866,47 +9809,8 @@ public class ChatActivity extends BaseFragment implements
                 updateTopPanel(true);
             }
         };
-        topPanelLayout.addView(translateButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.BOTTOM));
-        topPanelLayout.setPriority(translateButton, 12);
-        topPanelLayout.setDebugName(translateButton, "translate button");
-    }
-    private void createAddProfilePictureButton() {
-        if (addProfilePictureButton != null || getContext() == null) return;
-
-        createTopPanel();
-        if (topPanelLayout == null) return;
-
-        addProfilePictureButton = new TextView(getContext());
-        addProfilePictureButton.setGravity(Gravity.CENTER);
-        addProfilePictureButton.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        addProfilePictureButton.setTypeface(AndroidUtilities.bold());
-        addProfilePictureButton.setTextColor(getThemedColor(Theme.key_featuredStickers_addButton));
-        SpannableStringBuilder sb = new SpannableStringBuilder();
-        sb.append("icon");
-        sb.setSpan(new ColoredImageSpan(R.drawable.outline_attach_camera_24), 0, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        sb.append(" ");
-        sb.append(getString(R.string.SetProfilePhoto));
-        addProfilePictureButton.setText(sb);
-        addProfilePictureButton.setBackground(Theme.createInsetRoundRectDrawable(Theme.multAlpha(getThemedColor(Theme.key_featuredStickers_addButton), .10f), dp(15), dp(3)));
-        addProfilePictureButton.setOnClickListener(v -> {
-            final Bundle args = new Bundle();
-            args.putLong("user_id", getDialogId());
-            presentFragment(new ChatEditActivity(args) {
-                private boolean shownAlert;
-                @Override
-                public void onBecomeFullyVisible() {
-                    super.onBecomeFullyVisible();
-                    if (!shownAlert) {
-                        openSetPhotoAlert();
-                        shownAlert = true;
-                    }
-                }
-            });
-        });
-        ScaleStateListAnimator.apply(addProfilePictureButton, 0.04f, 1.5f);
-        topPanelLayout.addView(addProfilePictureButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.BOTTOM));
-        topPanelLayout.setPriority(addProfilePictureButton, 12);
-        topPanelLayout.setDebugName(addProfilePictureButton, "add profile picture button");
+        topChatPanelView.addView(translateButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 2));
+        translateButton.setLeftMargin(getSideMenuWidth());
     }
 
     private boolean isAllChats() {
@@ -9916,18 +9820,17 @@ public class ChatActivity extends BaseFragment implements
         return topicsTabs != null || !isSubscriberSuggestions && ChatObject.isMonoForum(currentChat) || ChatObject.isForum(currentChat) && ChatObject.areTabsEnabled(currentChat);
     }
     private boolean isSideMenuEnabled() {
-        return topicsTabs != null && topicsTabs.isSideMenuEnabled();
+        return topicsTabs != null && topicsTabs.sidemenuEnabled;
     }
     private float getSideMenuAlpha() {
-        return topicsTabs != null ? topicsTabs.getSideMenuT() : 0f;
+        return topicsTabs != null ? topicsTabs.sidemenuT : 0f;
     }
     private int getSideMenuWidth() {
-        return (int) (dp(SIDE_MENU_WIDTH) * getSideMenuAlpha());
+        return (int) (dp(64) * getSideMenuAlpha());
     }
-
-    public static final int SIDE_MENU_WIDTH = 64 + 7;
-
-    private long lastSwitchTopicTime;
+    private boolean isSideMenuAnimating() {
+        return topicsTabs != null && topicsTabs.sidemenuAnimating;
+    }
 
     private void createTopicsTabs() {
         if (topicsTabs != null || getContext() == null) {
@@ -9936,81 +9839,112 @@ public class ChatActivity extends BaseFragment implements
         if (pinnedMessageView == null) {
             createPinnedMessageView();
         }
-        topicsTabs = new TopicsTabsView(getContext(), this, currentAccount, getDialogId(), getResourceProvider());
-        topicsTabs.doOnUpdateSideMenuPosition(() -> {
-            invalidateChatListViewTopPadding();
-            AndroidUtilities.forEachViews(chatListView, view -> {
-                if (view instanceof ChatMessageCell) {
-                    final ChatMessageCell cell = (ChatMessageCell) view;
-                    cell.isAllChats = isAllChats();
-                    cell.isSideMenued = isSideMenued();
-                    final boolean newSideMenuEnabled = isSideMenuEnabled();
-                    if (cell.isSideMenuEnabled != newSideMenuEnabled) {
-                        cell.isSideMenuEnabled = newSideMenuEnabled;
-                        final int position = chatListView.getChildAdapterPosition(view);
-                        cell.relayout();
-                        if (position >= 0) {
-                            chatAdapter.notifyItemChanged(position);
+        topicsTabs = new TopicsTabsView(getContext(), this, contentView, currentAccount, getDialogId(), getResourceProvider()) {
+            @Override
+            public void updateSidemenuPosition() {
+                super.updateSidemenuPosition();
+                invalidateChatListViewTopPadding();
+                AndroidUtilities.forEachViews(chatListView, view -> {
+                    if (view instanceof ChatMessageCell) {
+                        final ChatMessageCell cell = (ChatMessageCell) view;
+                        cell.isAllChats = isAllChats();
+                        cell.isSideMenued = isSideMenued();
+                        final boolean newSideMenuEnabled = isSideMenuEnabled();
+                        if (cell.isSideMenuEnabled != newSideMenuEnabled) {
+                            cell.isSideMenuEnabled = newSideMenuEnabled;
+                            final int position = chatListView.getChildAdapterPosition(view);
+                            cell.relayout();
+                            if (position >= 0) {
+                                chatAdapter.notifyItemChanged(position);
+                            }
                         }
+                        cell.sideMenuAlpha = getSideMenuAlpha();
+                        final int newSideMenuWidth = getSideMenuWidth();
+                        if (cell.sideMenuWidth != newSideMenuWidth) {
+                            cell.sideMenuWidth = newSideMenuWidth;
+                            cell.updateTranslation();
+                            cell.invalidate();
+                        }
+                    } else if (view instanceof ChatActionCell) {
+                        final ChatActionCell cell = (ChatActionCell) view;
+                        cell.isAllChats = isAllChats();
+                        cell.isSideMenued = isSideMenued();
+                        cell.isSideMenuEnabled = isSideMenuEnabled();
+                        cell.sideMenuAlpha = getSideMenuAlpha();
+                        final int newSideMenuWidth = getSideMenuWidth();
+                        if (cell.sideMenuWidth != newSideMenuWidth) {
+                            cell.sideMenuWidth = newSideMenuWidth;
+                            cell.invalidate();
+                        }
+                    } else if (view instanceof ChatUnreadCell) {
+                        ((ChatUnreadCell) view).getTextView().setTranslationX(getSideMenuWidth() / 2f);
                     }
-                    cell.sideMenuAlpha = getSideMenuAlpha();
-                    final int newSideMenuWidth = getSideMenuWidth();
-                    if (cell.sideMenuWidth != newSideMenuWidth) {
-                        cell.sideMenuWidth = newSideMenuWidth;
-                        cell.updateTranslation();
-                        cell.invalidate();
-                    }
-                } else if (view instanceof ChatActionCell) {
-                    final ChatActionCell cell = (ChatActionCell) view;
-                    cell.isAllChats = isAllChats();
-                    cell.isSideMenued = isSideMenued();
-                    cell.isSideMenuEnabled = isSideMenuEnabled();
-                    cell.sideMenuAlpha = getSideMenuAlpha();
-                    final int newSideMenuWidth = getSideMenuWidth();
-                    if (cell.sideMenuWidth != newSideMenuWidth) {
-                        cell.sideMenuWidth = newSideMenuWidth;
-                        cell.invalidate();
-                    }
-                } else if (view instanceof ChatUnreadCell) {
-                    ((ChatUnreadCell) view).getTextView().setTranslationX(getSideMenuWidth() / 2f);
-                } else if (view instanceof BotAskCell) {
-                    view.invalidate();
-                } else if (view instanceof BotHelpCell) {
-                    view.invalidate();
+                });
+                if (floatingDateView != null) {
+                    floatingDateView.setTranslationX(getSideMenuWidth() / 2f);
                 }
-            });
-            if (topPanelLayout != null) {
-                topPanelLayout.setPadding(dp(7) + getSideMenuWidth(), dp(7), dp(7), dp(7));
+                if (floatingTopicSeparator != null) {
+                    floatingTopicSeparator.setTranslationX(getSideMenuWidth() / 2f);
+                }
+                if (emptyViewContainer != null) {
+                    emptyViewContainer.setTranslationX(getSideMenuWidth() / 2.f);
+                }
+                if (pendingRequestsDelegate != null) {
+                    pendingRequestsDelegate.setLeftMargin(getSideMenuWidth());
+                }
+                if (bizBotButton != null) {
+                    bizBotButton.setLeftMargin(getSideMenuWidth());
+                }
+                if (translateButton != null) {
+                    translateButton.setLeftMargin(getSideMenuWidth());
+                }
+                if (reportSpamButton != null) {
+                    reportSpamButton.setTranslationX(getSideMenuWidth() / 2.0f);
+                }
+                if (addToContactsButton != null) {
+                    addToContactsButton.setTranslationX(getSideMenuWidth() / 2.0f);
+                }
+                if (restartTopicButton != null) {
+                    restartTopicButton.setTranslationX(getSideMenuWidth() / 2.0f);
+                }
+                if (fragmentContextView != null) {
+                    fragmentContextView.setLeftMargin(getSideMenuWidth());
+                }
+                if (fragmentLocationContextView != null) {
+                    fragmentLocationContextView.setLeftMargin(getSideMenuWidth());
+                }
+                if (emojiStatusSpamHint != null) {
+                    emojiStatusSpamHint.setTranslationX(getSideMenuWidth() / 2.0f);
+                }
+                updateTopPanelSidemenuTranslation();
             }
-            if (floatingDateView != null) {
-                floatingDateView.setTranslationX(getSideMenuWidth() / 2f);
-            }
-            if (floatingTopicSeparator != null) {
-                floatingTopicSeparator.setTranslationX(getSideMenuWidth() / 2f);
-            }
-            if (emptyViewContainer != null) {
-                emptyViewContainer.setTranslationX(getSideMenuWidth() / 2.f);
-            }
-            checkInsets();
-            checkUi_topFade();
-        });
-
-        topicsTabs.setSideMenuBackgroundDrawable(glassBackgroundDrawableFactory.create(topicsTabs, BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate)));
-        topicsTabs.setTopMenuBackgroundDrawable(glassBackgroundDrawableFactory.create(topicsTabs, BlurredBackgroundProviderImpl.topPanelChatActivity(themeDelegate)));
-
+        };
         int index = 8;
+        if (topChatPanelView != null && topChatPanelView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(topChatPanelView) + 1);
+        }
+        if (topChatPanelView2 != null && topChatPanelView2.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(topChatPanelView2) + 1);
+        }
+        View pendingRequestsView = pendingRequestsDelegate != null ? pendingRequestsDelegate.getView() : null;
+        if (pendingRequestsView != null && pendingRequestsView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(pendingRequestsView) + 1);
+        }
+        if (pinnedMessageView != null && pinnedMessageView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(pinnedMessageView) + 1);
+        }
+        if (fragmentContextView != null && fragmentContextView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(fragmentContextView) + 1);
+        }
+        if (fragmentLocationContextView != null && fragmentLocationContextView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(fragmentLocationContextView) + 1);
+        }
         topicsTabs.setCurrentTopic(getTopicId());
         topicsTabs.setOnNewTopicSelected(() -> {
             presentFragment(TopicCreateFragment.create(-dialog_id, 0).setOpenInChatActivity(this));
         });
         topicsTabs.setOnTopicSelected((topicId, fromMessage) -> {
             if (topicId == getTopicId()) return;
-            hasSendingMessagesInBotForum = false;
-
-            if (botDraftHeightController != null && topicId == 0) {
-                botDraftHeightController.setMessageIdToOverride(0, 0);
-            }
-
             TLRPC.TL_forumTopic topic = topicsTabs.getTopic(topicId);
             TLRPC.Message message = topic == null ? null : topic.topicStartMessage;
             if (message == null && topic != null) {
@@ -10024,7 +9958,6 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
 
-            lastSwitchTopicTime = SystemClock.uptimeMillis();
             topicChangedFromMessage = fromMessage;
             if (fromMessage || true) {
                 if (topicId == 0) {
@@ -10067,15 +10000,6 @@ public class ChatActivity extends BaseFragment implements
                 isComments = false;
             }
 
-            if (chatAdapter != null) {
-                if (chatAdapter.botForumStartThreadRow >= 0 && !chatAdapter.needBotForumInfoRow()) {
-                    chatAdapter.notifyItemRemoved(chatAdapter.botForumStartThreadRow);
-                } else if (chatAdapter.botForumStartThreadRow < 0 && chatAdapter.needBotForumInfoRow()) {
-                    chatAdapter.notifyItemInserted(0);
-                }
-
-                chatAdapter.updateRowsSafe();
-            }
             firstLoadMessages();
 
             updateTitle(true);
@@ -10094,34 +10018,26 @@ public class ChatActivity extends BaseFragment implements
             hideFieldPanel(true);
             applyDraftMaybe(true, true);
             if (chatActivityEnterView != null) {
-                if (!UserObject.isBotForum(currentUser)) {
-                    chatActivityEnterView.hidePopup(false);
-                }
+                chatActivityEnterView.hidePopup(false);
                 chatActivityEnterView.updateFieldHint(true);
-                //if (getParentActivity() != null && !UserObject.isBotForum(currentUser) && topicsTabs.getCurrentTabsPosition() != TopicsTabsView.Position.BOTTOM) {
-                //    AndroidUtilities.hideKeyboard(getParentActivity().getCurrentFocus());
-                //}
+                if (getParentActivity() != null) {
+                    AndroidUtilities.hideKeyboard(getParentActivity().getCurrentFocus());
+                }
             }
             if (topic != null) {
                 getMessagesController().getTopicsController().getTopicRepliesCount(dialog_id, topic.id);
             }
 
             reactionsMentionCount = topic != null ? topic.unread_reactions_count : 0;
-            pollVotesMentionCount = topic != null ? topic.unread_poll_votes_count : 0;
             updateReactionsMentionButton(false);
-            updatePollVotesMentionButton(false);
             updateTopicButtons();
             if (searchItemListener != null && actionBar.isSearchFieldVisible()) {
                 searchItemListener.onSearchPressed(null);
-            }
-            if (UserObject.isBotForum(currentUser)) {
-                getMediaDataController().loadBotKeyboard(MessagesStorage.TopicKey.of(dialog_id, topicId), true);
             }
         });
         topicsTabs.setOnDialogSelected((dialogId, fromMessage) -> {
             if (dialogId == getTopicId()) return;
 
-            lastSwitchTopicTime = SystemClock.uptimeMillis();
             topicChangedFromMessage = fromMessage;
             if (fromMessage || true) {
                 if (dialogId == 0) {
@@ -10201,29 +10117,24 @@ public class ChatActivity extends BaseFragment implements
             if (chatActivityEnterView != null) {
                 chatActivityEnterView.hidePopup(false);
                 chatActivityEnterView.updateFieldHint(true);
-                //if (getParentActivity() != null && topicsTabs.getCurrentTabsPosition() != TopicsTabsView.Position.BOTTOM) {
-                //    AndroidUtilities.hideKeyboard(getParentActivity().getCurrentFocus());
-                //}
+                if (getParentActivity() != null) {
+                    AndroidUtilities.hideKeyboard(getParentActivity().getCurrentFocus());
+                }
             }
             applyDraftMaybe(true, true);
 
             reactionsMentionCount = topic != null ? topic.unread_reactions_count : 0;
-            pollVotesMentionCount = topic != null ? topic.unread_poll_votes_count : 0;
             updateReactionsMentionButton(false);
-            updatePollVotesMentionButton(false);
             updateTopicButtons();
             if (searchItemListener != null && actionBar.isSearchFieldVisible()) {
                 searchItemListener.onSearchPressed(null);
             }
             //
         });
-
-        final int index2 = contentView.indexOfChild(sideControlsButtonsLayout);
-        if (index2 >= 0) {
-            index = index2 + 1;
-        }
-
         contentView.addView(topicsTabs, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
+        if (topicsTabs != null && chatActivityEnterView != null) {
+            topicsTabs.setBottomMargin(chatActivityEnterView.getHeightWithTopView());
+        }
         topicsTabs.updateSidemenuPosition();
         if (mentionContainer != null) {
             mentionContainer.bringToFront();
@@ -10248,14 +10159,16 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void createBotAdView() {
-        if (topPanelLayout == null || botAdView != null || getContext() == null) {
+        if (botAdView != null || getContext() == null) {
             return;
         }
 
+        createTopPanel2();
+        if (topChatPanelView2 == null) {
+            return;
+        }
         botAdView = new BotAdView(getContext(), themeDelegate);
-        topPanelLayout.addView(botAdView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-        topPanelLayout.setPriority(botAdView, 10);
-        topPanelLayout.setDebugName(botAdView, "bot add view");
+        topChatPanelView2.addView(botAdView);
     }
 
     private void createBizBotButton() {
@@ -10264,13 +10177,12 @@ public class ChatActivity extends BaseFragment implements
         }
 
         createTopPanel();
-        if (topChatPanelView == null || topPanelLayout == null) {
+        if (topChatPanelView == null) {
             return;
         }
         bizBotButton = new BusinessBotButton(getContext(), this, themeDelegate);
-        topPanelLayout.addView(bizBotButton, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-        topPanelLayout.setPriority(bizBotButton, 7);
-        topPanelLayout.setDebugName(bizBotButton, "bot biz");
+        topChatPanelView.addView(bizBotButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.BOTTOM, 0, 0, 0, 2));
+        bizBotButton.setLeftMargin(getSideMenuWidth());
     }
 
     private void createUndoView() {
@@ -10300,8 +10212,6 @@ public class ChatActivity extends BaseFragment implements
         selectedMessagesCountTextView.setOnTouchListener((v, event) -> true);
         actionMode.addView(selectedMessagesCountTextView, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1.0f, 65, 0, 0, 0));
 
-        boolean replaceForward = MessagesController.getGlobalMainSettings().getBoolean("replaceForward", true);
-
         if (currentEncryptedChat == null) {
             final boolean isSavedMessages = getDialogId() == getUserConfig().getClientUserId() && (chatMode == 0 || chatMode == MODE_SAVED);
             actionModeViews.add(actionMode.addItemWithWidth(save_to, R.drawable.msg_download, AndroidUtilities.dp(54), LocaleController.getString(R.string.SaveToMusic)));
@@ -10309,14 +10219,10 @@ public class ChatActivity extends BaseFragment implements
             if (isSavedMessages) {
                 actionModeViews.add(actionMode.addItemWithWidth(tag_message, R.drawable.menu_tag_edit, AndroidUtilities.dp(54), LocaleController.getString(R.string.AccDescrTagMessage)));
             }
-            actionModeViews.add(actionMode.addItemWithWidth(select_between, R.drawable.profile_list, AndroidUtilities.dp(54), LocaleController.getString("Edit", R.string.Edit)));
             actionModeViews.add(actionMode.addItemWithWidth(star, R.drawable.msg_fave, AndroidUtilities.dp(54), LocaleController.getString(R.string.AddToFavorites)));
             actionModeViews.add(actionMode.addItemWithWidth(copy, R.drawable.msg_copy, AndroidUtilities.dp(54), LocaleController.getString(R.string.Copy)));
-            //if (!isSavedMessages && getDialogId() != UserObject.VERIFY) {
-            if (!replaceForward) {
+            if (!isSavedMessages && getDialogId() != UserObject.VERIFY) {
                 actionModeViews.add(actionMode.addItemWithWidth(forward, R.drawable.msg_forward, AndroidUtilities.dp(54), LocaleController.getString(R.string.Forward)));
-            } else {
-                actionModeViews.add(actionMode.addItemWithWidth(forward_anonym, R.drawable.ic_ab_forward_anonym, AndroidUtilities.dp(54), LocaleController.getString("Forward", R.string.Forward)));
             }
             actionModeViews.add(actionMode.addItemWithWidth(share, R.drawable.msg_shareout, AndroidUtilities.dp(54), LocaleController.getString(R.string.ShareFile)));
             actionModeViews.add(actionMode.addItemWithWidth(delete, R.drawable.msg_delete, AndroidUtilities.dp(54), LocaleController.getString(R.string.Delete)));
@@ -10326,9 +10232,8 @@ public class ChatActivity extends BaseFragment implements
             actionModeViews.add(actionMode.addItemWithWidth(copy, R.drawable.msg_copy, AndroidUtilities.dp(54), LocaleController.getString(R.string.Copy)));
             actionModeViews.add(actionMode.addItemWithWidth(delete, R.drawable.msg_delete, AndroidUtilities.dp(54), LocaleController.getString(R.string.Delete)));
         }
-        updateMultipleSelection(actionMode);
         actionMode.setItemVisibility(edit, canEditMessagesCount == 1 && selectedMessagesIds[0].size() + selectedMessagesIds[1].size() == 1 ? View.VISIBLE : View.GONE);
-        actionMode.setItemVisibility(copy, !isPeerNoForwards() && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
+        actionMode.setItemVisibility(copy, !getMessagesController().isChatNoForwards(currentChat) && selectedMessagesCanCopyIds[0].size() + selectedMessagesCanCopyIds[1].size() != 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(star, selectedMessagesCanStarIds[0].size() + selectedMessagesCanStarIds[1].size() != 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(delete, cantDeleteMessagesCount == 0 ? View.VISIBLE : View.GONE);
         actionMode.setItemVisibility(tag_message, getUserConfig().isPremium() ? View.VISIBLE : View.GONE);
@@ -10504,7 +10409,18 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
-        searchContainer = new FrameLayout(getContext()) {
+        searchContainer = new BlurredFrameLayout(getContext(), contentView) {
+            private Rect blurBounds = new Rect();
+            @Override
+            public void onDraw(Canvas canvas) {
+                int bottom = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                if (chatActivityEnterView.getVisibility() != View.VISIBLE) {
+                    Theme.chat_composeShadowDrawable.setBounds(0, 0, getMeasuredWidth(), bottom);
+                    Theme.chat_composeShadowDrawable.draw(canvas);
+                }
+                blurBounds.set(0, bottom, getMeasuredWidth(), getMeasuredHeight());
+                contentView.drawBlurRect(canvas, getY(), blurBounds, getThemedPaint(Theme.key_paint_chatComposeBackground), false);
+            }
 
             @Override
             protected void measureChildWithMargins(View child, int parentWidthMeasureSpec, int widthUsed, int parentHeightMeasureSpec, int heightUsed) {
@@ -10520,10 +10436,21 @@ public class ChatActivity extends BaseFragment implements
                 }
                 super.measureChildWithMargins(child, parentWidthMeasureSpec, widthUsed, parentHeightMeasureSpec, heightUsed);
             }
+
+            @Override
+            public void setVisibility(int visibility) {
+                super.setVisibility(visibility);
+                if (chatListView != null && isInsideContainer) {
+                    chatListView.setPadding(chatListView.getPaddingLeft(), chatListView.getPaddingTop(), chatListView.getPaddingRight(), AndroidUtilities.dp(3) + blurredViewBottomOffset + (isInsideContainer && visibility == VISIBLE ? dp(50) : 0));
+                }
+            }
         };
         searchContainer.setClickable(false);
+        searchContainer.drawBlur = false;
+        searchContainer.isTopView = false;
         searchContainer.setWillNotDraw(false);
-        bottomViewsVisibilityController.setViewVisible(MESSAGE_SEARCH_CONTAINER, false, false);
+        searchContainer.setVisibility(View.INVISIBLE);
+        searchContainer.setPadding(0, AndroidUtilities.dp(3), 0, 0);
         searchContainer.setClipToPadding(false);
 
         searchCountText = new AnimatedTextView(getContext(), true, true, true);
@@ -10534,7 +10461,7 @@ public class ChatActivity extends BaseFragment implements
         searchCountText.setTextColor(getThemedColor(Theme.key_chat_searchPanelText));
         searchCountText.setGravity(Gravity.LEFT);
         searchContainer.addView(searchCountText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 30, Gravity.CENTER_VERTICAL, 0, -1, 97.33f, 0));
-        chatInputBubbleContainer.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM, 7, 0, 7, 0));
+        contentView.addView(searchContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, searchContainerHeight, Gravity.BOTTOM));
         if (hashtagHistoryView != null) {
             hashtagHistoryView.bringToFront();
         }
@@ -10576,12 +10503,11 @@ public class ChatActivity extends BaseFragment implements
             searchUserButton.setImageResource(R.drawable.msg_usersearch);
             searchUserButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_searchPanelIcons), PorterDuff.Mode.MULTIPLY));
             searchUserButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 1));
-            searchContainer.addView(searchUserButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.TOP, 48, 0, 0, 0));
+            searchContainer.addView(searchUserButton, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.TOP, 48, 0, 0, 0));
             searchUserButton.setOnClickListener(view -> {
                 if (mentionContainer != null) {
                     mentionContainer.setReversed(true);
                     mentionContainer.getAdapter().setSearchingMentions(true);
-                    checkUi_botMenuPosition();
                 }
                 searchCalendarButton.setVisibility(View.GONE);
                 searchUserButton.setVisibility(View.GONE);
@@ -10602,7 +10528,7 @@ public class ChatActivity extends BaseFragment implements
             searchCalendarButton.setImageResource(R.drawable.msg_calendar);
             searchCalendarButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_searchPanelIcons), PorterDuff.Mode.MULTIPLY));
             searchCalendarButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 1));
-            searchContainer.addView(searchCalendarButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.TOP, 2.66f, 0, 0, 0));
+            searchContainer.addView(searchCalendarButton, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.TOP, 2.66f, 0, 0, 0));
             searchCalendarButton.setOnClickListener(view -> {
                 if (getParentActivity() == null) {
                     return;
@@ -10628,21 +10554,18 @@ public class ChatActivity extends BaseFragment implements
         }).setDuration(170).start();
     }
 
-    private boolean forceScrollToMessageBottom;
-
     public void onPageDownClicked() {
         wasManualScroll = true;
         textSelectionHelper.cancelTextSelectionRunnable();
         final Runnable inCaseLoading = () -> {
-            sideControlsButtonsLayout.setButtonLoading(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, true, true);
+            setPagedownLoading(true, true);
         };
         if (createUnreadMessageAfterId != 0) {
             scrollToMessageId(createUnreadMessageAfterId, 0, false, returnToLoadIndex, true, 0, null, inCaseLoading);
         } else if (returnToMessageId > 0) {
             scrollToMessageId(returnToMessageId, 0, true, returnToLoadIndex, true, 0, null, inCaseLoading);
         } else {
-            scrollToLastMessage(true, !forceScrollToMessageBottom, inCaseLoading);
-            forceScrollToMessageBottom = false;
+            scrollToLastMessage(true, true, inCaseLoading);
             if (!pinnedMessageIds.isEmpty()) {
                 forceScrollToFirst = true;
                 forceNextPinnedMessageId = pinnedMessageIds.get(0);
@@ -10684,12 +10607,12 @@ public class ChatActivity extends BaseFragment implements
 
     private void dimBehindView(View view, boolean blur, boolean enable) {
         setScrimView(view);
-        dimBehindView(enable ? 0.2f : 0, blur, view != sideControlsButtonsLayout);
+        dimBehindView(enable ? 0.2f : 0, blur, view != reactionsMentiondownButton && view != mentiondownButton);
     }
 
     private void dimBehindView(View view, float value) {
         setScrimView(view);
-        dimBehindView(value, false, view != sideControlsButtonsLayout);
+        dimBehindView(value, false, view != reactionsMentiondownButton && view != mentiondownButton);
     }
 
     private void setScrimView(View scrimView) {
@@ -10711,26 +10634,13 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void checkInstantCameraView() {
-        if (instantCameraView != null || !CameraView.isCameraAllowed() || getContext() == null) {
+        if (instantCameraView != null || getContext() == null) {
             return;
         }
-        instantCameraView = new InstantCameraView(getContext(), this, themeDelegate, true) {
-            @Override
-            public void startAnimation(boolean open, boolean fromPaused) {
-                super.startAnimation(open, fromPaused);
-                animatorRoundMessageCameraVisibility.setValue(open, true);
-            }
-        };
-        instantCameraView.setClipToPadding(false);
-        instantCameraView.setButtonsBackground(glassBackgroundDrawableFactory, blurredBackgroundColorProvider);
-
-        int index = contentView.indexOfChild(chatInputViewsContainer);
-        if (index < 0) {
-            index = contentView.getChildCount();
-        }
-        index = Math.min(index + 1, contentView.getChildCount());
-
-        contentView.addView(instantCameraView, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP));
+        // forkgram-classic: InstantCameraView.clipBlur was removed upstream;
+        // drop the override and use the no-arg constructor result directly.
+        instantCameraView = new InstantCameraView(getContext(), this, themeDelegate);
+        contentView.addView(instantCameraView, 21, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP));
     }
 
     private void dimBehindView(float value, boolean blur, boolean hidePagedownButtons) {
@@ -10762,15 +10672,17 @@ public class ChatActivity extends BaseFragment implements
             animators.add(scrimPaintAlphaAnimator = ValueAnimator.ofFloat(0, value));
 
             if (blur) {
-                ScrimOptions.makeGlobalBlurBitmaps((bitmapBg, bitmapOptions) -> {
-                    scrimBlurBitmap = bitmapBg;
+                AndroidUtilities.makeGlobalBlurBitmap(bitmap -> {
+                    scrimBlurBitmap = bitmap;
+
                     scrimBlurBitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
                     scrimBlurBitmapPaint.setShader(scrimBlurBitmapShader = new BitmapShader(scrimBlurBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP));
+                    ColorMatrix colorMatrix = new ColorMatrix();
+                    AndroidUtilities.adjustSaturationColorMatrix(colorMatrix, Theme.isCurrentThemeDark() ? .08f : +.25f);
+                    AndroidUtilities.adjustBrightnessColorMatrix(colorMatrix, Theme.isCurrentThemeDark() ? -.02f : -.07f);
+                    scrimBlurBitmapPaint.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
                     scrimBlurMatrix = new Matrix();
-                    scrimBlur3SourceBitmap.setBitmap(bitmapOptions);
-                    Blur3Utils.checkBitmapSourceMatrixScale(scrimBlur3SourceBitmap, fragmentView);
-                    scrimBlur3Factory.invalidateAllLinkedViews();
-                });
+                }, 14);
             }
         } else {
             scrimViewProgress = scrimPaintAlpha / max;
@@ -10785,8 +10697,14 @@ public class ChatActivity extends BaseFragment implements
             }
         });
         if (!enable || hidePagedownButtons) {
-            if (sideControlsButtonsLayout != null) {
-                animators.add(ObjectAnimator.ofFloat(sideControlsButtonsLayout, View.ALPHA, enable ? 0 : 1));
+            if (pagedownButton != null) {
+                animators.add(ObjectAnimator.ofFloat(pagedownButton, View.ALPHA, enable ? 0 : 1));
+            }
+            if (mentiondownButton != null) {
+                animators.add(ObjectAnimator.ofFloat(mentiondownButton, View.ALPHA, enable ? 0 : 1));
+            }
+            if (reactionsMentiondownButton != null) {
+                animators.add(ObjectAnimator.ofFloat(reactionsMentiondownButton, View.ALPHA, enable ? 0 : 1));
             }
         }
         scrimAnimatorSet.playTogether(animators);
@@ -10879,46 +10797,97 @@ public class ChatActivity extends BaseFragment implements
             item.addSubItem(text_underline, stringBuilder);
         }
         item.addSubItem(text_link, LocaleController.getString(R.string.CreateLink));
-        if (currentEncryptedChat == null) {
-            item.addSubItem(text_date, LocaleController.getString(R.string.FormattedDate));
-        }
         item.addSubItem(text_regular, LocaleController.getString(R.string.Regular));
 
         filledEditTextItemMenu = true;
     }
 
     private void updatePagedownButtonsPosition() {
-        if (sideControlsButtonsLayout != null) {
-            float baseTranslationY2 = -windowInsetsStateHolder.getAnimatedMaxBottomInset()
-                - chatInputViewsContainer.getInputBubbleHeight()
-                - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                - dp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM + 4);
-            sideControlsButtonsLayout.setTranslationY(baseTranslationY2);
+        float baseTranslationY = chatActivityEnterView.getAnimatedTop() + chatActivityEnterView.getTranslationY() + (chatActivityEnterTopView.getVisibility() == View.VISIBLE ? chatActivityEnterTopView.getTranslationY() : 0);
+        if (pagedownButton != null) {
+            pagedownButton.setTranslationY(baseTranslationY + dp(100) * (1f - pagedownButtonEnterProgress));
         }
-
+        if (searchUpButton != null) {
+            searchUpButton.setTranslationY(baseTranslationY - dp(51.33f) * searchUpDownEnterProgress + dp(100) * (1f - searchUpDownEnterProgress));
+        }
+        if (searchDownButton != null) {
+            searchDownButton.setTranslationY(baseTranslationY + dp(100) * (1f - searchUpDownEnterProgress));
+        }
+        if (mentiondownButton != null) {
+            mentiondownButton.setTranslationY(baseTranslationY + dp(100) * (1f - mentionsButtonEnterProgress) - (dp(72) * pagedownButtonEnterProgress) * mentionsButtonEnterProgress);
+        }
+        if (reactionsMentiondownButton != null) {
+            reactionsMentiondownButton.setTranslationY(baseTranslationY + dp(100) * (1f - reactionsMentionButtonEnterProgress) - ((dp(50) + dp(22) * pagedownButtonCounter.getEnterProgress()) * pagedownButtonEnterProgress + dp(72) * mentionsButtonEnterProgress) * reactionsMentionButtonEnterProgress);
+        }
         if (suggestEmojiPanel != null) {
-            float baseTranslationY2 = -windowInsetsStateHolder.getAnimatedMaxBottomInset()
-                - dp(ChatInputViewsContainer.INPUT_BUBBLE_BOTTOM + 7);
-            suggestEmojiPanel.setTranslationY(baseTranslationY2);
+            suggestEmojiPanel.setTranslationY(baseTranslationY);
         }
     }
 
     private void updateReactionsMentionButton(boolean animated) {
-        if (getParentActivity() == null) {
+        if (reactionsMentiondownButtonCounter == null || getParentActivity() == null) {
             return;
         }
         boolean visible = reactionsMentionCount > 0 && (chatMode == 0 || chatMode == MODE_SUGGESTIONS);
-        sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_REACTIONS, visible, animated);
-        sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_REACTIONS, reactionsMentionCount, animated);
-    }
-
-    private void updatePollVotesMentionButton(boolean animated) {
-        if (getParentActivity() == null) {
-            return;
+        reactionsMentiondownButtonCounter.setCount(reactionsMentionCount, animated);
+        if (visible && reactionsMentiondownButton.getTag() == null) {
+            reactionsMentiondownButton.setTag(1);
+            if (reactionsMentionButtonAnimation != null) {
+                reactionsMentionButtonAnimation.removeAllListeners();
+                reactionsMentionButtonAnimation.cancel();
+                reactionsMentionButtonAnimation = null;
+            }
+            if (animated) {
+                reactionsMentiondownButton.setVisibility(View.VISIBLE);
+                reactionsMentionButtonAnimation = ValueAnimator.ofFloat(reactionsMentionButtonEnterProgress, 1f);
+                reactionsMentionButtonAnimation.addUpdateListener(valueAnimator -> {
+                    reactionsMentionButtonEnterProgress = (float) valueAnimator.getAnimatedValue();
+                    contentView.invalidate();
+                });
+                reactionsMentionButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        reactionsMentionButtonEnterProgress = 1f;
+                        contentView.invalidate();
+                    }
+                });
+                reactionsMentionButtonAnimation.setDuration(200);
+                reactionsMentionButtonAnimation.start();
+            } else {
+                reactionsMentiondownButton.setVisibility(View.VISIBLE);
+                reactionsMentionButtonEnterProgress = 1f;
+                contentView.invalidate();
+            }
+        } else if (!visible && reactionsMentiondownButton.getTag() != null) {
+            reactionsMentiondownButton.setTag(null);
+            if (reactionsMentionButtonAnimation != null) {
+                reactionsMentionButtonAnimation.removeAllListeners();
+                reactionsMentionButtonAnimation.cancel();
+                reactionsMentionButtonAnimation = null;
+            }
+            if (animated) {
+                reactionsMentiondownButton.setVisibility(View.VISIBLE);
+                reactionsMentionButtonAnimation = ValueAnimator.ofFloat(reactionsMentionButtonEnterProgress, 0f);
+                reactionsMentionButtonAnimation.addUpdateListener(valueAnimator -> {
+                    reactionsMentionButtonEnterProgress = (float) valueAnimator.getAnimatedValue();
+                    contentView.invalidate();
+                });
+                reactionsMentionButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        reactionsMentiondownButton.setVisibility(View.INVISIBLE);
+                        reactionsMentionButtonEnterProgress = 0f;
+                        contentView.invalidate();
+                    }
+                });
+                reactionsMentionButtonAnimation.setDuration(200);
+                reactionsMentionButtonAnimation.start();
+            } else {
+                reactionsMentiondownButton.setVisibility(View.INVISIBLE);
+                reactionsMentionButtonEnterProgress = 0f;
+                contentView.invalidate();
+            }
         }
-        boolean visible = pollVotesMentionCount > 0 && (chatMode == 0 || chatMode == MODE_SUGGESTIONS);
-        sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_POLL_VOTES, visible, animated);
-        sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_POLL_VOTES, pollVotesMentionCount, animated);
     }
 
     public void fallbackFieldPanel() {
@@ -10939,59 +10908,6 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    public TLRPC.WebPage forkExtractMediaEffectiveWebPage() {
-        return forkExtractMediaFrozenWebPage != null ? forkExtractMediaFrozenWebPage : foundWebPage;
-    }
-
-    public boolean forkExtractMediaAvailable() {
-        return fieldPanelShown == 4 && ExtractMediaFromPreview.hasMedia(forkExtractMediaEffectiveWebPage());
-    }
-
-    public boolean forkIsExtractMediaActive() {
-        return forkExtractMediaActive && forkExtractMediaFrozenWebPage != null;
-    }
-
-    private void forkToggleExtractMedia() {
-        if (forkExtractMediaActive) {
-            forkExtractMediaActive = false;
-            forkExtractMediaFrozenWebPage = null;
-            if (chatActivityEnterView != null) {
-                searchLinks(chatActivityEnterView.getFieldText(), true);
-            }
-        } else if (!forkExtractMediaAvailable()) {
-            forkExtractMediaActive = false;
-            forkExtractMediaFrozenWebPage = null;
-        } else {
-            forkExtractMediaActive = true;
-            forkExtractMediaFrozenWebPage = foundWebPage;
-        }
-        forkUpdateExtractMediaButton();
-    }
-
-    public void forkUpdateExtractMediaButton() {
-        if (forkExtractMediaButton == null) {
-            return;
-        }
-        boolean visible = forkExtractMediaAvailable() || forkIsExtractMediaActive();
-        forkExtractMediaButton.setVisibility(visible ? View.VISIBLE : View.GONE);
-        int color = getThemedColor(forkExtractMediaActive ? Theme.key_chat_messageLinkIn : Theme.key_glass_defaultIcon);
-        forkExtractMediaButton.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
-    }
-
-    public void forkResetExtractMediaAfterSend() {
-        forkExtractMediaActive = false;
-        forkExtractMediaFrozenWebPage = null;
-        foundWebPage = null;
-        if (messagePreviewParams != null) {
-            messagePreviewParams.updateLink(currentAccount, null, "", null, null, null);
-        }
-        if (chatActivityEnterView != null) {
-            chatActivityEnterView.setWebPage(null, true);
-        }
-        fallbackFieldPanel();
-        forkUpdateExtractMediaButton();
-    }
-
     private boolean keyboardWasVisible;
     private void openForwardingPreview(int startTab) {
         if (messagePreviewParams == null || forwardingPreviewView != null) {
@@ -11010,7 +10926,7 @@ public class ChatActivity extends BaseFragment implements
 //            chatActivityEnterView.freezeEmojiView(false);
 //        }
         keyboardWasVisible = chatActivityEnterView.isKeyboardVisible();
-        forwardingPreviewView = new MessagePreviewView(contentView.getContext(), this, scrimBlur3Factory, messagePreviewParams, currentUser, currentChat, currentAccount, themeDelegate, startTab, replyingQuote != null && replyingQuote.outdated) {
+        forwardingPreviewView = new MessagePreviewView(contentView.getContext(), this, messagePreviewParams, currentUser, currentChat, currentAccount, themeDelegate, startTab, replyingQuote != null && replyingQuote.outdated) {
 
             @Override
             protected void removeLink() {
@@ -11394,15 +11310,15 @@ public class ChatActivity extends BaseFragment implements
         if (currentEncryptedChat != null || pinnedMessageView != null || getContext() == null) {
             return;
         }
-        final int possibleLeftMarginDp = 0; // isSideMenued() ? SIDE_MENU_WIDTH : 0;
-        pinnedMessageView = new FrameLayout(getContext()) {
+        final int possibleLeftMarginDp = isSideMenued() ? 64 : 0;
+        pinnedMessageView = new BlurredFrameLayout(getContext(), contentView) {
 
             float lastY;
             float startY;
 
             {
                 setOnLongClickListener(v -> {
-                    if (AndroidUtilities.isTablet() || (isThreadChat() && !UserObject.isBot(currentUser))) {
+                    if (AndroidUtilities.isTablet() || isThreadChat()) {
                         return false;
                     }
                     startY = lastY;
@@ -11462,9 +11378,17 @@ public class ChatActivity extends BaseFragment implements
             }
         };
         pinnedMessageView.setTag(1);
-        topPanelLayout.addView(pinnedMessageView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-        topPanelLayout.setPriority(pinnedMessageView, 1);
-        topPanelLayout.setDebugName(pinnedMessageView, "pinned message view");
+        pinnedMessageEnterOffset = -AndroidUtilities.dp(50);
+        pinnedMessageView.setVisibility(View.GONE);
+        pinnedMessageView.setBackgroundResource(R.drawable.blockpanel_shadow);
+        pinnedMessageView.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
+        pinnedMessageView.backgroundPaddingBottom = AndroidUtilities.dp(2);
+        pinnedMessageView.getBackground().mutate().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
+        int index = 8;
+        if (topChatPanelView != null && topChatPanelView.getParent() == contentView) {
+            index = contentView.indexOfChild(topChatPanelView);
+        }
+        contentView.addView(pinnedMessageView, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.TOP | Gravity.LEFT));
         pinnedMessageView.setOnClickListener(v -> {
             wasManualScroll = true;
             if (isThreadChat() && !isTopic) {
@@ -11491,10 +11415,13 @@ public class ChatActivity extends BaseFragment implements
             }
         });
         pinnedMessageView.setEnabled(!isInPreviewMode());
-        pinnedMessageView.setBackground(Theme.getSelectorDrawable(false));
+
+        View selector = new View(getContext());
+        selector.setBackground(Theme.getSelectorDrawable(false));
+        pinnedMessageView.addView(selector, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.TOP, 0, 0, 0, 2));
 
         pinnedLineView = new PinnedLineView(getContext(), themeDelegate);
-        pinnedMessageView.addView(pinnedLineView, LayoutHelper.createFrame(3, 48, Gravity.LEFT | Gravity.TOP, 13, 0, 0, 0));
+        pinnedMessageView.addView(pinnedLineView, LayoutHelper.createFrame(2, 48, Gravity.LEFT | Gravity.TOP, 8, 0, 0, 0));
         pinnedMessageView.setClipChildren(false);
 
         pinnedCounterTextView = new NumberTextView(getContext());
@@ -11502,14 +11429,14 @@ public class ChatActivity extends BaseFragment implements
         pinnedCounterTextView.setTextSize(14);
         pinnedCounterTextView.setTextColor(getThemedColor(Theme.key_chat_topPanelTitle));
         pinnedCounterTextView.setTypeface(AndroidUtilities.bold());
-        pinnedMessageView.addView(pinnedCounterTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 23, 7, 44 + possibleLeftMarginDp, 0));
+        pinnedMessageView.addView(pinnedCounterTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 18, 7, 44 + possibleLeftMarginDp, 0));
 
         for (int a = 0; a < 2; a++) {
             pinnedNameTextView[a] = new TrackingWidthSimpleTextView(getContext());
             pinnedNameTextView[a].setTextSize(14);
             pinnedNameTextView[a].setTextColor(getThemedColor(Theme.key_chat_topPanelTitle));
             pinnedNameTextView[a].setTypeface(AndroidUtilities.bold());
-            pinnedMessageView.addView(pinnedNameTextView[a], LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 23, 7.3f, 44 + possibleLeftMarginDp, 0));
+            pinnedMessageView.addView(pinnedNameTextView[a], LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 18, 7.3f, 44 + possibleLeftMarginDp, 0));
 
             pinnedMessageTextView[a] = new SimpleTextView(getContext()) {
                 @Override
@@ -11526,7 +11453,7 @@ public class ChatActivity extends BaseFragment implements
             };
             pinnedMessageTextView[a].setTextSize(14);
             pinnedMessageTextView[a].setTextColor(getThemedColor(Theme.key_chat_topPanelMessage));
-            pinnedMessageView.addView(pinnedMessageTextView[a], LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 23, 25.3f, 44 + possibleLeftMarginDp, 0));
+            pinnedMessageView.addView(pinnedMessageTextView[a], LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 18, Gravity.TOP | Gravity.LEFT, 18, 25.3f, 44 + possibleLeftMarginDp, 0));
 
             pinnedMessageButton[a] = new PinnedMessageButton(getContext());
             pinnedMessageView.addView(pinnedMessageButton[a], LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 28, Gravity.TOP | Gravity.RIGHT, 0, 10, 14, 0));
@@ -11566,7 +11493,7 @@ public class ChatActivity extends BaseFragment implements
             };
             pinnedMessageImageView[a].setBlurAllowed(true);
             pinnedMessageImageView[a].setRoundRadius(AndroidUtilities.dp(2));
-            pinnedMessageView.addView(pinnedMessageImageView[a], LayoutHelper.createFrame(32, 32, Gravity.TOP | Gravity.LEFT, 22, 8, 0, 0));
+            pinnedMessageView.addView(pinnedMessageImageView[a], LayoutHelper.createFrame(32, 32, Gravity.TOP | Gravity.LEFT, 17, 8, 0, 0));
             if (a == 1) {
                 pinnedNameTextView[a].setVisibility(View.INVISIBLE);
                 pinnedMessageButton[a].setVisibility(View.INVISIBLE);
@@ -11584,7 +11511,9 @@ public class ChatActivity extends BaseFragment implements
         pinnedListButton.setAlpha(0.0f);
         pinnedListButton.setScaleX(0.4f);
         pinnedListButton.setScaleY(0.4f);
-        pinnedListButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff));
+        if (Build.VERSION.SDK_INT >= 21) {
+            pinnedListButton.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff));
+        }
         pinnedMessageView.addView(pinnedListButton, LayoutHelper.createFrame(36, 48, Gravity.RIGHT | Gravity.TOP, 0, 0, 7, 0));
         pinnedListButton.setOnClickListener(v -> openPinnedMessagesList(false));
 
@@ -11602,7 +11531,9 @@ public class ChatActivity extends BaseFragment implements
         pinnedProgress.setProgressColor(getThemedColor(Theme.key_chat_topPanelLine));
         pinnedMessageView.addView(pinnedProgress, LayoutHelper.createFrame(36, 48, Gravity.RIGHT | Gravity.TOP, 0, 0, 2, 0));
 
-        closePinned.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, AndroidUtilities.dp(14)));
+        if (Build.VERSION.SDK_INT >= 21) {
+            closePinned.setBackgroundDrawable(Theme.createSelectorDrawable(getThemedColor(Theme.key_inappPlayerClose) & 0x19ffffff, 1, AndroidUtilities.dp(14)));
+        }
         pinnedMessageView.addView(closePinned, LayoutHelper.createFrame(36, 48, Gravity.RIGHT | Gravity.TOP, 0, 0, 2, 0));
         closePinned.setOnClickListener(v -> {
             if (getParentActivity() == null) {
@@ -11641,6 +11572,28 @@ public class ChatActivity extends BaseFragment implements
         });
 
         updatePinnedListButton(false);
+        updateTopPanelSidemenuTranslation();
+    }
+
+    private void updateTopPanelSidemenuTranslation() {
+        final float sideMenuWidth = getSideMenuWidth();
+        if (pinnedLineView != null) {
+            pinnedLineView.setTranslationX(sideMenuWidth);
+        }
+        for (int a = 0; a < 2; ++a) {
+            if (pinnedNameTextView[a] != null) {
+                pinnedNameTextView[a].setTranslationX(sideMenuWidth);
+            }
+            if (pinnedMessageTextView[a] != null) {
+                pinnedMessageTextView[a].setTranslationX(sideMenuWidth);
+            }
+            if (pinnedMessageImageView[a] != null) {
+                pinnedMessageImageView[a].setTranslationX(sideMenuWidth);
+            }
+        }
+        if (pinnedCounterTextView != null) {
+            pinnedCounterTextView.setTranslationX(getSideMenuWidth() + pinnedCounterTextViewX);
+        }
     }
 
     private void openAnotherForward() {
@@ -11763,8 +11716,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                     showPinBulletin = true;
                     int tag = ++pinBullerinTag;
-                    int oldTotalPinnedCount = isTopic ? fragment.getPinnedMessagesCount() : getPinnedMessagesCount();
-                    ArrayList<Integer> pinnedMessageIdsToUnpin = new ArrayList<>(isTopic ? fragment.pinnedMessageIds : pinnedMessageIds);
+                    int oldTotalPinnedCount = getPinnedMessagesCount();
                     pinBulletin = BulletinFactory.createUnpinAllMessagesBulletin(ChatActivity.this, oldTotalPinnedCount, hide,
                             () -> {
                                 if (hide) {
@@ -11781,8 +11733,8 @@ public class ChatActivity extends BaseFragment implements
                             () -> {
                                 if (!hide) {
                                     if (isTopic) {
-                                        for (int i = 0; i < pinnedMessageIdsToUnpin.size(); i++) {
-                                            getMessagesController().pinMessage(currentChat, currentUser, pinnedMessageIdsToUnpin.get(i), true, false, false);
+                                        for (int i = 0; i < pinnedMessageIds.size(); i++) {
+                                            getMessagesController().pinMessage(currentChat, currentUser, pinnedMessageIds.get(i), true, false, false);
                                         }
                                     } else {
                                         getMessagesController().unpinAllMessages(currentChat, currentUser);
@@ -11860,12 +11812,6 @@ public class ChatActivity extends BaseFragment implements
             }).start();
 
             blurredView.setTag(1);
-
-            ScrimOptions.makeGlobalBlurBitmaps((bitmapBg, bitmapOptions) -> {
-                scrimBlur3SourceBitmap.setBitmap(bitmapOptions);
-                Blur3Utils.checkBitmapSourceMatrixScale(scrimBlur3SourceBitmap, fragmentView);
-                scrimBlur3Factory.invalidateAllLinkedViews();
-            });
         } else if (!show && blurredView != null && blurredView.getTag() != null) {
             blurredView.animate().setListener(null).cancel();
             blurredView.animate().setListener(new HideViewAfterAnimation(blurredView)).alpha(0).start();
@@ -11972,25 +11918,46 @@ public class ChatActivity extends BaseFragment implements
         if (!invalidateChatListViewTopPadding || chatListView == null || (fixedKeyboardHeight > 0 && searchExpandProgress == 0)) {
             return;
         }
-        float topPanelViewH = 0;
-        // topPanelViewH += (-topPanelViewH);
-        float pinnedViewH = topPanelLayout.getAnimatedHeightWithPadding(dp(7));
+        float topPanelViewH = Math.max(0, topChatPanelView != null && topChatPanelView.getVisibility() == View.VISIBLE ? (topChatPanelView.getLayoutParams().height - AndroidUtilities.dp(2)) : 0);
+        topPanelViewH += Math.max(-topPanelViewH, topChatPanelViewOffset);
+        float topPanelView2H = Math.max(0, topChatPanelView2 != null && topChatPanelView2.getVisibility() == View.VISIBLE ? (topChatPanelView2.getLayoutParams().height - AndroidUtilities.dp(2)) : 0);
+        topPanelView2H += Math.max(-topPanelView2H, topChatPanelView2Offset);
+        float pinnedViewH = 0;
+        if (pinnedMessageView != null && pinnedMessageView.getVisibility() == View.VISIBLE) {
+            pinnedViewH = Math.max(0, AndroidUtilities.dp(48) + pinnedMessageEnterOffset);
+        }
         if (actionBarSearchTags != null) {
             pinnedViewH = Math.max(pinnedViewH, actionBarSearchTags.getCurrentHeight());
         }
         if (hashtagSearchTabs != null) {
             pinnedViewH = Math.max(pinnedViewH, hashtagSearchTabs.getCurrentHeight());
         }
+        float pendingViewH = 0;
+        View pendingRequestsView = pendingRequestsDelegate != null ? pendingRequestsDelegate.getView() : null;
+        if (pendingRequestsView != null && pendingRequestsView.getVisibility() == View.VISIBLE) {
+            pendingViewH = Math.max(0, pendingRequestsView.getHeight() + pendingRequestsDelegate.getViewEnterOffset() - AndroidUtilities.dp(4));
+        }
         float oldPadding = chatListViewPaddingTop;
-        chatListViewPaddingTop = dp(4) + contentPaddingTop + (paddingTopHeight = topPanelViewH + pinnedViewH)
-            + getTopicTabsSideSize(TopicsTabsView.Position.TOP);
+        chatListViewPaddingTop = dp(4) + contentPaddingTop + (paddingTopHeight = topPanelViewH + pinnedViewH + pendingViewH + topPanelView2H) + (topicsTabs != null ? dp(48) * (1.0f - topicsTabs.sidemenuT) : 0);
         chatListViewPaddingTop += blurredViewTopOffset;
         chatListViewPaddingVisibleOffset = 0;
-        chatListViewPaddingTop += contentPanTranslation;
-
+        chatListViewPaddingTop += contentPanTranslation + bottomPanelTranslationY;
         float searchExpandOffset = 0;
         if (searchExpandProgress != 0 && chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
             chatListViewPaddingTop -= (searchExpandOffset = searchExpandProgress * (chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(searchContainerHeight)));
+        }
+        if (chatActivityEnterView != null && bottomPanelTranslationY == 0 && !chatActivityEnterView.panelAnimationInProgress() && contentView.getLayoutParams() != null && (contentView.getLayoutParams().height < 0 || (contentView.getKeyboardHeight() <= AndroidUtilities.dp(20) && chatActivityEnterView.isPopupShowing()))) {
+            chatListViewPaddingTop += contentView.getKeyboardHeight() <= dp(20) && !AndroidUtilities.isInMultiwindow && !inBubbleMode ? chatActivityEnterView.getEmojiPadding() : contentView.getKeyboardHeight();
+        }
+        if (!inPreviewMode && chatActivityEnterView != null) {
+            if (chatActivityEnterView.getAnimatedTop() != 0) {
+                chatListViewPaddingTop += chatActivityEnterView.getHeightWithTopView() - AndroidUtilities.dp(51) - chatActivityEnterView.getAnimatedTop();
+            } else if (!chatActivityEnterView.panelAnimationInProgress())  {
+                chatListViewPaddingTop += chatActivityEnterView.getHeightWithTopView() - AndroidUtilities.dp(51);
+                if (chatActivityEnterView.currentTopViewAnimation == null) {
+                    chatListViewPaddingTop -= chatListView.getTranslationY();
+                }
+            }
         }
 
         if (infoTopView != null) {
@@ -12004,44 +11971,39 @@ public class ChatActivity extends BaseFragment implements
         }
         updateFloatingTopicView();
 
-        // int p = isInsideContainer && chatMode != MODE_SEARCH ? dp(4) : 0; // chatListView.getMeasuredHeight() * 2 / 3;
+        int p = isInsideContainer && chatMode != MODE_SEARCH ? dp(4) : chatListView.getMeasuredHeight() * 2 / 3;
 
         if (chatListView != null && chatLayoutManager != null && chatAdapter != null) {
-            int p = chatListView.getPaddingTop();
-            int b = chatListView.getPaddingBottom();
+            if (chatListView.getPaddingTop() != p) {
+                int top = 0;
+                MessageObject scrollToMessageObject = null;
+                for (int i = 0; i < chatListView.getChildCount(); i++) {
+                    View v = chatListView.getChildAt(i);
+                    if (v instanceof ChatMessageCell) {
+                        scrollToMessageObject = ((ChatMessageCell) v).getMessageObject();
+                        top = getScrollingOffsetForView(v);
+                        break;
+                    } else if (v instanceof ChatActionCell) {
+                        scrollToMessageObject = ((ChatActionCell) v).getMessageObject();
+                        top = getScrollingOffsetForView(v);
+                        break;
+                    }
+                }
 
-            checkUi_chatListViewPaddings();
+                chatListView.setPadding(0, p, 0, AndroidUtilities.dp(3) + blurredViewBottomOffset + (isInsideContainer && searchContainer != null && searchContainer.getVisibility() == View.VISIBLE ? dp(50) : 0));
 
-            // final int b = blurredViewBottomOffset + AndroidUtilities.navigationBarHeight + dp(9 + 44 + 7); //  + (isInsideContainer && searchContainer != null && searchContainer.getVisibility() == View.VISIBLE ? dp(50) : 0);
-            if (chatListView.getPaddingTop() != p || chatListView.getPaddingBottom() != b) {
-                //int top = 0;
-                //MessageObject scrollToMessageObject = null;
-                //for (int i = 0; i < chatListView.getChildCount(); i++) {
-                //    View v = chatListView.getChildAt(i);
-                //    if (v instanceof ChatMessageCell) {
-                //        scrollToMessageObject = ((ChatMessageCell) v).getMessageObject();
-                //        top = getScrollingOffsetForView(v);
-                //        break;
-                //    } else if (v instanceof ChatActionCell) {
-                //        scrollToMessageObject = ((ChatActionCell) v).getMessageObject();
-                //        top = getScrollingOffsetForView(v);
-                //        break;
-                //    }
-                //}
-
-                //if (scrollToMessageObject != null) {
-                //    chatAdapter.updateRowsSafe();
-                //    int index = messages.indexOf(scrollToMessageObject);
-                //    if (index >= 0) {
-                //        chatLayoutManager.scrollToPositionWithOffset(chatAdapter.messagesStartRow + index, top);
-                //    }
-                //}
+                if (scrollToMessageObject != null) {
+                    chatAdapter.updateRowsSafe();
+                    int index = messages.indexOf(scrollToMessageObject);
+                    if (index >= 0) {
+                        chatLayoutManager.scrollToPositionWithOffset(chatAdapter.messagesStartRow + index, top);
+                    }
+                }
 
                 invalidateMessagesVisiblePart();
-                invalidateMergedVisibleBlurredPositionsAndSourcesPositions();
             }
 
-            chatListView.setTopGlowOffset((int) (chatListViewPaddingTop - chatListViewPaddingVisibleOffset - dp(4)));
+            chatListView.setTopGlowOffset((int) (chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4)));
 
             if (oldPadding != chatListViewPaddingTop) {
                 int n = chatListView.getChildCount();
@@ -12065,39 +12027,7 @@ public class ChatActivity extends BaseFragment implements
 
         invalidateChatListViewTopPadding = false;
         Bulletin.updateCurrentPosition();
-        checkUi_chatListViewPaddings();
     }
-
-    private void checkUi_chatListViewPaddings() {
-        if (chatListView == null) {
-            return;
-        }
-
-        final float paddingBottom;
-        if (isInsideContainer) {
-            paddingBottom = AndroidUtilities.navigationBarHeight;
-        } else {
-            paddingBottom = blurredViewBottomOffset + dp(9 + 7)
-                + inputIslandHeightCurrent
-                + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                + windowInsetsStateHolder.getAnimatedMaxBottomInset();
-        }
-
-        final int paddingTop = (int) chatListViewPaddingTop;
-        if (topicsTabs != null) {
-            topicsTabs.setSideMenuBackgroundMarginTop(0);//Math.max(0, paddingTop - blurredViewTopOffset - dp(5)));
-        }
-        chatListViewPaddingsAnimator.setPaddings(paddingTop, paddingBottom, wasManualScroll && !chatListView.fastScrollAnimationRunning);
-        if (messageMetricsView != null) {
-            messageMetricsView.setViewportPadding(
-                getTopicTabsSideSize(TopicsTabsView.Position.LEFT),
-                paddingTop - recommendedAdditionalSizeY,
-                0,
-                paddingBottom - blurredViewBottomOffset
-            );
-        }
-    }
-
 
     private void invalidateChatListViewTopPadding() {
         if (!invalidateChatListViewTopPadding) {
@@ -12110,10 +12040,62 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
+        int topPanelHeight = topChatPanelView != null && topChatPanelView.getVisibility() == View.VISIBLE ? ((topChatPanelView.getLayoutParams() == null ? AndroidUtilities.dp(50) : topChatPanelView.getLayoutParams().height) - AndroidUtilities.dp(2)) : 0;
+        topPanelHeight = topPanelHeight + (int) Math.max(-topPanelHeight, topChatPanelViewOffset);
+        float translation = contentPanTranslation + contentPaddingTop + Math.max(0, topPanelHeight);
+        if (topicsTabs != null) {
+            translation += dp(48) * (1.f - topicsTabs.sidemenuT);
+        }
+        if (pinnedMessageView != null) {
+            translation += pinnedMessageEnterOffset;
+            pinnedMessageView.setTranslationY(translation);
+            translation += AndroidUtilities.dp(48);
+        }
+        int topPanel2Height = topChatPanelView2 != null && topChatPanelView2.getVisibility() == View.VISIBLE ? ((topChatPanelView2.getLayoutParams() == null ? AndroidUtilities.dp(50) : topChatPanelView2.getLayoutParams().height) - AndroidUtilities.dp(2)) : 0;
+        topPanel2Height = topPanel2Height + (int) Math.max(-topPanel2Height, topChatPanelView2Offset);
+        translation += Math.max(0, topPanel2Height);
+        View pendingRequestsView = pendingRequestsDelegate != null ? pendingRequestsDelegate.getView() : null;
+        if (pendingRequestsView != null) {
+            translation += pendingRequestsDelegate.getViewEnterOffset();
+            pendingRequestsView.setTranslationY(translation);
+        }
+        float p = 0;
+        if (topicsTabs != null) {
+            p += dp(48) * (1.f - topicsTabs.sidemenuT);
+        }
+        p += actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0;
+        p += hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0;
+        if (fragmentContextView != null) {
+            float from = 0;
+            if (fragmentLocationContextView != null && fragmentLocationContextView.getVisibility() == View.VISIBLE) {
+                from += AndroidUtilities.dp(36);
+            }
+            fragmentContextView.setTranslationY(contentPanTranslation + p + from + fragmentContextView.getTopPadding());
+        }
+        if (fragmentLocationContextView != null) {
+            float from = 0;
+            if (fragmentContextView != null && fragmentContextView.getVisibility() == View.VISIBLE) {
+                from += AndroidUtilities.dp(fragmentContextView.getStyleHeight()) + fragmentContextView.getTopPadding();
+            }
+            fragmentLocationContextView.setTranslationY(contentPanTranslation + p + from + fragmentLocationContextView.getTopPadding());
+        }
+        if (topChatPanelView != null) {
+            topChatPanelView.setTranslationY(contentPanTranslation + p + contentPaddingTop + topChatPanelViewOffset);
+        }
+        if (topChatPanelView2 != null) {
+            topChatPanelView2.setTranslationY(contentPanTranslation + p + contentPaddingTop + topChatPanelView2Offset + topPanelHeight + Math.max(0, topChatPanelViewOffset) + Math.max(0, pinnedMessageView != null ? dp(48) + pinnedMessageEnterOffset : 0));
+        }
+        if (alertView != null && alertView.getVisibility() == View.VISIBLE) {
+            alertView.setTranslationY(contentPanTranslation + p + contentPaddingTop - AndroidUtilities.dp(50) * (1f - alertViewEnterProgress));
+        }
+        if (bottomOverlayChat != null) {
+            bottomOverlayChat.setTranslationY(bottomPanelTranslationYReverse);
+        }
+        if (bottomMessagesActionContainer != null) {
+            bottomMessagesActionContainer.setTranslationY(bottomPanelTranslationYReverse);
+        }
         if (undoView != null) {
-            undoView.setAdditionalTranslationY(
-                windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(9 + 7)
-                    + chatInputViewsContainer.getInputBubbleHeight() + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM));
+            undoView.setAdditionalTranslationY(chatActivityEnterView.getHeightWithTopView() - chatActivityEnterView.getAnimatedTop());
         }
         if (messagesSearchListContainer != null) {
             messagesSearchListContainer.setTranslationY(getHashtagTabsHeight() + contentPanTranslation);
@@ -12121,9 +12103,6 @@ public class ChatActivity extends BaseFragment implements
         }
         if (hashtagHistoryView != null) {
             hashtagHistoryView.setTranslationY(getHashtagTabsHeight() + contentPanTranslation);
-        }
-        if (topPanelLayout != null) {
-            topPanelLayout.setTranslationY(contentPanTranslation + getTopicTabsSideSize(TopicsTabsView.Position.TOP));
         }
     }
 
@@ -12133,30 +12112,84 @@ public class ChatActivity extends BaseFragment implements
         }
         AndroidUtilities.cancelRunOnUIThread(destroyTextureViewRunnable);
         if (videoPlayerContainer == null) {
-            videoPlayerContainer = new FrameLayout(getParentActivity()) {
-                @Override
-                public void setTranslationY(float translationY) {
-                    super.setTranslationY(translationY);
-                    contentView.invalidate();
-                }
-            };
-            videoPlayerContainer.setOutlineProvider(new ViewOutlineProvider() {
-                @Override
-                public void getOutline(View view, Outline outline) {
-                    ImageReceiver imageReceiver = (ImageReceiver) view.getTag(R.id.parent_tag);
-                    if (imageReceiver != null) {
-                        int[] rad = imageReceiver.getRoundRadius();
-                        int maxRad = 0;
-                        for (int a = 0; a < 4; a++) {
-                            maxRad = Math.max(maxRad, rad[a]);
-                        }
-                        outline.setRoundRect(0, 0, view.getMeasuredWidth(), view.getMeasuredHeight(), maxRad);
-                    } else {
-                        outline.setOval(0, 0, AndroidUtilities.roundPlayingMessageSize(isSideMenued()), AndroidUtilities.roundPlayingMessageSize(isSideMenued()));
+            if (Build.VERSION.SDK_INT >= 21) {
+                videoPlayerContainer = new FrameLayout(getParentActivity()) {
+                    @Override
+                    public void setTranslationY(float translationY) {
+                        super.setTranslationY(translationY);
+                        contentView.invalidate();
                     }
-                }
-            });
-            videoPlayerContainer.setClipToOutline(true);
+                };
+                videoPlayerContainer.setOutlineProvider(new ViewOutlineProvider() {
+
+                    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+                    @Override
+                    public void getOutline(View view, Outline outline) {
+                        ImageReceiver imageReceiver = (ImageReceiver) view.getTag(R.id.parent_tag);
+                        if (imageReceiver != null) {
+                            int[] rad = imageReceiver.getRoundRadius();
+                            int maxRad = 0;
+                            for (int a = 0; a < 4; a++) {
+                                maxRad = Math.max(maxRad, rad[a]);
+                            }
+                            outline.setRoundRect(0, 0, view.getMeasuredWidth(), view.getMeasuredHeight(), maxRad);
+                        } else {
+                            outline.setOval(0, 0, AndroidUtilities.roundPlayingMessageSize(isSideMenued()), AndroidUtilities.roundPlayingMessageSize(isSideMenued()));
+                        }
+                    }
+                });
+                videoPlayerContainer.setClipToOutline(true);
+            } else {
+                videoPlayerContainer = new FrameLayout(getParentActivity()) {
+
+                    RectF rect = new RectF();
+
+                    @Override
+                    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+                        super.onSizeChanged(w, h, oldw, oldh);
+                        aspectPath.reset();
+                        ImageReceiver imageReceiver = (ImageReceiver) getTag(R.id.parent_tag);
+                        if (imageReceiver != null) {
+                            int[] rad = imageReceiver.getRoundRadius();
+                            int maxRad = 0;
+                            for (int a = 0; a < 4; a++) {
+                                maxRad = Math.max(maxRad, rad[a]);
+                            }
+                            rect.set(0, 0, w, h);
+                            aspectPath.addRoundRect(rect, AndroidUtilities.dp(4), AndroidUtilities.dp(4), Path.Direction.CW);
+                        } else {
+                            aspectPath.addCircle(w / 2, h / 2, w / 2, Path.Direction.CW);
+                        }
+                        aspectPath.toggleInverseFillType();
+                    }
+
+                    @Override
+                    public void setTranslationY(float translationY) {
+                        super.setTranslationY(translationY);
+                        contentView.invalidate();
+                    }
+
+                    @Override
+                    public void setVisibility(int visibility) {
+                        super.setVisibility(visibility);
+                        if (visibility == VISIBLE) {
+                            setLayerType(View.LAYER_TYPE_HARDWARE, null);
+                        }
+                    }
+
+                    @Override
+                    protected void dispatchDraw(Canvas canvas) {
+                        super.dispatchDraw(canvas);
+                        if (getTag() == null) {
+                            canvas.drawPath(aspectPath, aspectPaint);
+                        }
+                    }
+                };
+                aspectPath = new Path();
+                aspectPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                aspectPaint.setColor(0xff000000);
+                aspectPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+            }
             videoPlayerContainer.setWillNotDraw(false);
 
             aspectRatioFrameLayout = new AspectRatioFrameLayout(getParentActivity());
@@ -12189,11 +12222,10 @@ public class ChatActivity extends BaseFragment implements
         chatListView.invalidateViews();
         aspectRatioFrameLayout.setDrawingReady(false);
         videoPlayerContainer.setTag(null);
+        if (Build.VERSION.SDK_INT < 21) {
+            videoPlayerContainer.setLayerType(View.LAYER_TYPE_NONE, null);
+        }
         contentView.removeView(videoPlayerContainer);
-    }
-
-    public boolean hasSelectedMessages() {
-        return selectedMessagesIds[0].size() > 0 || selectedMessagesIds[1].size() > 0;
     }
 
     private boolean hasSelectedNoforwardsMessage() {
@@ -12208,6 +12240,61 @@ public class ChatActivity extends BaseFragment implements
             }
         } catch (Exception ignore) {}
         return false;
+    }
+
+    private float pagedownLoadingT;
+    private ValueAnimator pagedownAnimator;
+    private void setPagedownLoading(boolean loading, boolean animated) {
+        if (animated && Math.abs(pagedownLoadingT - (loading ? 1 : 0)) > .01f) {
+            if (pagedownAnimator != null) {
+                pagedownAnimator.cancel();
+            }
+            final boolean[] startedLoading = new boolean[1];
+            pagedownButtonArrow.setVisibility(View.VISIBLE);
+            pagedownAnimator = ValueAnimator.ofFloat(pagedownLoadingT, loading ? 1 : 0);
+            pagedownAnimator.addUpdateListener(anm -> {
+                pagedownLoadingT = (float) anm.getAnimatedValue();
+
+                if (!startedLoading[0] && loading && pagedownLoadingT > .5f) {
+                    startedLoading[0] = true;
+                    pagedownButtonLoadingDrawable.reset();
+                    pagedownButtonLoading.setVisibility(View.VISIBLE);
+                }
+
+                pagedownButtonLoading.setAlpha(Math.max(0, (pagedownLoadingT - .5f) * 2));
+                pagedownButtonArrow.setScaleX(1f - pagedownLoadingT);
+                pagedownButtonArrow.setScaleY(1f - pagedownLoadingT);
+            });
+            pagedownAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if (loading) {
+                        pagedownButtonArrow.setVisibility(View.GONE);
+                        if (!startedLoading[0]) {
+                            pagedownButtonLoadingDrawable.reset();
+                            pagedownButtonLoading.setVisibility(View.VISIBLE);
+                        }
+                    } else {
+                        pagedownButtonLoading.setVisibility(View.GONE);
+                    }
+                }
+            });
+            pagedownAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT);
+            pagedownAnimator.setDuration(260);
+            pagedownAnimator.start();
+        } else {
+            if (loading) {
+                pagedownButtonArrow.setScaleX(0);
+                pagedownButtonArrow.setScaleY(0);
+                pagedownButtonArrow.setVisibility(View.GONE);
+                pagedownButtonLoading.setVisibility(View.VISIBLE);
+            } else {
+                pagedownButtonArrow.setScaleX(1);
+                pagedownButtonArrow.setScaleY(1);
+                pagedownButtonArrow.setVisibility(View.VISIBLE);
+                pagedownButtonLoading.setVisibility(View.GONE);
+            }
+        }
     }
 
     private void share() {
@@ -12257,13 +12344,11 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openForward(boolean fromActionBar) {
-        if (isPeerNoForwards() || hasSelectedNoforwardsMessage()) {
+        if (getMessagesController().isChatNoForwards(currentChat) || hasSelectedNoforwardsMessage()) {
             // We should update text if user changed locale without re-opening chat activity
             String str;
-            if (isPeerNoForwards()) {
-                if (getDialogId() > 0) {
-                    str = LocaleController.getString(R.string.ForwardsRestrictedInfoUser);
-                } else if (ChatObject.isChannel(currentChat) && !currentChat.megagroup) {
+            if (getMessagesController().isChatNoForwards(currentChat)) {
+                if (ChatObject.isChannel(currentChat) && !currentChat.megagroup) {
                     str = LocaleController.getString(R.string.ForwardsRestrictedInfoChannel);
                 } else {
                     str = LocaleController.getString(R.string.ForwardsRestrictedInfoGroup);
@@ -12273,8 +12358,8 @@ public class ChatActivity extends BaseFragment implements
             }
             if (fromActionBar) {
                 if (fwdRestrictedTopHint == null) {
-                    SizeNotifierFrameLayout frameLayout = contentView;
-                    int index = frameLayout.indexOfChild(chatInputViewsContainer);
+                    SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+                    int index = frameLayout.indexOfChild(chatActivityEnterView);
                     if (index == -1) {
                         return;
                     }
@@ -12288,8 +12373,8 @@ public class ChatActivity extends BaseFragment implements
                 fwdRestrictedTopHint.showForView(actionBar.getActionMode().getItem(forward), true);
             } else {
                 if (fwdRestrictedBottomHint == null) {
-                    SizeNotifierFrameLayout frameLayout = contentView;
-                    int index = frameLayout.indexOfChild(chatInputViewsContainer);
+                    SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+                    int index = frameLayout.indexOfChild(chatActivityEnterView);
                     if (index == -1) {
                         return;
                     }
@@ -12300,7 +12385,7 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 fwdRestrictedBottomHint.setText(str);
-                fwdRestrictedBottomHint.showForView(actionsButtonsLayout.getForwardButton(), true);
+                fwdRestrictedBottomHint.showForView(forwardButton, true);
             }
             return;
         }
@@ -12417,7 +12502,7 @@ public class ChatActivity extends BaseFragment implements
         params.put("query_id", "" + result.query_id);
         params.put("bot", "" + uid);
         params.put("bot_name", mentionContainer.getAdapter().getContextBotName());
-        SendMessagesHelper.prepareSendingBotContextResult(this, getAccountInstance(), result, params, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, notify, scheduleDate, 0, quickReplyShortcut, getQuickReplyId(), stars, getSendMonoForumPeerId());
+        SendMessagesHelper.prepareSendingBotContextResult(this, getAccountInstance(), result, params, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, notify, scheduleDate, 0, quickReplyShortcut, getQuickReplyId(), stars);
         chatActivityEnterView.setFieldText("");
         hideFieldPanel(false);
         getMediaDataController().increaseInlineRating(uid);
@@ -12599,15 +12684,12 @@ public class ChatActivity extends BaseFragment implements
                     onEditTextDialogClose(false, false);
                 }
             };
-            chatAttachAlert.setDialogId(getDialogId());
-            chatAttachAlert.allowLivePhotos = true;
             chatAttachAlert.setDelegate(new ChatAttachAlert.ChatAttachViewDelegate() {
                 @Override
                 public void didPressedButton(int button, boolean arg, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, boolean forceDocument, long payStars) {
                     if (getParentActivity() == null || chatAttachAlert == null) {
                         return;
                     }
-                    final boolean isStickerMode = chatAttachAlert.isStickerMode;
                     editingMessageObject = chatAttachAlert.getEditingMessageObject();
                     if (editingMessageObject != null && editingMessageObject.messageOwner != null) {
                         editingMessageObject.messageOwner.invert_media = invertMedia;
@@ -12630,16 +12712,9 @@ public class ChatActivity extends BaseFragment implements
                                     MediaController.PhotoEntry photoEntry = (MediaController.PhotoEntry) selectedPhotos.get(selectedPhotosOrder.get(i * 10 + a));
 
                                     SendMessagesHelper.SendingMediaInfo info = new SendMessagesHelper.SendingMediaInfo();
-                                    info.imagePath = photoEntry.imagePath;
-                                    info.isLivePhoto = photoEntry.isLivePhoto();
-                                    boolean isVideo = photoEntry.isVideo;
-                                    if (isStickerMode && info.isLivePhoto) {
-                                        info.isLivePhoto = false;
-                                        isVideo = false;
-                                    }
-                                    if (!isVideo && photoEntry.imagePath != null) {
+                                    if (!photoEntry.isVideo && photoEntry.imagePath != null) {
                                         info.path = photoEntry.imagePath;
-                                        if (photoEntry.isHighQuality()) {
+                                        if (photoEntry.highQuality) {
                                             info.originalPhotoEntry = photoEntry.clone();
                                         }
                                     } else if (photoEntry.path != null) {
@@ -12648,10 +12723,7 @@ public class ChatActivity extends BaseFragment implements
                                     info.thumbPath = photoEntry.thumbPath;
                                     info.coverPath = photoEntry.coverPath;
                                     info.coverPhoto = photoEntry.coverPhoto;
-                                    info.isVideo = isVideo;
-                                    info.discardLivePhoto = photoEntry.isUnalivePhoto();
-                                    info.livePhotoVideoOffset = photoEntry.livePhotoVideoOffset;
-                                    info.livePhotoTimestampUs = photoEntry.livePhotoTimestampUs;
+                                    info.isVideo = photoEntry.isVideo;
                                     info.caption = photoEntry.caption != null ? photoEntry.caption.toString() : null;
                                     info.entities = photoEntry.entities;
                                     info.masks = photoEntry.stickers;
@@ -12661,7 +12733,7 @@ public class ChatActivity extends BaseFragment implements
                                     info.updateStickersOrder = SendMessagesHelper.checkUpdateStickersOrder(photoEntry.caption);
                                     info.hasMediaSpoilers = photoEntry.hasSpoiler;
                                     info.stars = photoEntry.starsAmount;
-                                    info.highQuality = photoEntry.isHighQuality();
+                                    info.highQuality = photoEntry.highQuality;
                                     photos.add(info);
                                     photoEntry.reset();
                                 }
@@ -12674,9 +12746,9 @@ public class ChatActivity extends BaseFragment implements
                                 if (editingMessageObject != null && editingMessageObject.needResendWhenEdit()) {
                                     MessageSuggestionParams params = messageSuggestionParams != null ?
                                         messageSuggestionParams : MessageSuggestionParams.of(editingMessageObject.messageOwner.suggested_post);
-                                    SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, button == 4 || forceDocument, arg, null, notify, scheduleDate, scheduleRepeatPeriod, chatMode, updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), params);
+                                    SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, button == 4 || forceDocument, arg, null, notify, scheduleDate, 0, chatMode, updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), params);
                                 } else {
-                                    SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, button == 4 || forceDocument, arg, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, chatMode, updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), messageSuggestionParams);
+                                    SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, button == 4 || forceDocument, arg, editingMessageObject, notify, scheduleDate, 0, chatMode, updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), messageSuggestionParams);
                                 }
                             }
                             afterMessageSend();
@@ -12762,10 +12834,6 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void performHistoryClear(long threadId, boolean revoke, boolean canDeleteHistory) {
-        if (topicsTabs != null && UserObject.isBotForum(currentUser)) {
-            topicsTabs.setAllTopicsHidden(true);
-        }
-
         setClearingHistory(threadId, true);
         createUndoView();
         if (undoView == null) {
@@ -12791,22 +12859,14 @@ public class ChatActivity extends BaseFragment implements
                 }
             } else {
                 getMessagesController().deleteDialog(dialog_id, 1, revoke);
-                getMessagesStorage().removeAllTopics(dialog_id);
-                getMessagesController().getTopicsController().reloadTopics(-dialog_id);
             }
             setClearingHistory(threadId, false);
-            if (topicsTabs != null) {
-                topicsTabs.setAllTopicsHidden(false);
-            }
             if (threadId == getThreadId()) {
                 clearHistory(false, null);
                 chatAdapter.notifyDataSetChanged();
             }
         }, () -> {
             setClearingHistory(threadId, false);
-            if (topicsTabs != null) {
-                topicsTabs.setAllTopicsHidden(false);
-            }
             if (threadId == getThreadId()) {
                 chatAdapter.notifyDataSetChanged();
             }
@@ -12839,7 +12899,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public boolean hasReportSpam() {
-        return topChatPanelView != null && topPanelLayout != null && topPanelLayout.isViewVisible(topChatPanelView) && reportSpamButton.getVisibility() != View.GONE;
+        return topChatPanelView != null && topChatPanelView.getTag() == null && reportSpamButton.getVisibility() != View.GONE;
     }
 
     public void setChatInvite(TLRPC.ChatInvite invite) {
@@ -12865,9 +12925,7 @@ public class ChatActivity extends BaseFragment implements
                 replyingMessageObject = null;
             }
             replyingQuote = null;
-            if (chatActivityEnterView != null) {
-                chatActivityEnterView.setReplyingMessageObject(null, null);
-            }
+            chatActivityEnterView.setReplyingMessageObject(null, null);
         }
         hideFieldPanel(false);
         if (chatMode == 0) {
@@ -13068,8 +13126,8 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         if (voiceHintTextView == null) {
-            SizeNotifierFrameLayout frameLayout = contentView;
-            int index = frameLayout.indexOfChild(chatInputViewsContainer);
+            SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+            int index = frameLayout.indexOfChild(chatActivityEnterView);
             if (index == -1) {
                 return;
             }
@@ -13221,8 +13279,8 @@ public class ChatActivity extends BaseFragment implements
         if (getParentActivity() == null || currentChat == null && userInfo == null || fragmentView == null || mediaBanTooltip != null && mediaBanTooltip.getVisibility() == View.VISIBLE) {
             return;
         }
-        SizeNotifierFrameLayout frameLayout = contentView;
-        int index = frameLayout.indexOfChild(chatInputViewsContainer);
+        SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+        int index = frameLayout.indexOfChild(chatActivityEnterView);
         if (index == -1) {
             return;
         }
@@ -13282,8 +13340,8 @@ public class ChatActivity extends BaseFragment implements
         }
 
         if (noSoundHintView == null) {
-            SizeNotifierFrameLayout frameLayout = contentView;
-            int index = frameLayout.indexOfChild(chatInputViewsContainer);
+            SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+            int index = frameLayout.indexOfChild(chatActivityEnterView);
             if (index == -1) {
                 return;
             }
@@ -13329,8 +13387,8 @@ public class ChatActivity extends BaseFragment implements
         }
 
         if (checksHintView == null) {
-            SizeNotifierFrameLayout frameLayout = contentView;
-            int index = frameLayout.indexOfChild(chatInputViewsContainer);
+            SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+            int index = frameLayout.indexOfChild(chatActivityEnterView);
             if (index == -1) {
                 return;
             }
@@ -13364,8 +13422,8 @@ public class ChatActivity extends BaseFragment implements
         }
 
         if (forwardHintView == null) {
-            SizeNotifierFrameLayout frameLayout = contentView;
-            int index = frameLayout.indexOfChild(chatInputViewsContainer);
+            SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+            int index = frameLayout.indexOfChild(chatActivityEnterView);
             if (index == -1) {
                 return;
             }
@@ -13378,7 +13436,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void showTextSelectionHint(MessageObject messageObject) {
-        if (getParentActivity() == null || getMessagesController().isPeerNoForwards(messageObject.getDialogId()) || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards)) {
+        if (getParentActivity() == null || getMessagesController().isChatNoForwards(messageObject.getChatId()) || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards)) {
             return;
         }
         CharSequence text;
@@ -13448,8 +13506,8 @@ public class ChatActivity extends BaseFragment implements
             }
             return false;
         }
-        SizeNotifierFrameLayout frameLayout = contentView;
-        int index = frameLayout.indexOfChild(chatInputViewsContainer);
+        SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+        int index = frameLayout.indexOfChild(chatActivityEnterView);
         if (index == -1) {
             return false;
         }
@@ -13534,15 +13592,15 @@ public class ChatActivity extends BaseFragment implements
             }
             return false;
         }
-        SizeNotifierFrameLayout frameLayout = contentView;
-        int index = frameLayout.indexOfChild(chatInputViewsContainer);
+        SizeNotifierFrameLayout frameLayout = (SizeNotifierFrameLayout) fragmentView;
+        int index = frameLayout.indexOfChild(chatActivityEnterView);
         if (index == -1) {
             return false;
         }
         chatActivityEnterView.setOpenGifsTabFirst();
         emojiButtonRed = new View(getParentActivity());
         emojiButtonRed.setBackgroundResource(R.drawable.redcircle);
-        frameLayout.addView(emojiButtonRed, index + 1, LayoutHelper.createFrame(10, 10, Gravity.BOTTOM | Gravity.LEFT, 37, 0, 0, 27));
+        frameLayout.addView(emojiButtonRed, index + 1, LayoutHelper.createFrame(10, 10, Gravity.BOTTOM | Gravity.LEFT, 30, 0, 0, 27));
 
         gifHintTextView = new HintView(getParentActivity(), 9, themeDelegate);
         gifHintTextView.setText(LocaleController.getString(R.string.TapHereGifs));
@@ -13727,7 +13785,6 @@ public class ChatActivity extends BaseFragment implements
         floatingTopicSeparator.setTranslationY(chatListView.getTranslationY() + chatListViewPaddingTop + floatingTopicViewOffset - dp(4) + dp(28));
         final float alpha = Utilities.clamp(AndroidUtilities.ilerp(floatingTopicViewOffset, -floatingTopicSeparator.getHeight(), 0f), 1f, 0f);
         floatingTopicSeparator.setAlpha(floatingTopicViewAlpha * alpha);
-        floatingTopicSeparator.setVisibility(floatingTopicViewAlpha * alpha > 0 ? View.VISIBLE : View.INVISIBLE);
         final float scale = lerp(0.5f, 1f, alpha);
         floatingTopicSeparator.setScaleX(scale);
         floatingTopicSeparator.setScaleY(scale);
@@ -13790,7 +13847,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public ChatActivityEnterView getChatActivityEnterViewForStickers() {
-        return bottomChannelButtonsLayout.getVisibility() != View.VISIBLE && (currentChat == null || ChatObject.canSendStickers(currentChat)) ? chatActivityEnterView : null;
+        return bottomOverlayChat.getVisibility() != View.VISIBLE && (currentChat == null || ChatObject.canSendStickers(currentChat)) ? chatActivityEnterView : null;
     }
 
     public ChatActivityEnterView getChatActivityEnterView() {
@@ -13973,7 +14030,7 @@ public class ChatActivity extends BaseFragment implements
                         takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(getParentActivity(), ApplicationLoader.getApplicationId() + ".provider", video));
                         takeVideoIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                         takeVideoIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    } else {
+                    } else if (Build.VERSION.SDK_INT >= 18) {
                         takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(video));
                     }
                     takeVideoIntent.putExtra(MediaStore.EXTRA_SIZE_LIMIT, FileLoader.DEFAULT_MAX_FILE_SIZE);
@@ -13998,8 +14055,11 @@ public class ChatActivity extends BaseFragment implements
         PollCreateActivity pollCreateActivity = new PollCreateActivity(ChatActivity.this, false, quiz);
         pollCreateActivity.setDelegate((poll, correctAnswers, notify, scheduleDate) -> {
             if (checkSlowModeAlert()) {
-                SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of(poll, dialog_id, replyingMessageObject, getThreadMessage(), null, null, notify, scheduleDate, 0);
-                params2.pollSendParams = new PollSendParams(null, (TLRPC.TL_messageMediaPoll) poll, 0, null, null, correctAnswers);
+                // forkgram-classic: upstream PollCreateActivityDelegate hands an
+                // ArrayList<Integer> of correct answers; classic flow used to
+                // forward it as the HashMap params slot. Upstream removed that
+                // and bakes the answers into the poll itself — pass null here.
+                SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of((TLRPC.TL_messageMediaPoll) poll, dialog_id, replyingMessageObject, getThreadMessage(), null, null, notify, scheduleDate, 0);
                 params2.quick_reply_shortcut = quickReplyShortcut;
                 params2.quick_reply_shortcut_id = getQuickReplyId();
                 getSendMessagesHelper().sendMessage(params2);
@@ -14024,16 +14084,17 @@ public class ChatActivity extends BaseFragment implements
                 SendMessagesHelper.getInstance(currentAccount).sendMessage(params);
                 caption = null;
             }
-            getSendMessagesHelper().sendMessage(fmessages, dialog_id, false, false, true, 0, 0, null, -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
-            SendMessagesHelper.prepareSendingDocuments(getAccountInstance(), files, files, null, caption, captionEntities, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+            getSendMessagesHelper().sendMessage(fmessages, dialog_id, false, false, true, 0, payStars);
+            SendMessagesHelper.prepareSendingDocuments(getAccountInstance(), files, files, null, caption, captionEntities, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, editingMessageObject, notify, scheduleDate, 0, null, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
             afterMessageSend();
         }
     }
 
     @Override
+    // forkgram-classic: ChatAttachAlert.didSelectPhotos sig added `int scheduleRepeatPeriod`.
     public void didSelectPhotos(ArrayList<SendMessagesHelper.SendingMediaInfo> photos, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long payStars) {
         fillEditingMediaWithCaption(photos.get(0).caption, photos.get(0).entities);
-        SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, true, true, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, chatMode, photos.get(0).updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), 0, false, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+        SendMessagesHelper.prepareSendingMedia(getAccountInstance(), photos, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, true, false, editingMessageObject, notify, scheduleDate, 0, chatMode, photos.get(0).updateStickersOrder, null, quickReplyShortcut, getQuickReplyId(), 0, false, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
         afterMessageSend();
         if (scheduleDate != 0) {
             if (scheduledMessagesCount == -1) {
@@ -14068,7 +14129,7 @@ public class ChatActivity extends BaseFragment implements
         for (int a = 0; a < photos.size(); a++) {
             SendMessagesHelper.SendingMediaInfo info = photos.get(a);
             if (info.inlineResult != null && info.videoEditedInfo == null) {
-                SendMessagesHelper.prepareSendingBotContextResult(this, getAccountInstance(), info.inlineResult, info.params, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, notify, scheduleDate, 0, quickReplyShortcut, getQuickReplyId(), 0, getSendMonoForumPeerId());
+                SendMessagesHelper.prepareSendingBotContextResult(this, getAccountInstance(), info.inlineResult, info.params, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, notify, scheduleDate, 0, quickReplyShortcut, getQuickReplyId(), 0);
                 photos.remove(a);
                 a--;
             }
@@ -14092,7 +14153,9 @@ public class ChatActivity extends BaseFragment implements
     public void startDocumentSelectActivity() {
         try {
             Intent photoPickerIntent = new Intent(Intent.ACTION_GET_CONTENT);
-            photoPickerIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            if (Build.VERSION.SDK_INT >= 18) {
+                photoPickerIntent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            }
             photoPickerIntent.setType("*/*");
             startActivityForResult(photoPickerIntent, 21);
         } catch (Exception e) {
@@ -14119,9 +14182,6 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void checkEditLinkRemoved(final CharSequence charSequence) {
-        if (forkExtractMediaFrozenWebPage != null) {
-            return;
-        }
         final boolean manual = editingMessageObject != null && editingMessageObject.messageOwner != null && editingMessageObject.messageOwner.media != null && editingMessageObject.messageOwner.media.webpage != null && !(editingMessageObject.messageOwner.media.webpage instanceof TLRPC.TL_webPageEmpty) && editingMessageObject.messageOwner.media.manual;
         if (messagePreviewParams != null && editingMessageObject != null && (editingMessageObject.type == MessageObject.TYPE_TEXT || editingMessageObject.type == MessageObject.TYPE_EMOJIS) && foundWebPage != null) {
             if (messagePreviewParams.hasLink(charSequence, foundWebPage.url)) {
@@ -14142,9 +14202,6 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void searchLinks(final CharSequence charSequence, final boolean force) {
-        if (forkExtractMediaFrozenWebPage != null) {
-            return;
-        }
         if (currentEncryptedChat != null && getMessagesController().secretWebpagePreview == 0 || editingMessageObject != null && (!editingMessageObject.isWebpage() || editingMessageObject.messageOwner.media.webpage instanceof TLRPC.TL_webPagePending)) {
             return;
         }
@@ -14293,9 +14350,6 @@ public class ChatActivity extends BaseFragment implements
                 if (waitingForWebpageId != myId) {
                     return;
                 }
-                if (forkExtractMediaFrozenWebPage != null) {
-                    return;
-                }
                 if (success) {
                     foundWebPage = webpage;
                     foundWebPage.display_url = req.message;
@@ -14436,11 +14490,8 @@ public class ChatActivity extends BaseFragment implements
         }
         if ((scheduleDate != 0) == (chatMode == MODE_SCHEDULED)) {
             waitingForSendingMessageLoad = true;
-            if (chatAdapter != null) {
-                chatAdapter.checkRemoveBotForumRowsStartThreadRow(true);
-            }
         }
-        int result = getSendMessagesHelper().sendMessage(arrayList, dialog_id, fromMyName, hideCaption, notify, scheduleDate, 0, getThreadMessage(), -1, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+        int result = getSendMessagesHelper().sendMessage(arrayList, dialog_id, fromMyName, hideCaption, notify, scheduleDate, getThreadMessage(), -1, payStars);
         AlertsCreator.showSendMediaAlert(result, this, themeDelegate);
         if (result != 0) {
             AndroidUtilities.runOnUIThread(() -> {
@@ -14462,15 +14513,12 @@ public class ChatActivity extends BaseFragment implements
         if (chatActivityEnterView == null || botButtons == null || userBlocked) {
             return;
         }
-
-        final boolean showBotKeyboard = SystemClock.uptimeMillis() - lastSwitchTopicTime > 700;
-
         if (botButtons.messageOwner.reply_markup instanceof TLRPC.TL_replyKeyboardForceReply) {
             SharedPreferences preferences = MessagesController.getMainSettings(currentAccount);
             String tk = isTopic ? dialog_id + "_" + getTopicId() : "" + dialog_id;
             if (preferences.getInt("answered_" + tk, 0) != botButtons.getId() && (replyingMessageObject == null || chatActivityEnterView.getFieldText() == null)) {
                 botReplyButtons = botButtons;
-                chatActivityEnterView.setButtons(botButtons, showBotKeyboard, true);
+                chatActivityEnterView.setButtons(botButtons);
                 showFieldPanelForReply(botButtons);
             }
         } else {
@@ -14478,7 +14526,7 @@ public class ChatActivity extends BaseFragment implements
                 botReplyButtons = null;
                 hideFieldPanel(true);
             }
-            chatActivityEnterView.setButtons(botButtons, showBotKeyboard, true);
+            chatActivityEnterView.setButtons(botButtons);
         }
     }
 
@@ -14487,17 +14535,20 @@ public class ChatActivity extends BaseFragment implements
         public MessageObject message;
         public int start, end;
         public int task_id;
-        public byte[] option_id;
         public boolean outdated;
         public boolean todo;
-        public boolean poll;
 
         public String text;
         public ArrayList<TLRPC.MessageEntity> entities;
         public int offset, length;
 
         public TLRPC.TodoItem task;
-        public TLRPC.PollAnswer answer;
+
+        // forkgram-classic: upstream SendMessagesHelper expects these fields
+        // on ReplyQuote for poll-answer replies. Pinned 12.1.1 didn't track
+        // them — leave as defaults so the poll branch is simply skipped.
+        public boolean poll;
+        public TLRPC.PollAnswerVoters answer;
 
         private ReplyQuote(long peerId, @NonNull MessageObject message, int start, int end) {
             this.peerId = peerId;
@@ -14521,14 +14572,12 @@ public class ChatActivity extends BaseFragment implements
             update();
         }
 
-        private ReplyQuote(long peerId, @NonNull MessageObject message, byte[] option_id) {
-            this.peerId = peerId;
-            this.message = message;
-            this.start = -1;
-            this.end = -1;
-            this.poll = true;
-            this.option_id = option_id;
-            update();
+        // forkgram-classic: upstream PollItemMenu builds a ReplyQuote that
+        // pins a single poll option (used for "reply to this option").
+        // Classic flow doesn't render poll-option replies — return null so
+        // callers gracefully skip the highlight.
+        public static ReplyQuote fromPollOption(MessageObject messageObject, byte[] option) {
+            return null;
         }
 
         public static ReplyQuote from(MessageObject messageObject, String text, int offset) {
@@ -14548,17 +14597,6 @@ public class ChatActivity extends BaseFragment implements
 
         public static ReplyQuote from(MessageObject messageObject, int task_id) {
             if (messageObject == null || messageObject.messageOwner == null || !(messageObject.messageOwner.media instanceof TLRPC.TL_messageMediaToDo)) {
-                return null;
-            }
-            return new ReplyQuote(
-                messageObject.getDialogId(),
-                messageObject,
-                task_id
-            );
-        }
-
-        public static ReplyQuote fromPollOption(MessageObject messageObject, byte[] task_id) {
-            if (messageObject == null || messageObject.messageOwner == null || !(messageObject.messageOwner.media instanceof TLRPC.TL_messageMediaPoll)) {
                 return null;
             }
             return new ReplyQuote(
@@ -14599,15 +14637,6 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 task = foundItem;
-                return true;
-            } else if (poll) {
-                final TLRPC.PollAnswer answer = MessageObject.findPollItem(message, option_id);
-                if (answer == null) {
-                    FileLog.e("ReplyQuote: poll item is not found");
-                    return false;
-                }
-
-                this.answer = answer;
                 return true;
             } else {
                 if (end < start || end > message.messageOwner.message.length() || start > message.messageOwner.message.length() || start < 0 || end < 0) {
@@ -14715,8 +14744,6 @@ public class ChatActivity extends BaseFragment implements
         public boolean isValid() {
             if (todo) {
                 return task != null;
-            } else if (poll) {
-                return answer != null;
             } else {
                 return !TextUtils.isEmpty(text);
             }
@@ -14781,7 +14808,6 @@ public class ChatActivity extends BaseFragment implements
             mentionContainer.getAdapter().setAllowStickers(!show || messageObjectToEdit == null);
         }
 
-        final int oldFieldPanelShown = fieldPanelShown;
         boolean showHint = false;
         if (show) {
             if (messageObjectToReply == null && messageObjectsToForward == null && messageObjectToEdit == null && webPage == null && suggestionParams == null) {
@@ -14813,16 +14839,6 @@ public class ChatActivity extends BaseFragment implements
             messageSuggestionParams = null;
             if (messageObjectToEdit != null) {
                 fieldPanelShown = 1;
-                if (oldFieldPanelShown != 0 && oldFieldPanelShown != fieldPanelShown) {
-                    replyLayout.switchLayouts();
-                }
-
-                final ImageView replyIconImageView = replyLayout.current().icon;
-                final BackupImageView replyImageView = replyLayout.current().image;
-                final SimpleTextView replyNameTextView = replyLayout.current().name;
-                final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-                final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
-
                 forbidForwardingWithDismiss = false;
                 if (messagePreviewParams != null) {
                     messagePreviewParams.updateForward(null, dialog_id);
@@ -14983,7 +14999,7 @@ public class ChatActivity extends BaseFragment implements
                 chatActivityEnterView.setEditingMessageObject(null, null, false);
                 forbidForwardingWithDismiss = false;
                 if (messagePreviewParams == null) {
-                    messagePreviewParams = new MessagePreviewParams(currentEncryptedChat != null, isPeerNoForwards(), ChatObject.isMonoForum(currentChat));
+                    messagePreviewParams = new MessagePreviewParams(currentEncryptedChat != null, getMessagesController().isChatNoForwards(currentChat), ChatObject.isMonoForum(currentChat));
                     messagePreviewParams.attach(forwardingPreviewView);
                 }
                 messagePreviewParams.updateReply(replyingMessageObject, replyingQuoteGroup != null ? replyingQuoteGroup : getGroup(replyingMessageObject.getGroupId()), dialog_id, replyingQuote);
@@ -14991,15 +15007,6 @@ public class ChatActivity extends BaseFragment implements
                     messagePreviewParams = null;
                 }
                 fieldPanelShown = 2;
-                if (oldFieldPanelShown != 0 && oldFieldPanelShown != fieldPanelShown) {
-                    replyLayout.switchLayouts();
-                }
-                final ImageView replyIconImageView = replyLayout.current().icon;
-                final BackupImageView replyImageView = replyLayout.current().image;
-                final SimpleTextView replyNameTextView = replyLayout.current().name;
-                final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-                final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
-
                 String restrictionReason = MessagesController.getInstance(currentAccount).getRestrictionReason(messageObjectToReply.messageOwner.restriction_reason);
                 chatActivityEnterView.setForceShowSendButton(false, false);
                 CharSequence name = null;
@@ -15062,16 +15069,7 @@ public class ChatActivity extends BaseFragment implements
                     } else {
                         nameText = LocaleController.getString(R.string.ReplyToTask);
                     }
-                } else if (quote != null && quote.poll) {
-                    replyIconImageView.setImageResource(R.drawable.filled_reply_quote);
-                    final TLRPC.MessageMedia media = MessageObject.getMedia(quote.message);
-                    if (media instanceof TLRPC.TL_messageMediaPoll) {
-                        final TLRPC.TL_messageMediaPoll mediaTodo = (TLRPC.TL_messageMediaPoll) media;
-                        nameText = LocaleController.formatSpannable(R.string.ReplyToPollIn, MessageObject.formatTextWithEntities(mediaTodo.poll.question, false, replyNameTextView.getPaint()));
-                    } else {
-                        nameText = LocaleController.getString(R.string.ReplyToPoll);
-                    }
-                } else if (quote != null && !quote.todo && !quote.poll) {
+                } else if (quote != null && !quote.todo) {
                     replyIconImageView.setImageResource(R.drawable.filled_reply_quote);
                     nameText = AndroidUtilities.replaceCharSequence("%s", LocaleController.getString(R.string.ReplyToQuote), name == null ? "" : name);
                 } else {
@@ -15097,8 +15095,6 @@ public class ChatActivity extends BaseFragment implements
                 ArrayList<TLRPC.MessageEntity> entities = messageObjectToReply != null && messageObjectToReply.messageOwner != null ? messageObjectToReply.messageOwner.entities : null;
                 if (replyingQuote != null && replyingQuote.todo) {
                     replyObjectText = MessageObject.formatTextWithEntities(replyingQuote.task.title, false, replyObjectTextView.getPaint());
-                } else if (replyingQuote != null && replyingQuote.poll) {
-                    replyObjectText = MessageObject.formatTextWithEntities(replyingQuote.answer.text, false, replyObjectTextView.getPaint());
                 } else if (replyingQuote != null) {
                     if (replyingQuote.outdated) {
                         replyObjectText = new SpannableStringBuilder(LocaleController.getString(R.string.QuoteOutdated));
@@ -15129,8 +15125,7 @@ public class ChatActivity extends BaseFragment implements
                     replyObjectText = Emoji.replaceEmoji(messageObjectToReply.messageOwner.media.game.title, replyObjectTextView.getPaint().getFontMetricsInt(), false);
                     sourceText = messageObjectToReply.messageOwner.media.game.title;
                 } else if (messageObjectToReply.messageText != null || messageObjectToReply.caption != null) {
-                    CharSequence mess = messageObjectToReply.caption != null ? messageObjectToReply.caption : messageObjectToReply.messageText;
-                    mess = FormattedDateSpan.restoreFormatedDateEntities(mess).toString();
+                    CharSequence mess = messageObjectToReply.caption != null ? messageObjectToReply.caption.toString() : messageObjectToReply.messageText.toString();
                     sourceText = mess;
                     if (mess.length() > 150) {
                         mess = mess.subSequence(0, 150);
@@ -15154,17 +15149,8 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
                 fieldPanelShown = 3;
-                if (oldFieldPanelShown != 0 && oldFieldPanelShown != fieldPanelShown) {
-                    replyLayout.switchLayouts();
-                }
-                final ImageView replyIconImageView = replyLayout.current().icon;
-                final BackupImageView replyImageView = replyLayout.current().image;
-                final SimpleTextView replyNameTextView = replyLayout.current().name;
-                final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-                final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
-
                 if (messagePreviewParams == null) {
-                    messagePreviewParams = new MessagePreviewParams(currentEncryptedChat != null, isPeerNoForwards(), ChatObject.isMonoForum(currentChat));
+                    messagePreviewParams = new MessagePreviewParams(currentEncryptedChat != null, getMessagesController().isChatNoForwards(currentChat), ChatObject.isMonoForum(currentChat));
                     messagePreviewParams.attach(forwardingPreviewView);
                 }
                 messagePreviewParams.updateForward(messageObjectsToForward, dialog_id);
@@ -15176,7 +15162,7 @@ public class ChatActivity extends BaseFragment implements
                 forbidForwardingWithDismiss = false;
                 chatActivityEnterView.setForceShowSendButton(true, false);
                 ArrayList<Long> uids = new ArrayList<>();
-                replyIconImageView.setImageResource(R.drawable.filled_forward_settings);
+                replyIconImageView.setImageResource(R.drawable.filled_forward);
                 replyIconImageView.setContentDescription(LocaleController.getString(R.string.AccDescrForwarding));
                 replyCloseImageView.setContentDescription(LocaleController.getString(R.string.AccDescrCancelForward));
                 MessageObject object = messageObjectsToForward.get(0);
@@ -15336,18 +15322,9 @@ public class ChatActivity extends BaseFragment implements
                 }
             } else if (webPage != null) {
                 fieldPanelShown = 4;
-                if (oldFieldPanelShown != 0 && oldFieldPanelShown != fieldPanelShown) {
-                    replyLayout.switchLayouts();
-                }
-                final ImageView replyIconImageView = replyLayout.current().icon;
-                final BackupImageView replyImageView = replyLayout.current().image;
-                final SimpleTextView replyNameTextView = replyLayout.current().name;
-                final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-                final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
-
                 replyIconImageView.setImageResource(R.drawable.filled_link);
                 if (messagePreviewParams == null) {
-                    messagePreviewParams = new MessagePreviewParams(currentEncryptedChat != null, isPeerNoForwards(), ChatObject.isMonoForum(currentChat));
+                    messagePreviewParams = new MessagePreviewParams(currentEncryptedChat != null, getMessagesController().isChatNoForwards(currentChat), ChatObject.isMonoForum(currentChat));
                     messagePreviewParams.attach(forwardingPreviewView);
                 }
                 messagePreviewParams.updateLink(currentAccount, foundWebPage, chatActivityEnterView.getFieldText(), replyingMessageObject == threadMessageObject ? null : replyingMessageObject, replyingQuote, editingMessageObject);
@@ -15380,14 +15357,6 @@ public class ChatActivity extends BaseFragment implements
                 messageSuggestionParams = suggestionParams;
                 messagePreviewParams = null;
                 fieldPanelShown = 5;
-                if (oldFieldPanelShown != 0 && oldFieldPanelShown != fieldPanelShown) {
-                    replyLayout.switchLayouts();
-                }
-                final ImageView replyIconImageView = replyLayout.current().icon;
-                final BackupImageView replyImageView = replyLayout.current().image;
-                final SimpleTextView replyNameTextView = replyLayout.current().name;
-                final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-                final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
 
                 if (foundWebPage != null) {
                     foundWebPage = null;
@@ -15428,11 +15397,6 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
 
-            final ImageView replyIconImageView = replyLayout.current().icon;
-            final BackupImageView replyImageView = replyLayout.current().image;
-            final SimpleTextView replyNameTextView = replyLayout.current().name;
-            final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-            final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
 
             MessageObject thumbMediaMessageObject;
             if (messageObjectToReply != null) {
@@ -15493,9 +15457,8 @@ public class ChatActivity extends BaseFragment implements
                 replyImageLocation = photoSize;
                 replyImageThumbLocation = thumbPhotoSize;
                 replyImageLocationObject = photoSizeObject;
-                final boolean hasSpoiler = thumbMediaMessageObject.hasMediaSpoilers();
-                replyLayout.current().hasSpoiler = hasSpoiler;
-                replyImageView.setImage(ImageLocation.getForObject(replyImageLocation, photoSizeObject), hasSpoiler ? "5_5_b" : "50_50", ImageLocation.getForObject(thumbPhotoSize, photoSizeObject), hasSpoiler ? "5_5_b" : "50_50_b", null, size, cacheType, thumbMediaMessageObject);
+                replyImageHasMediaSpoiler = thumbMediaMessageObject.hasMediaSpoilers();
+                replyImageView.setImage(ImageLocation.getForObject(replyImageLocation, photoSizeObject), replyImageHasMediaSpoiler ? "5_5_b" : "50_50", ImageLocation.getForObject(thumbPhotoSize, photoSizeObject), replyImageHasMediaSpoiler ? "5_5_b" : "50_50_b", null, size, cacheType, thumbMediaMessageObject);
                 replyImageView.setVisibility(View.VISIBLE);
                 layoutParams1.leftMargin = layoutParams2.leftMargin = layoutParams3.leftMargin = AndroidUtilities.dp(96);
             }
@@ -15550,9 +15513,6 @@ public class ChatActivity extends BaseFragment implements
         if (showHint) {
             if (tapForForwardingOptionsHitRunnable == null) {
                 AndroidUtilities.runOnUIThread(tapForForwardingOptionsHitRunnable = () -> {
-                    final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-                    final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
-
                     showTapForForwardingOptionsHit = !showTapForForwardingOptionsHit;
                     replyObjectTextView.setPivotX(0);
                     replyObjectHintTextView.setPivotX(0);
@@ -15567,9 +15527,6 @@ public class ChatActivity extends BaseFragment implements
                 }, 6000);
             }
         } else {
-            final SimpleTextView replyObjectTextView = replyLayout.current().obj;
-            final SimpleTextView replyObjectHintTextView = replyLayout.current().objHint;
-
             if (tapForForwardingOptionsHitRunnable != null) {
                 AndroidUtilities.cancelRunOnUIThread(tapForForwardingOptionsHitRunnable);
                 tapForForwardingOptionsHitRunnable = null;
@@ -15580,7 +15537,6 @@ public class ChatActivity extends BaseFragment implements
         if (chatActivityEnterView != null) {
             chatActivityEnterView.updateSendButtonPaid();
         }
-        forkUpdateExtractMediaButton();
     }
 
     private void moveScrollToLastMessage(boolean skipSponsored) {
@@ -15698,7 +15654,7 @@ public class ChatActivity extends BaseFragment implements
         forceScrollToFirst = false;
         chatScrollHelper.setScrollDirection(RecyclerAnimationScrollHelper.SCROLL_DIRECTION_DOWN);
         if (forwardEndReached[0] && first_unread_id == 0 && startLoadFromMessageId == 0) {
-            sideControlsButtonsLayout.setButtonLoading(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, false, true);
+            setPagedownLoading(false, true);
             if (chatLayoutManager.findFirstCompletelyVisibleItemPosition() == 0) {
                 canShowPagedownButton = false;
                 updatePagedownButtonVisibility(true);
@@ -15948,7 +15904,7 @@ public class ChatActivity extends BaseFragment implements
         int maxPositiveUnreadId = Integer.MIN_VALUE;
         int maxNegativeUnreadId = Integer.MAX_VALUE;
         int maxUnreadDate = Integer.MIN_VALUE;
-        int recyclerChatViewHeight = (contentView.getMeasuredHeight() - (inPreviewMode || isInsideContainer ? 0 : AndroidUtilities.dp(48)) - chatListView.getTop());
+        int recyclerChatViewHeight = (contentView.getHeightWithKeyboard() - (inPreviewMode || isInsideContainer ? 0 : AndroidUtilities.dp(48)) - chatListView.getTop());
         pollsToCheck.clear();
         float clipTop = chatListViewPaddingTop;
         float clipTopicTop = chatListViewPaddingTop + dp(28);
@@ -15956,7 +15912,7 @@ public class ChatActivity extends BaseFragment implements
         int maxAdapterPosition = -1;
         int minAdapterPosition = -1;
 
-        boolean blurEnabled = SharedConfig.chatBlurEnabled();
+        boolean blurEnabled = SharedConfig.chatBlurEnabled() && Color.alpha(Theme.getColor(Theme.key_chat_BlurAlpha)) != 255;
 
         MessageObject messageStarter = isTopic ? topicStarterMessageObject : threadMessageObject;
 
@@ -15977,11 +15933,6 @@ public class ChatActivity extends BaseFragment implements
                     minAdapterPosition = adapterPosition;
                 }
             }
-
-            if (view instanceof BotAskCell) {
-                view.invalidate();
-            }
-
             final int top = (int) view.getY();
             final int bottom = top + view.getMeasuredHeight();
             ChatMessageCell messageCell = null;
@@ -16040,28 +15991,8 @@ public class ChatActivity extends BaseFragment implements
                 hasTopicSeparator = messageCell.topicSeparator != null;
 
                 messageCell.setParentBounds((SharedConfig.chatBlurEnabled() && contentView.DRAW_USING_RENDERNODE() ? 0 : chatListViewPaddingTop) - chatListViewPaddingVisibleOffset - dp(4), chatListView.getMeasuredHeight() - blurredViewBottomOffset);
-                messageCell.setVisiblePart(
-                    viewTop,
-                    viewBottom - viewTop,
-                    recyclerChatViewHeight,
-                    0,
-                    view.getY() + (isKeyboardVisible() ? chatListView.getTop() : actionBar.getMeasuredHeight()) - contentView.getBackgroundTranslationY() - (1f - contentPanTranslationT) * chatListViewPaddingTop,
-                    contentView.getMeasuredWidth(),
-                    contentView.getBackgroundSizeY(),
-                    blurredViewTopOffset,
-                    blurredViewBottomOffset,
-                    top - (int) chatListViewPaddingTop
-                );
-
-                if (messageObject.isSponsored()) {
-                    final float rTop = ViewPositionWatcher.computeYCoordinateInParent(messageCell, contentView);
-                    final boolean isVisible = messageObject.viewsReloaded || rTop < contentView.getMeasuredHeight() - dp(9 + 32) - windowInsetsStateHolder.getAnimatedMaxBottomInset() - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM) - inputIslandHeightCurrent;
-                    messageCell.setSponsoredMessageVisible(isVisible, isVisible);
-                    if (isVisible) {
-                        markSponsoredAsRead(messageObject);
-                    }
-                }
-
+                messageCell.setVisiblePart(viewTop, viewBottom - viewTop, recyclerChatViewHeight, keyboardOffset, view.getY() + (isKeyboardVisible() ? chatListView.getTop() : actionBar.getMeasuredHeight()) - contentView.getBackgroundTranslationY() - (1f - contentPanTranslationT) * chatListViewPaddingTop, contentView.getMeasuredWidth(), contentView.getBackgroundSizeY(), blurredViewTopOffset, blurredViewBottomOffset);
+                markSponsoredAsRead(messageObject);
                 if (!threadMessageVisible && messageStarter != null && (messageObject == messageStarter || isTopic && messageObject != null && messageObject.getId() == messageStarter.getId()) && messageCell.getBottom() > chatListViewPaddingTop) {
                     threadMessageVisible = true;
                 }
@@ -16092,20 +16023,6 @@ public class ChatActivity extends BaseFragment implements
                     startFromVideoTimestamp = -1;
                 }
 
-                if (messageObject != null && fragmentOpened && openAnimationEnded && (chatListItemAnimator == null || !chatListItemAnimator.isRunning()) && messageCell.checkUnreadPollVotes()) {
-                    pollVotesMentionCount--;
-                    getMessagesStorage().markMessagePollVotesAsRead(getDialogId(), getTopicId(), messageObject.getId());
-                    if (pollVotesMentionCount <= 0) {
-                        getMessagesController().markPollVotesAsRead(dialog_id, getTopicId());
-                    }
-                    if (pollVotesMentionCount >= 0) {
-                        messageCell.markPollVotesAsRead();
-                    } else {
-                        messageCell.markPollVotesAsRead();
-                        pollVotesMentionCount = 0;
-                    }
-                    updatePollVotesMentionButton(true);
-                }
                 if (messageObject != null && fragmentOpened && openAnimationEnded && (chatListItemAnimator == null || !chatListItemAnimator.isRunning()) && messageCell.checkUnreadReactions(clipTop, chatListView.getMeasuredHeight() - blurredViewBottomOffset)) {
                     reactionsMentionCount--;
                     getMessagesStorage().markMessageReactionsAsRead(getDialogId(), getTopicId(), messageObject.getId());
@@ -16166,8 +16083,6 @@ public class ChatActivity extends BaseFragment implements
                 ((ChatLoadingCell) view).setVisiblePart(visibleTop, visibleBackgroundHeight);
             } else if (view instanceof UserInfoCell) {
                 ((UserInfoCell) view).setVisiblePart(visibleTop, visibleBackgroundHeight);
-            }else if (view instanceof BotAskCell) {
-                ((BotAskCell) view).setVisiblePart(visibleTop, visibleBackgroundHeight);
             }
             if (isAllChats()) {
                 final int topicBottom = hasTopicSeparator ? top + view.getPaddingTop() : bottom;
@@ -16602,7 +16517,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private float getServiceTop(View view) {
-        return view.getY() + (actionBar.getMeasuredHeight()) - contentView.getBackgroundTranslationY() - (1f - contentPanTranslationT) * chatListViewPaddingTop;
+        return view.getY() + (isKeyboardVisible() ? chatListView.getTop() : actionBar.getMeasuredHeight()) - contentView.getBackgroundTranslationY() - (1f - contentPanTranslationT) * chatListViewPaddingTop;
     }
 
     public int getServiceHeight(View view) {
@@ -16616,14 +16531,14 @@ public class ChatActivity extends BaseFragment implements
     private void inlineUpdate1() {
         if (prevSetUnreadCount != newUnreadMessageCount) {
             prevSetUnreadCount = newUnreadMessageCount;
-            sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, newUnreadMessageCount, openAnimationEnded);
+            pagedownButtonCounter.setCount(newUnreadMessageCount, openAnimationEnded);
         }
     }
 
     private void inlineUpdate2() {
         if (prevSetUnreadCount != newUnreadMessageCount) {
             prevSetUnreadCount = newUnreadMessageCount;
-            sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount, true);
+            pagedownButtonCounter.setCount(newUnreadMessageCount, true);
         }
     }
 
@@ -16649,7 +16564,7 @@ public class ChatActivity extends BaseFragment implements
         return getScrollOffsetForMessage(getHeightForMessage(object, !TextUtils.isEmpty(highlightMessageQuote))) - scrollOffsetForQuote(object);
     }
     private int getScrollOffsetForMessage(int messageHeight) {
-        return (int) Math.max(-AndroidUtilities.dp(2), (chatListView.getMeasuredHeight() - blurredViewBottomOffset - chatListViewPaddingTop - windowInsetsStateHolder.getCurrentMaxBottomInset() - dp(44 + 9) - messageHeight) / 2);
+        return (int) Math.max(-AndroidUtilities.dp(2), (chatListView.getMeasuredHeight() - blurredViewBottomOffset - chatListViewPaddingTop - messageHeight) / 2);
     }
 
     private int scrollOffsetForQuote(MessageObject object) {
@@ -16749,7 +16664,6 @@ public class ChatActivity extends BaseFragment implements
             highlightMessageQuoteFirstTime = 0;
             highlightMessageQuote = null;
             highlightTaskId = null;
-            highlightPollOptionId = null;
             highlightMessageQuoteOffset = -1;
             showNoQuoteAlert = false;
             updateVisibleRows();
@@ -16759,7 +16673,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void removeSelectedMessageHighlight() {
-        if (highlightMessageQuote != null || highlightTaskId != null || highlightPollOptionId != null) {
+        if (highlightMessageQuote != null || highlightTaskId != null) {
             return;
         }
         if (unselectRunnable != null) {
@@ -16771,7 +16685,6 @@ public class ChatActivity extends BaseFragment implements
         highlightMessageQuoteFirstTime = 0;
         highlightMessageQuote = null;
         highlightTaskId = null;
-        highlightPollOptionId = null;
     }
 
     private AlertDialog progressDialog;
@@ -16802,7 +16715,7 @@ public class ChatActivity extends BaseFragment implements
         progressDialogBotButtonUrl = null;
         progressDialogCurrent = null;
 
-        sideControlsButtonsLayout.setButtonLoading(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, false, true);
+        setPagedownLoading(false, true);
     }
 
     public static final boolean SCROLL_DEBUG_DELAY = false;
@@ -16814,10 +16727,6 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void scrollToMessageId(int id, int fromMessageId, boolean select, int loadIndex, boolean forceScroll, int forcePinnedMessageId, Integer taskId, Runnable inCaseLoading) {
-        scrollToMessageId(id, fromMessageId, select, loadIndex, forceScroll, forcePinnedMessageId, taskId, null, inCaseLoading);
-    }
-
-    public void scrollToMessageId(int id, int fromMessageId, boolean select, int loadIndex, boolean forceScroll, int forcePinnedMessageId, Integer taskId, byte[] pollOptionId, Runnable inCaseLoading) {
         if (waitingForGetDifference) {
             return;
         }
@@ -16895,7 +16804,6 @@ public class ChatActivity extends BaseFragment implements
                 if (select) {
                     highlightMessageId = id;
                     highlightTaskId = taskId;
-                    highlightPollOptionId = pollOptionId;
                 }
 
                 chatAdapter.updateRowsSafe();
@@ -17027,7 +16935,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void updatePagedownButtonVisibility(boolean animated) {
-        if (sideControlsButtonsLayout == null) {
+        if (pagedownButton == null) {
             return;
         }
         boolean show = canShowPagedownButton && !textSelectionHelper.isInSelectionMode() && !chatActivityEnterView.isRecordingAudioVideo() && !isInsideContainer && (!searching || getMediaDataController().searchResultMessages.isEmpty());
@@ -17036,58 +16944,204 @@ public class ChatActivity extends BaseFragment implements
                 animated = false;
             }
             pagedownButtonShowedByScroll = false;
+            if (pagedownButton.getTag() == null) {
+                if (pagedownButtonAnimation != null) {
+                    pagedownButtonAnimation.removeAllListeners();
+                    pagedownButtonAnimation.cancel();
+                    pagedownButtonAnimation = null;
+                }
+                pagedownButton.setTag(1);
+                if (animated) {
+                    pagedownButton.setVisibility(View.VISIBLE);
+                    pagedownButtonAnimation = ValueAnimator.ofFloat(pagedownButtonEnterProgress, 1f);
+                    pagedownButtonAnimation.addUpdateListener(valueAnimator -> {
+                        pagedownButtonEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        contentView.invalidate();
+                    });
+                    pagedownButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            pagedownButtonEnterProgress = 1f;
+                            contentView.invalidate();
+                        }
+                    });
+                    pagedownButtonAnimation.setDuration(200);
+                    pagedownButtonAnimation.start();
+                } else {
+                    pagedownButtonEnterProgress = 1f;
+                    contentView.invalidate();
+                    pagedownButton.setVisibility(View.VISIBLE);
+                }
+            }
         } else {
             returnToMessageId = 0;
             newUnreadMessageCount = 0;
+            if (pagedownButton.getTag() != null) {
+                pagedownButton.setTag(null);
+                if (pagedownButtonAnimation != null) {
+                    pagedownButtonAnimation.removeAllListeners();
+                    pagedownButtonAnimation.cancel();
+                    pagedownButtonAnimation = null;
+                }
+                if (animated) {
+                    pagedownButton.setVisibility(View.VISIBLE);
+                    pagedownButtonAnimation = ValueAnimator.ofFloat(pagedownButtonEnterProgress, 0);
+                    pagedownButtonAnimation.addUpdateListener(valueAnimator -> {
+                        pagedownButtonEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        contentView.invalidate();
+                    });
+                    pagedownButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            pagedownButtonEnterProgress = 0;
+                            pagedownButton.setVisibility(View.INVISIBLE);
+                            contentView.invalidate();
+                        }
+                    });
+                    pagedownButtonAnimation.setDuration(200);
+                    pagedownButtonAnimation.start();
+                } else {
+                    pagedownButtonEnterProgress = 0;
+                    pagedownButton.setVisibility(View.INVISIBLE);
+                }
+            }
         }
-
-        sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, show, animated);
     }
 
     private void updateSearchUpDownButtonVisibility(boolean animated) {
-        if (sideControlsButtonsLayout == null) {
+        if (searchUpButton == null || searchDownButton == null) {
             return;
         }
         boolean show = !getMediaDataController().searchResultMessages.isEmpty() && searching && !searchingFiltered || chatMode == MODE_SEARCH && searchType == SEARCH_PUBLIC_POSTS && !messages.isEmpty();
-
-        sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_UP, show, animated);
-        sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_DOWN, show, animated);
         if (show) {
-            sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN, false, animated);
-        }
-
-        if (!show) {
+            if (searchUpButton.getTag() == null) {
+                if (searchUpButtonAnimation != null) {
+                    searchUpButtonAnimation.removeAllListeners();
+                    searchUpButtonAnimation.cancel();
+                    searchUpButtonAnimation = null;
+                }
+                if (animated) {
+                    searchUpButton.setVisibility(View.VISIBLE);
+                    searchDownButton.setVisibility(View.VISIBLE);
+                    searchUpButton.setTag(1);
+                    searchUpButtonAnimation = ValueAnimator.ofFloat(searchUpDownEnterProgress, 1f);
+                    searchUpButtonAnimation.addUpdateListener(valueAnimator -> {
+                        searchUpDownEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        contentView.invalidate();
+                    });
+                    searchUpButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            searchUpDownEnterProgress = 1f;
+                            contentView.invalidate();
+                        }
+                    });
+                    searchUpButtonAnimation.setDuration(200);
+                    searchUpButtonAnimation.start();
+                } else {
+                    searchUpDownEnterProgress = 1f;
+                    contentView.invalidate();
+                }
+            }
+        } else {
             returnToMessageId = 0;
+            if (searchUpButton.getTag() != null) {
+                searchUpButton.setTag(null);
+                if (searchUpButtonAnimation != null) {
+                    searchUpButtonAnimation.removeAllListeners();
+                    searchUpButtonAnimation.cancel();
+                    searchUpButtonAnimation = null;
+                }
+                if (animated) {
+                    searchUpButtonAnimation = ValueAnimator.ofFloat(searchUpDownEnterProgress, 0f);
+                    searchUpButtonAnimation.addUpdateListener(valueAnimator -> {
+                        searchUpDownEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        contentView.invalidate();
+                    });
+                    searchUpButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            searchUpDownEnterProgress = 0f;
+                            searchUpButton.setVisibility(View.INVISIBLE);
+                            searchDownButton.setVisibility(View.INVISIBLE);
+                            contentView.invalidate();
+                        }
+                    });
+                    searchUpButtonAnimation.setDuration(200);
+                    searchUpButtonAnimation.start();
+                } else {
+                    searchUpDownEnterProgress = 0f;
+                    searchUpButton.setVisibility(View.INVISIBLE);
+                    searchDownButton.setVisibility(View.INVISIBLE);
+                }
+            }
         }
-
-        contentView.invalidate();
     }
 
     private void showMentionDownButton(boolean show, boolean animated) {
-        if (sideControlsButtonsLayout == null) {
+        if (mentiondownButton == null) {
             return;
         }
-
-        sideControlsButtonsLayout.showButton(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, show && !ChatObject.isMonoForum(currentChat), animated);
-        if (!show) {
+        if (show && !ChatObject.isMonoForum(currentChat)) {
+            if (mentiondownButton.getTag() == null) {
+                if (mentiondownButtonAnimation != null) {
+                    mentiondownButtonAnimation.removeAllListeners();
+                    mentiondownButtonAnimation.cancel();
+                    mentiondownButtonAnimation = null;
+                }
+                if (animated) {
+                    mentiondownButton.setVisibility(View.VISIBLE);
+                    mentiondownButton.setTag(1);
+                    mentiondownButtonAnimation = ValueAnimator.ofFloat(mentionsButtonEnterProgress, 1f);
+                    mentiondownButtonAnimation.addUpdateListener(valueAnimator -> {
+                        mentionsButtonEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        contentView.invalidate();
+                    });
+                    mentiondownButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            mentionsButtonEnterProgress = 1f;
+                            contentView.invalidate();
+                        }
+                    });
+                    mentiondownButtonAnimation.setDuration(200);
+                    mentiondownButtonAnimation.start();
+                } else {
+                    mentionsButtonEnterProgress = 1f;
+                    contentView.invalidate();
+                }
+            }
+        } else {
             returnToMessageId = 0;
+            if (mentiondownButton.getTag() != null) {
+                mentiondownButton.setTag(null);
+                if (mentiondownButtonAnimation != null) {
+                    mentiondownButtonAnimation.removeAllListeners();
+                    mentiondownButtonAnimation.cancel();
+                    mentiondownButtonAnimation = null;
+                }
+                if (animated) {
+                    mentiondownButtonAnimation = ValueAnimator.ofFloat(mentionsButtonEnterProgress, 0f);
+                    mentiondownButtonAnimation.addUpdateListener(valueAnimator -> {
+                        mentionsButtonEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        contentView.invalidate();
+                    });
+                    mentiondownButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            mentionsButtonEnterProgress = 0f;
+                            mentiondownButton.setVisibility(View.INVISIBLE);
+                            contentView.invalidate();
+                        }
+                    });
+                    mentiondownButtonAnimation.setDuration(200);
+                    mentiondownButtonAnimation.start();
+                } else {
+                    mentionsButtonEnterProgress = 0f;
+                    mentiondownButton.setVisibility(View.INVISIBLE);
+                }
+            }
         }
-    }
-
-    private boolean shouldHaveLightNavigationBarIcons;
-
-    public boolean isShouldHaveLightNavigationBarIcons() {
-        return shouldHaveLightNavigationBarIcons && (!windowInsetsStateHolder.inAppViewIsVisible() || themeDelegate != null && themeDelegate.isDark);
-    }
-
-    private final RectF tmpViewRectF = new RectF();
-    private boolean quickRejectChild(View child, @Nullable RectF position) {
-        if (position == null || chatListView == null || child == null) {
-            return false;
-        }
-
-        tmpViewRectF.set(child.getX(), child.getY() + chatListView.getY(), child.getX() + child.getWidth(), child.getY() + chatListView.getY() + child.getHeight());
-        return !tmpViewRectF.intersect(position);
     }
 
     public class ChatActivityFragmentView extends SizeNotifierFrameLayout {
@@ -17107,7 +17161,7 @@ public class ChatActivity extends BaseFragment implements
                         chatActivityEnterView.onAdjustPanTransitionStart(keyboardVisible, contentHeight);
                     }
                     if (mentionContainer != null) {
-                        // mentionContainer.onPanTransitionStart();
+                        mentionContainer.onPanTransitionStart();
                     }
                     if (mediaBanTooltip != null) {
                         mediaBanTooltip.hide(false);
@@ -17123,7 +17177,7 @@ public class ChatActivity extends BaseFragment implements
                         chatActivityEnterView.onAdjustPanTransitionEnd();
                     }
                     if (mentionContainer != null) {
-                        // mentionContainer.onPanTransitionEnd();
+                        mentionContainer.onPanTransitionEnd();
                     }
                     if (voiceHintTextView != null && voiceHintTextView.getVisibility() == View.VISIBLE) {
                         voiceHintTextView.showForView(chatActivityEnterView.getAudioVideoButtonContainer(), false);
@@ -17205,7 +17259,7 @@ public class ChatActivity extends BaseFragment implements
                         chatActivityEnterView.onAdjustPanTransitionUpdate(y, progress, keyboardVisible);
                     }
                     if (mentionContainer != null) {
-                        // mentionContainer.onPanTransitionUpdate(y);
+                        mentionContainer.onPanTransitionUpdate(y);
                     }
                     if (AndroidUtilities.isTablet() && getParentActivity() instanceof LaunchActivity) {
                         BaseFragment mainFragment = ((LaunchActivity)getParentActivity()).getActionBarLayout().getLastFragment();
@@ -17250,59 +17304,6 @@ public class ChatActivity extends BaseFragment implements
             };
         }
 
-        @Override
-        public void drawBlurRect(Canvas canvas, float y, Rect rectTmp, Paint blurScrimPaint, boolean top) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !SharedConfig.chatBlurEnabled() || !BlurredBackgroundProviderImpl.checkBlurEnabled(currentAccount, themeDelegate)) {
-                canvas.drawRect(rectTmp, blurScrimPaint);
-                return;
-            }
-
-
-            final boolean isThemeLight = themeDelegate != null && !themeDelegate.isDark();
-            int blurAlpha = isThemeLight ? 216 : ACTION_BAR_BLUR_ALPHA;
-            final BlurredBackgroundSource blurSource = glassBackgroundSourceFrostedRenderNode;
-            if (blurSource != null && blurAlpha < 255) {
-                canvas.save();
-                canvas.translate(0, -y);
-                blurSource.draw(canvas,
-                    rectTmp.left,
-                    rectTmp.top + y,
-                    rectTmp.right,
-                    rectTmp.bottom + y
-                );
-                canvas.restore();
-            } else {
-                blurAlpha = 255;
-            }
-
-            final int oldScrimAlpha = blurScrimPaint.getAlpha();
-            blurScrimPaint.setAlpha(blurAlpha);
-            canvas.drawRect(rectTmp, blurScrimPaint);
-            blurScrimPaint.setAlpha(oldScrimAlpha);
-        }
-
-        @Override
-        public void onUpdateBackgroundDrawable(Drawable drawable) {
-            super.onUpdateBackgroundDrawable(drawable);
-            if (drawable instanceof MotionBackgroundDrawable) {
-                ((MotionBackgroundDrawable) drawable).setFastRenderAllowed();
-            }
-
-            final BlurredBackgroundSource source = wallpaperBitmapProvider.updateSourceFromBackgroundViewDrawable(drawable);
-            final int navigationBarColor = wallpaperBitmapProvider.getNavigationBarColor(source);
-            final float brightness = AndroidUtilities.computePerceivedBrightness(navigationBarColor);
-            final boolean isDark = brightness <= 0.9f;
-            shouldHaveLightNavigationBarIcons = isDark;
-
-            navbarContentSourceWallpaper.setSource(source);
-            if (chatInputViewsContainer != null) {
-                chatInputViewsContainer.invalidate();
-                chatInputViewsContainer.getFadeView().invalidate();
-            }
-            invalidateAllGlassAttachedViews();
-            checkSystemBarColors();
-        }
-
         int inputFieldHeight = 0;
         int lastHeight;
 
@@ -17321,30 +17322,31 @@ public class ChatActivity extends BaseFragment implements
             return true;
         }
 
-        public void drawList(Canvas blurCanvas, RectF position) {
-            final long drawingTime = SystemClock.uptimeMillis();
-
-            if (chatListView.hasActiveEdgeEffects()) {
-                blurCanvas.save();
-                blurCanvas.clipRect(position);
-                drawChild(blurCanvas, chatListView, drawingTime);
-                blurCanvas.restore();
-                return;
-            }
-
-            blurCanvas.save();
-            blurCanvas.clipRect(position);
-            blurCanvas.translate(0, chatListView.getY());
-            chatListView.drawChatBackgroundElements(blurCanvas, position);
+        @Override
+        protected void drawList(Canvas blurCanvas, boolean top, ArrayList<IViewWithInvalidateCallback> views) {
+            float clipTop = chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4);
             for (int i = 0; i < chatListView.getChildCount(); i++) {
                 View child = chatListView.getChildAt(i);
-                if (quickRejectChild(child, position)) {
+                if (child instanceof BaseCell) {
+                    ((BaseCell) child).setCaching(top, false);
+                }
+            }
+            for (int i = 0; i < chatListView.getChildCount(); i++) {
+                View child = chatListView.getChildAt(i);
+                if (top && child.getY() > clipTop + AndroidUtilities.dp(40)) {
+                    continue;
+                }
+                if (!top && child.getY() + child.getMeasuredHeight() < AndroidUtilities.dp(203)) {
                     continue;
                 }
 
+                blurCanvas.save();
+                if (top) {
+                    blurCanvas.translate(chatListView.getX() + child.getX(), chatListView.getY() + child.getY() - contentPanTranslation);
+                } else {
+                    blurCanvas.translate(chatListView.getX() + child.getX(), chatListView.getTop() + child.getY());
+                }
                 if (child instanceof ChatMessageCell) {
-                    blurCanvas.save();
-                    blurCanvas.translate(child.getX(), child.getY());
                     ChatMessageCell cell = (ChatMessageCell) child;
                     if (cell.drawBackgroundInParent()) {
                         blurCanvas.save();
@@ -17352,40 +17354,49 @@ public class ChatActivity extends BaseFragment implements
                         cell.drawBackgroundInternal(blurCanvas, true);
                         blurCanvas.restore();
                     }
-                    blurCanvas.restore();
-                    chatListView.drawChild(blurCanvas, child, drawingTime);
-                    if (cell.hasOutboundsContent()) {
-                        blurCanvas.save();
-                        blurCanvas.translate(cell.getX(), cell.getY());
-                        cell.drawOutboundsContent(blurCanvas);
-                        blurCanvas.restore();
+                    if (views != null) {
+                        views.add(cell);
                     }
+                    cell.setCaching(top, true);
+                    cell.drawCached(blurCanvas);
+//                    if (cell.hasOutboundsContent()) {
+//                        if (drawAsChild) {
+//                            blurCanvas.save();
+//                            blurCanvas.translate(cell.getX(), cell.getY());
+//                        }
+//                        cell.drawOutboundsContent(blurCanvas);
+//                        if (drawAsChild) {
+//                            blurCanvas.restore();
+//                        }
+//                    }
                 } else if (child instanceof ChatActionCell) {
                     ChatActionCell cell = (ChatActionCell) child;
-                    chatListView.drawChild(blurCanvas, child, drawingTime);
-                    blurCanvas.save();
-                    blurCanvas.translate(child.getX(), child.getY());
+                    cell.setCaching(top, true);
+                    cell.drawCached(blurCanvas);
                     cell.drawOutboundsContent(blurCanvas);
-                    blurCanvas.restore();
+                    if (views != null) {
+                        views.add(cell);
+                    }
                 } else {
-                    chatListView.drawChild(blurCanvas, child, drawingTime);
+                    child.draw(blurCanvas);
+                    if (views != null && child instanceof IViewWithInvalidateCallback) {
+                        views.add((IViewWithInvalidateCallback) child);
+                    }
                 }
+                blurCanvas.restore();
             }
-            chatListView.drawChatForegroundElements(blurCanvas, position);
-            blurCanvas.restore();
-        }
 
-
-        @Override
-        public void addView(View child, int index, ViewGroup.LayoutParams params) {
-            super.addView(child, index, params);
-            if (chatActivityEnterView != null && child == chatActivityEnterView.botCommandsMenuContainer) {
-                BotCommandsMenuContainer botCommandsMenuContainer = (BotCommandsMenuContainer) child;
-                final BlurredBackgroundDrawable drawable = glassBackgroundDrawableFactory.create(botCommandsMenuContainer.listView, blurredBackgroundColorProviderWhite);
-                botCommandsMenuContainer.setBackgroundDrawable(drawable);
-            }
-            if (chatActivityEnterView != null && child == chatActivityEnterView.controlsView) {
-                chatActivityEnterView.controlsView.setBlurredBackgroundFactory(glassBackgroundDrawableFactory);
+            if (searchViewPager != null) {
+                for (int i = 0; i < searchViewPager.getChildCount(); i++) {
+                    View child = searchViewPager.getChildAt(i);
+                    if (child instanceof ChatActivityContainer) {
+                        ChatActivityFragmentView childFragmentView = ((ChatActivityContainer) child).chatActivity.contentView;
+                        blurCanvas.save();
+                        blurCanvas.translate(child.getTranslationX(), searchViewPager.getTop());
+                        childFragmentView.drawList(blurCanvas, top, views);
+                        blurCanvas.restore();
+                    }
+                }
             }
         }
 
@@ -17444,10 +17455,6 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
-            if (messageMetricsView != null) {
-                messageMetricsView.setIsUserActive();
-            }
-
             float expandY;
             if (AndroidUtilities.isInMultiwindow || isInBubbleMode()) {
                 expandY = chatActivityEnterView.getEmojiView() != null ? chatActivityEnterView.getEmojiView().getY() : chatActivityEnterView.getY();
@@ -17508,29 +17515,25 @@ public class ChatActivity extends BaseFragment implements
                     int[] off = new int[2];
                     getLocationInWindow(off);
                     int[] pos = new int[2];
-
-                    if (sideControlsButtonsLayout != null) {
-                        for (int a = 0; a < 3; a++) {
-                            final int buttonId = a == 0 ?
-                                ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN: a == 1 ?
-                                    ChatActivitySideControlsButtonsLayout.BUTTON_MENTION:
-                                    ChatActivitySideControlsButtonsLayout.BUTTON_REACTIONS;
-
-                            if (sideControlsButtonsLayout.getButtonLocationInWindow(buttonId, pos)) {
-                                AndroidUtilities.rectTmp2.set(pos[0] - off[0], pos[1] - off[1], pos[0] - off[0] + dp(56), pos[1] - off[1] + dp(61));
-                                if (AndroidUtilities.rectTmp2.contains((int) ev.getX(), (int) ev.getY())) {
-                                    pressedOnPageDownButtons = true;
-                                    break;
-                                }
-                            }
+                    if (pagedownButton != null) {
+                        pagedownButton.getLocationInWindow(pos);
+                        AndroidUtilities.rectTmp2.set(pos[0] - off[0], pos[1] - off[1], pos[0] - off[0] + pagedownButton.getMeasuredWidth(), pos[1] - off[1] + pagedownButton.getMeasuredHeight());
+                        if (AndroidUtilities.rectTmp2.contains((int) ev.getX(), (int) ev.getY())) {
+                            pressedOnPageDownButtons = true;
                         }
                     }
-
                     if (avatarContainer != null) {
                         avatarContainer.getLocationInWindow(pos);
                         AndroidUtilities.rectTmp2.set(pos[0] - off[0], pos[1] - off[1], pos[0] - off[0] + avatarContainer.getMeasuredWidth(), pos[1] - off[1] + avatarContainer.getMeasuredHeight());
                         if (AndroidUtilities.rectTmp2.contains((int) ev.getX(), (int) ev.getY())) {
                             pressedOnAction = true;
+                        }
+                    }
+                    if (!pressedOnPageDownButtons && mentiondownButton != null) {
+                        mentiondownButton.getLocationInWindow(pos);
+                        AndroidUtilities.rectTmp2.set(pos[0] - off[0], pos[1] - off[1], pos[0] - off[0] + mentiondownButton.getMeasuredWidth(), pos[1] - off[1] + mentiondownButton.getMeasuredHeight());
+                        if (AndroidUtilities.rectTmp2.contains((int) ev.getX(), (int) ev.getY())) {
+                            pressedOnPageDownButtons = true;
                         }
                     }
                     if (!pressedOnPageDownButtons) {
@@ -17573,7 +17576,7 @@ public class ChatActivity extends BaseFragment implements
             if (getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND) != null) {
                 return;
             }
-            if (getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND) == null && (blurredView != null && blurredView.fullyDrawing() && blurredView.getTag() != null)) {
+            if (getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND) == null && (instantCameraView != null && instantCameraView.blurFullyDrawing() || (blurredView != null && blurredView.fullyDrawing() && blurredView.getTag() != null))) {
                 return;
             }
             super.onDraw(canvas);
@@ -17581,8 +17584,11 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-            if ((scrimView != null || messageEnterTransitionContainer.isRunning()) && (child == sideControlsButtonsLayout || child == floatingDateView || child == floatingTopicSeparator || child == fireworksOverlay || child == quickShareSelectorOverlay || child == gifHintTextView || child == emojiHintTextView || child == undoView || child == topUndoView)) {
+            if ((scrimView != null || messageEnterTransitionContainer.isRunning()) && (child == pagedownButton || child == searchUpButton || child == searchDownButton || child == mentiondownButton || child == floatingDateView || child == floatingTopicSeparator || child == fireworksOverlay || child == reactionsMentiondownButton || child == quickShareSelectorOverlay || child == gifHintTextView || child == emojiHintTextView || child == undoView || child == topUndoView)) {
                 return false;
+            }
+            if (child == fragmentContextView && fragmentContextView.isCallStyle()) {
+                return true;
             }
             if (child == undoView && PhotoViewer.getInstance().isVisible()) {
                 return true;
@@ -17593,21 +17599,18 @@ public class ChatActivity extends BaseFragment implements
             if (switchingFromTopics && child == actionBar) {
                 return true;
             }
-            if (child == instantCameraView) {
-                return true;
-            }
             if (getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND) != null) {
                 boolean needBlur;
                 if (((int) getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND)) == BlurBehindDrawable.STATIC_CONTENT) {
-                    needBlur = child == actionBar;
+                    needBlur = child == actionBar || child == fragmentContextView || child == pinnedMessageView;
                 } else {
-                    needBlur = child == chatListView || child == chatInputViewsContainer || child == bottomChannelButtonsLayout;
+                    needBlur = child == chatListView || child == chatActivityEnterView || chatActivityEnterView.isPopupView(child) || child == bottomOverlayChat;
                 }
                 if (!needBlur) {
                     return false;
                 }
-            } else if (getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND) == null && ((blurredView != null && blurredView.fullyDrawing() && blurredView.getTag() != null))) {
-                boolean needBlur = child == actionBar || child == chatListView;
+            } else if (getTag(BlurBehindDrawable.TAG_DRAWING_AS_BACKGROUND) == null && (instantCameraView != null && instantCameraView.blurFullyDrawing() || (blurredView != null && blurredView.fullyDrawing() && blurredView.getTag() != null))) {
+                boolean needBlur = child == actionBar || child == chatListView || child == pinnedMessageView || child == fragmentContextView;
                 if (needBlur) {
                     return false;
                 }
@@ -17647,9 +17650,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 canvas.restore();
             } else {
-                if (child == chatInputViewsContainer && instantCameraView != null && instantCameraView.getVisibility() == VISIBLE) {
-                    super.drawChild(canvas, instantCameraView, drawingTime);
-                }
                 result = super.drawChild(canvas, child, drawingTime);
                 if (isVideo && child == chatListView && messageObject.type != MessageObject.TYPE_ROUND_VIDEO && videoPlayerContainer != null && videoPlayerContainer.getTag() != null) {
                     canvas.save();
@@ -17678,7 +17678,7 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
             if (child == actionBar && parentLayout != null) {
-                parentLayout.drawHeaderShadow(canvas, actionBar.getVisibility() == VISIBLE ? (int) actionBar.getTranslationY() + actionBar.getMeasuredHeight() + (actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0) + (hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0) : 0);
+                parentLayout.drawHeaderShadow(canvas, actionBar.getVisibility() == VISIBLE ? (int) actionBar.getTranslationY() + actionBar.getMeasuredHeight() + (actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0) + (hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0) + (inPreviewMode && Build.VERSION.SDK_INT >= 21 ? AndroidUtilities.statusBarHeight : 0) : 0);
             }
             return result;
         }
@@ -17693,7 +17693,7 @@ public class ChatActivity extends BaseFragment implements
             float canvasOffsetX = chatListView.getLeft() + cell.getX();
             float canvasOffsetY = chatListView.getY() + cell.getY() + cell.getPaddingTop();
             float alpha = cell.shouldDrawAlphaLayer() ? cell.getAlpha() : 1f;
-            canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - windowInsetsStateHolder.getCurrentMaxBottomInset() - inputIslandHeightCurrent - dp(9));
+            canvas.clipRect(chatListView.getLeft(), listTop, chatListView.getRight(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset);
             canvas.translate(canvasOffsetX, canvasOffsetY);
             cell.setInvalidatesParent(true);
             if (type == 0) {
@@ -17731,13 +17731,6 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-            super.onSizeChanged(w, h, oldw, oldh);
-            Blur3Utils.checkBitmapSourceMatrixScale(scrimBlur3SourceBitmap, fragmentView);
-            scrimBlur3Factory.invalidateAllLinkedViews();
-        }
-
-        @Override
         protected void dispatchDraw(Canvas canvas) {
             chatActivityEnterView.checkAnimation();
             updateChatListViewTopPadding();
@@ -17760,28 +17753,42 @@ public class ChatActivity extends BaseFragment implements
                 canvas.scale(s, s, getMeasuredWidth() / 2f, getMeasuredHeight() / 2f);
             }
             super.dispatchDraw(canvas);
-            //if (fragmentContextView != null && fragmentContextView.isCallStyle()) {
-            //    float alpha = (blurredView != null && blurredView.getVisibility() == View.VISIBLE) ? 1f - blurredView.getAlpha() : 1f;
-            //    if (alpha > 0) {
-            //        if (alpha == 1f) {
-            //            canvas.save();
-            //        } else {
-            //            canvas.saveLayerAlpha(fragmentContextView.getX(), fragmentContextView.getY() - AndroidUtilities.dp(30), fragmentContextView.getX() + fragmentContextView.getMeasuredWidth(), fragmentContextView.getY() + fragmentContextView.getMeasuredHeight(), (int) (255 * alpha), Canvas.ALL_SAVE_FLAG);
-            //        }
-            //        canvas.translate(fragmentContextView.getX(), fragmentContextView.getY());
-            //        fragmentContextView.setDrawOverlay(true);
-            //        fragmentContextView.draw(canvas);
-            //        fragmentContextView.setDrawOverlay(false);
-            //        canvas.restore();
-            //    }
-            //    fragmentView.invalidate();
-            // }
+            if (fragmentContextView != null && fragmentContextView.isCallStyle()) {
+                float alpha = (blurredView != null && blurredView.getVisibility() == View.VISIBLE) ? 1f - blurredView.getAlpha() : 1f;
+                if (alpha > 0) {
+                    if (alpha == 1f && getSideMenuWidth() <= 0) {
+                        canvas.save();
+                    } else {
+                        canvas.saveLayerAlpha(fragmentContextView.getX() + getSideMenuWidth(), fragmentContextView.getY() - AndroidUtilities.dp(30), fragmentContextView.getX() + fragmentContextView.getMeasuredWidth(), fragmentContextView.getY() + fragmentContextView.getMeasuredHeight(), (int) (255 * alpha), Canvas.ALL_SAVE_FLAG);
+                    }
+                    canvas.translate(fragmentContextView.getX(), fragmentContextView.getY());
+                    fragmentContextView.setDrawOverlay(true);
+                    fragmentContextView.draw(canvas);
+                    fragmentContextView.setDrawOverlay(false);
+                    canvas.restore();
+                }
+                fragmentView.invalidate();
+            }
+            if (chatActivityEnterView != null) {
+                if (chatActivityEnterView.panelAnimationInProgress() && chatActivityEnterView.getEmojiPadding() < bottomPanelTranslationY) {
+                    int color = getThemedColor(Theme.key_chat_emojiPanelBackground);
+                    if (backgroundPaint == null) {
+                        backgroundPaint = new Paint();
+                    }
+                    if (backgroundColor != color) {
+                        backgroundPaint.setColor(backgroundColor = color);
+                    }
+                    int offset = (int) (bottomPanelTranslationY  - chatActivityEnterView.getEmojiPadding()) + 3;
+                    canvas.drawRect(0, getMeasuredHeight() - offset, getMeasuredWidth(), getMeasuredHeight(), backgroundPaint);
+                    setFragmentPanTranslationOffset(chatActivityEnterView.getEmojiPadding());
+                }
+            }
             for (int a = 0, N = animateSendingViews.size(); a < N; a++) {
                 ChatMessageCell cell = animateSendingViews.get(a);
                 MessageObject.SendAnimationData data = cell.getMessageObject().sendAnimationData;
                 if (data != null) {
                     canvas.save();
-                    final int actionBarBottom = actionBar.getVisibility() == VISIBLE ? (int) actionBar.getTranslationY() + actionBar.getMeasuredHeight() + (actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0) + (hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0) + (inPreviewMode ? AndroidUtilities.statusBarHeight : 0) : 0;
+                    final int actionBarBottom = actionBar.getVisibility() == VISIBLE ? (int) actionBar.getTranslationY() + actionBar.getMeasuredHeight() + (actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0) + (hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0) + (inPreviewMode && Build.VERSION.SDK_INT >= 21 ? AndroidUtilities.statusBarHeight : 0) : 0;
                     canvas.clipRect(0, actionBarBottom + paddingTopHeight, getWidth(), getHeight());
                     ImageReceiver imageReceiver = cell.getPhotoImage();
                     cell.getLocationInWindow(AndroidUtilities.pointTmp2);
@@ -17809,14 +17816,10 @@ public class ChatActivity extends BaseFragment implements
                     scrimBlurMatrix.postScale(s, s);
                     scrimBlurBitmapShader.setLocalMatrix(scrimBlurMatrix);
                     scrimBlurBitmapPaint.setAlpha((int) (0xFF * scrimViewProgress));
-                    if (scrimBlurBitmapPaint.getAlpha() > 0) {
-                        canvas.drawRect(0, 0, getMeasuredWidth(), getMeasuredHeight(), scrimBlurBitmapPaint);
-                    }
+                    canvas.drawRect(0, 0, getMeasuredWidth(), getMeasuredHeight(), scrimBlurBitmapPaint);
                 } else {
                     scrimPaint.setAlpha((int) (0xFF * scrimPaintAlpha * (scrimView != null ? scrimViewAlpha : 1f)));
-                    if (scrimPaint.getAlpha() > 0) {
-                        canvas.drawRect(0, 0, getMeasuredWidth(), getMeasuredHeight(), scrimPaint);
-                    }
+                    canvas.drawRect(0, 0, getMeasuredWidth(), getMeasuredHeight(), scrimPaint);
                 }
             }
 
@@ -17825,7 +17828,7 @@ public class ChatActivity extends BaseFragment implements
             }
 
             if (scrimView != null) {
-                if (scrimView == sideControlsButtonsLayout) {
+                if (scrimView == reactionsMentiondownButton || scrimView == mentiondownButton) {
                     if (scrimViewAlpha < 1f) {
                         scrimPaint.setAlpha((int) (255 * scrimPaintAlpha * (1f - scrimViewAlpha)));
                         canvas.drawRect(0, 0, getMeasuredWidth(), getMeasuredHeight(), scrimPaint);
@@ -17909,15 +17912,9 @@ public class ChatActivity extends BaseFragment implements
                             }
 
                             canvas.save();
-                            float viewClipBottom2 = getMeasuredHeight()
-                                    - windowInsetsStateHolder.getCurrentMaxBottomInset()
-                                    - inputIslandHeightCurrent
-                                    - dp(9)
-                                    - (mentionContainer != null ? mentionContainer.clipBottom() : 0);
-
-                            canvas.clipRect(0, listTop + (mentionContainer != null ? mentionContainer.clipTop() : 0), getMeasuredWidth(), viewClipBottom2);
+                            canvas.clipRect(0, listTop + (mentionContainer != null ? mentionContainer.clipTop() : 0), getMeasuredWidth(), chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset - (mentionContainer != null ? mentionContainer.clipBottom() : 0));
                             canvas.translate(0, chatListView.getY());
-                            scrimGroup.transitionParams.cell.drawBackground(canvas, (int) l, (int) t, (int) r, (int) b, scrimGroup.transitionParams.pinnedTop, scrimGroup.transitionParams.pinnedBotton, selected, 0);
+                            scrimGroup.transitionParams.cell.drawBackground(canvas, (int) l, (int) t, (int) r, (int) b, scrimGroup.transitionParams.pinnedTop, scrimGroup.transitionParams.pinnedBotton, selected, contentView.getKeyboardHeight());
                             canvas.restore();
                             groupedBackgroundWasDraw = true;
                         }
@@ -17929,11 +17926,7 @@ public class ChatActivity extends BaseFragment implements
                         float viewClipLeft = chatListView.getLeft();
                         float viewClipTop = listTop;
                         float viewClipRight = chatListView.getRight();
-                        float viewClipBottom = getMeasuredHeight()
-                            - windowInsetsStateHolder.getCurrentMaxBottomInset()
-                            - inputIslandHeightCurrent
-                            - getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                            - dp(9);
+                        float viewClipBottom = chatListView.getY() + chatListView.getMeasuredHeight() - blurredViewBottomOffset;
 
                         float clipTop = 0, clipBottom = 0;
                         if (mentionContainer != null) {
@@ -18165,7 +18158,15 @@ public class ChatActivity extends BaseFragment implements
 
             if (scrimView != null || messageEnterTransitionContainer.isRunning()) {
                 if (mentionContainer == null || mentionContainer.getVisibility() != View.VISIBLE) {
-                    super.drawChild(canvas, sideControlsButtonsLayout, SystemClock.uptimeMillis());
+                    if (pagedownButton != null && pagedownButton.getTag() != null) {
+                        super.drawChild(canvas, pagedownButton, SystemClock.uptimeMillis());
+                    }
+                    if (mentiondownButton != null && mentiondownButton.getTag() != null) {
+                        super.drawChild(canvas, mentiondownButton, SystemClock.uptimeMillis());
+                    }
+                    if (reactionsMentiondownButton != null && reactionsMentiondownButton.getTag() != null) {
+                        super.drawChild(canvas, reactionsMentiondownButton, SystemClock.uptimeMillis());
+                    }
                 }
                 if (floatingDateView != null && floatingDateView.getTag() != null) {
                     super.drawChild(canvas, floatingDateView, SystemClock.uptimeMillis());
@@ -18220,9 +18221,13 @@ public class ChatActivity extends BaseFragment implements
             }
             if (pullingDownDrawable != null && pullingDownDrawable.needDrawBottomPanel()) {
                 int top, bottom;
-                top = (int) chatInputViewsContainer.getInputBubbleTop();
-                bottom = (int) chatInputViewsContainer.getInputBubbleBottom();
-
+                if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                    top = chatActivityEnterView.getTop() + AndroidUtilities.dp2(2);
+                    bottom = chatActivityEnterView.getBottom();
+                } else {
+                    top = bottomOverlayChat.getTop() + AndroidUtilities.dp2(2);
+                    bottom = bottomOverlayChat.getBottom();
+                }
                 top -= (int) ((pullingDownAnimateToActivity == null ? 0 : pullingDownAnimateToActivity.pullingBottomOffset) * pullingDownAnimateProgress);
                 pullingDownDrawable.drawBottomPanel(canvas, top, bottom, getMeasuredWidth());
             }
@@ -18245,24 +18250,14 @@ public class ChatActivity extends BaseFragment implements
                 canvas.restore();
                 canvas.restore();
             }
-
-            /*if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && scrollableViewNoiseSuppressor != null) {
-                scrollableViewNoiseSuppressor.drawDebugPositions(canvas);
-            }*/
         }
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            invalidateBlurredSourcesView.bringToFrontIfNeeded();
-
             int allHeight;
             int widthSize = View.MeasureSpec.getSize(widthMeasureSpec);
             int heightSize = allHeight = View.MeasureSpec.getSize(heightMeasureSpec);
 
-            if (navbarContentSourceWallpaper.getSource() instanceof BlurredBackgroundSourceBitmap) {
-                ((BlurredBackgroundSourceBitmap) navbarContentSourceWallpaper.getSource())
-                    .setParentSize(widthSize, heightSize, ActionBar.getCurrentActionBarHeight() + AndroidUtilities.statusBarHeight);
-            }
             if (lastWidth != widthSize) {
                 globalIgnoreLayout = false;
                 lastWidth = widthMeasureSpec;
@@ -18279,7 +18274,7 @@ public class ChatActivity extends BaseFragment implements
                 }*/ else {
                     showSearchAsIcon = false;
                 }
-                if (showSearchAsIcon || showAudioCallAsIcon || UserObject.isBotForumWithEditableTopics(currentUser)) {
+                if (showSearchAsIcon || showAudioCallAsIcon) {
                     if (avatarContainer != null && avatarContainer.getLayoutParams() != null) {
                         ((ViewGroup.MarginLayoutParams) avatarContainer.getLayoutParams()).rightMargin = AndroidUtilities.dp(chatMode == MODE_SAVED ? 40 : 96);
                     }
@@ -18375,19 +18370,20 @@ public class ChatActivity extends BaseFragment implements
             int childCount = getChildCount();
             measureChildWithMargins(chatActivityEnterView, widthMeasureSpec, 0, heightMeasureSpec, 0);
 
+            int listViewTopHeight;
             if (inPreviewMode || isInsideContainer) {
                 inputFieldHeight = 0;
+                listViewTopHeight = 0;
             } else {
                 inputFieldHeight = chatActivityEnterView.getMeasuredHeight();
+                listViewTopHeight = AndroidUtilities.dp(49);
             }
 
             blurredViewTopOffset = 0;
             blurredViewBottomOffset = 0;
             if (SharedConfig.chatBlurEnabled() && !isInsideContainer) {
-                if (scrollableViewNoiseSuppressor != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    blurredViewTopOffset = actionBarHeight + recommendedAdditionalSizeY;
-                    blurredViewBottomOffset = recommendedAdditionalSizeY;
-                }
+                blurredViewTopOffset = actionBarHeight;
+                blurredViewBottomOffset = AndroidUtilities.dp(203);
             }
             for (int i = 0; i < childCount; i++) {
                 View child = getChildAt(i);
@@ -18401,32 +18397,30 @@ public class ChatActivity extends BaseFragment implements
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == blurredView) {
                     int h = allHeight;
+                    if (keyboardSize > AndroidUtilities.dp(20) && getLayoutParams().height < 0 && !isInsideContainer) {
+                        h += keyboardSize;
+                    }
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
                     int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == chatListView || child == chatListThanosEffect) {
-                    int contentWidthSpec = MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY);
-                    int h = heightSize + blurredViewTopOffset + blurredViewBottomOffset + chatListViewPaddingsAnimator.getCurrentAdditionalHeight();
-                    int contentHeightSpec = MeasureSpec.makeMeasureSpec(
-                        Math.max(dp(10), h), View.MeasureSpec.EXACTLY);
+                    int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
+                    int h = heightSize - listViewTopHeight - (inPreviewMode && Build.VERSION.SDK_INT >= 21 ? AndroidUtilities.statusBarHeight : 0) + blurredViewTopOffset + blurredViewBottomOffset;
+                    if (keyboardSize > AndroidUtilities.dp(20) && getLayoutParams().height < 0 && !isInsideContainer) {
+                        h += keyboardSize;
+                    }
+                    if (bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE && bottomOverlayStartButton != null && bottomOverlayStartButton.getVisibility() != View.GONE) {
+                        h -= AndroidUtilities.dp(16);
+                    }
+                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(Math.max(AndroidUtilities.dp(10), h), View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == progressView) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
-                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(Math.max(AndroidUtilities.dp(10), heightSize - inputFieldHeight - (inPreviewMode ? AndroidUtilities.statusBarHeight : 0) + AndroidUtilities.dp(2 + (chatActivityEnterView.isTopViewVisible() ? 48 : 0))), View.MeasureSpec.EXACTLY);
+                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(Math.max(AndroidUtilities.dp(10), heightSize - inputFieldHeight - (inPreviewMode && Build.VERSION.SDK_INT >= 21 ? AndroidUtilities.statusBarHeight : 0) + AndroidUtilities.dp(2 + (chatActivityEnterView.isTopViewVisible() ? 48 : 0))), View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
-                } else if (child == instantCameraView) {
+                } else if (child == instantCameraView || child == overlayView) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
-                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight, View.MeasureSpec.EXACTLY);
-                    instantCameraView.setInternalPadding(windowInsetsStateHolder.getCurrentMaxBottomInset()
-                        + (int) inputIslandHeightTarget + dp(9 + 3));
-
-                    child.measure(contentWidthSpec, contentHeightSpec);
-                } else if (child == overlayView) {
-                    int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
-                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight
-                        - windowInsetsStateHolder.getCurrentMaxBottomInset()
-                        - (int) inputIslandHeightTarget
-                        - dp(9 + 3), View.MeasureSpec.EXACTLY);
+                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight - inputFieldHeight - chatEmojiViewPadding + AndroidUtilities.dp(3), View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == emptyViewContainer) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
@@ -18434,11 +18428,7 @@ public class ChatActivity extends BaseFragment implements
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == messagesSearchListContainer) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
-                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight
-                            - (isInsideContainer ? 0 : actionBarHeight)
-                            - AndroidUtilities.dp(44 + 9 + 1) // input field with margins
-                            - windowInsetsStateHolder.getCurrentNavigationBarInset(),
-                        View.MeasureSpec.EXACTLY);
+                    int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(allHeight - (isInsideContainer ? 0 : actionBarHeight) - AndroidUtilities.dp(48), View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (chatActivityEnterView.isPopupView(child)) {
                     int height = chatActivityEnterView.getPopupViewHeight(child);
@@ -18462,12 +18452,41 @@ public class ChatActivity extends BaseFragment implements
                     if (mentionContainer.getAdapter().isBannedInline()) {
                         child.measure(View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(heightSize, View.MeasureSpec.AT_MOST));
                     } else {
+                        int height;
                         mentionContainer.setIgnoreLayout(true);
-                        layoutParams.height = heightSize;
+                        LinearLayoutManager layoutManager = mentionContainer.getCurrentLayoutManager();
+                        if (layoutManager instanceof ExtendedGridLayoutManager) {
+                            int size = ((ExtendedGridLayoutManager) layoutManager).getRowsCount(widthSize);
+                            int maxHeight = size * 102;
+                            if (mentionContainer.getAdapter().isBotContext()) {
+                                if (mentionContainer.getAdapter().getBotContextSwitch() != null || mentionContainer.getAdapter().getBotWebViewSwitch() != null) {
+                                    maxHeight += 34;
+                                }
+                            }
+                            height = heightSize - chatActivityEnterView.getMeasuredHeight() + (maxHeight != 0 ? AndroidUtilities.dp(2) : 0);
+                            int padding = Math.max(0, height - AndroidUtilities.dp(Math.min(maxHeight, 68 * 1.8f)));
+                        } else {
+                            int size = mentionContainer.getAdapter().getLastItemCount();
+                            int maxHeight = 0;
+                            if (mentionContainer.getAdapter().isBotContext()) {
+                                if (mentionContainer.getAdapter().getBotContextSwitch() != null || mentionContainer.getAdapter().getBotWebViewSwitch() != null) {
+                                    maxHeight += 36;
+                                    size -= 1;
+                                }
+                                maxHeight += size * 68;
+                            } else {
+                                maxHeight += size * 36;
+                            }
+                            height = heightSize - chatActivityEnterView.getMeasuredHeight() + (maxHeight != 0 ? AndroidUtilities.dp(2) : 0);
+                        }
+
+                        layoutParams.height = height;
                         layoutParams.topMargin = 0;
+
                         mentionContainer.setIgnoreLayout(false);
                         child.measure(View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(layoutParams.height, View.MeasureSpec.EXACTLY));
                     }
+                    mentionContainer.setTranslationY(chatActivityEnterView.getAnimatedTop());
                 } else if (child == textSelectionHelper.getOverlayView(getContext())) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
                     int h = heightSize + blurredViewTopOffset;
@@ -18480,7 +18499,10 @@ public class ChatActivity extends BaseFragment implements
                     child.measure(contentWidthSpec, View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
                 } else if (child instanceof MessagePreviewView) {
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
-                    int h = allHeight - AndroidUtilities.statusBarHeight - AndroidUtilities.navigationBarHeight;
+                    int h = allHeight - AndroidUtilities.statusBarHeight;
+                    if (keyboardSize > AndroidUtilities.dp(20) && getLayoutParams().height < 0 && !isInsideContainer) {
+                        h += keyboardSize;
+                    }
                     int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY);
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == hashtagHistoryView) {
@@ -18493,8 +18515,11 @@ public class ChatActivity extends BaseFragment implements
                     child.measure(contentWidthSpec, contentHeightSpec);
                 } else if (child == topicsTabs) {
                     int height = allHeight;
-                    if (actionBar.getVisibility() == VISIBLE) {
+                    if (child != actionBar && actionBar.getVisibility() == VISIBLE) {
                         height -= actionBar.getMeasuredHeight();
+                        if (inPreviewMode && Build.VERSION.SDK_INT >= 21) {
+                            height -= AndroidUtilities.statusBarHeight;
+                        }
                     }
                     int contentWidthSpec = View.MeasureSpec.makeMeasureSpec(widthSize, View.MeasureSpec.EXACTLY);
                     int contentHeightSpec = View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY);
@@ -18518,7 +18543,6 @@ public class ChatActivity extends BaseFragment implements
             }
 
             updateBulletinLayout();
-            checkInsets();
 
             lastHeight = allHeight;
         }
@@ -18540,7 +18564,14 @@ public class ChatActivity extends BaseFragment implements
         @Override
         protected void onLayout(boolean changed, int l, int t, int r, int b) {
             final int count = getChildCount();
-            int paddingBottom = 0;
+            int keyboardSize = getKeyboardHeight();
+            int paddingBottom;
+
+            if (fixedKeyboardHeight > 0 && keyboardSize <= AndroidUtilities.dp(20)) {
+                paddingBottom = fixedKeyboardHeight;
+            } else {
+                paddingBottom = keyboardSize <= AndroidUtilities.dp(20) && !AndroidUtilities.isInMultiwindow && !inBubbleMode ? chatActivityEnterView.getEmojiPadding() : 0;
+            }
 
             for (int i = 0; i < count; i++) {
                 final View child = getChildAt(i);
@@ -18580,6 +18611,9 @@ public class ChatActivity extends BaseFragment implements
                         childTop = lp.topMargin + getPaddingTop();
                         if (child != actionBar && actionBar.getVisibility() == VISIBLE) {
                             childTop += actionBar.getMeasuredHeight();
+                            if (inPreviewMode && Build.VERSION.SDK_INT >= 21) {
+                                childTop += AndroidUtilities.statusBarHeight;
+                            }
                         }
                         break;
                     case Gravity.CENTER_VERTICAL:
@@ -18592,44 +18626,64 @@ public class ChatActivity extends BaseFragment implements
                         childTop = lp.topMargin;
                 }
 
-                if (child == blurredView || child == backgroundView || child == quickShareSelectorOverlay || child == chatInputViewsContainer || child == chatInputViewsContainer.getFadeView()) {
+                if (child == blurredView || child == backgroundView || child == quickShareSelectorOverlay) {
                     childTop = 0;
                 } else if (child instanceof HintView || child instanceof ChecksHintView) {
                     childTop = 0;
+                } else if (child == mentionContainer) {
+                    childTop -= chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(2);
+                    mentionContainer.setTranslationY(chatActivityEnterView.getAnimatedTop());
+                } else if (child == pagedownButton || child == searchUpButton || child == searchDownButton || child == mentiondownButton || child == reactionsMentiondownButton) {
+                    if (!inPreviewMode) {
+                        childTop -= chatActivityEnterView.getMeasuredHeight();
+                    }
                 } else if (child == emptyViewContainer) {
-                    childTop += (actionBar.getVisibility() == VISIBLE ? actionBar.getMeasuredHeight() / 2 : 0);
+                    childTop -= inputFieldHeight / 2 - (actionBar.getVisibility() == VISIBLE ? actionBar.getMeasuredHeight() / 2 : 0);
                 } else if (chatActivityEnterView.isPopupView(child)) {
                     if (AndroidUtilities.isInMultiwindow || inBubbleMode) {
                         childTop = chatActivityEnterView.getTop() - child.getMeasuredHeight() + AndroidUtilities.dp(1);
                     } else {
                         childTop = chatActivityEnterView.getBottom();
                     }
-                } else if (chatActivityEnterView != null && chatActivityEnterView.isRecordCircleOrControlsView(child)) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(7);
-                    childLeft -= dp(3);
-                } else if (child == emojiButtonRed) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(7);
-                } else if (chatActivityEnterView != null && child == chatActivityEnterView.recordedAudioPanel) {
-                    childTop -= windowInsetsStateHolder.getCurrentMaxBottomInset() + dp(9);
                 } else if (child == gifHintTextView || child == voiceHintTextView || child == mediaBanTooltip || child == emojiHintTextView) {
                     childTop -= inputFieldHeight;
                 } else if (child == chatListView || child == chatListThanosEffect || child == floatingDateView || child == floatingTopicSeparator || child == infoTopView) {
-                    childTop -= blurredViewTopOffset + chatListViewPaddingsAnimator.getCurrentAdditionalHeight();
+                    childTop -= blurredViewTopOffset;
+                    if (!inPreviewMode && !isInsideContainer) {
+                        childTop -= (inputFieldHeight - AndroidUtilities.dp(51));
+                    }
+                    childTop -= paddingBottom;
+                    if (keyboardSize > AndroidUtilities.dp(20) && getLayoutParams().height < 0) {
+                        childTop -= keyboardSize;
+                    }
                 } else if (child == progressView) {
                     if (chatActivityEnterView.isTopViewVisible()) {
                         childTop -= AndroidUtilities.dp(48);
                     }
                 } else if (child == actionBar) {
+                    if (inPreviewMode && Build.VERSION.SDK_INT >= 21) {
+                        childTop += AndroidUtilities.statusBarHeight;
+                    }
                     childTop -= getPaddingTop();
                 } else if (child == videoPlayerContainer) {
                     childTop = actionBar.getMeasuredHeight();
+                    childTop -= paddingBottom;
+                    if (keyboardSize > AndroidUtilities.dp(20) && getLayoutParams().height < 0) {
+                        childTop -= keyboardSize;
+                    }
                 } else if (child == instantCameraView || child == overlayView || child == animatingImageView) {
                     childTop = 0;
                 } else if (child == textSelectionHelper.getOverlayView(getContext())) {
+                    childTop -= paddingBottom;
+                    if (keyboardSize > AndroidUtilities.dp(20) && getLayoutParams().height < 0) {
+                        childTop -= keyboardSize;
+                    }
                     childTop -= blurredViewTopOffset;
+                } else if (chatActivityEnterView != null && child == chatActivityEnterView.botCommandsMenuContainer) {
+                    childTop -= inputFieldHeight;
                 } else if (child instanceof MessagePreviewView) {
                     childTop = AndroidUtilities.statusBarHeight;
-                } else if (child == searchViewPager || child == roundVideoRecordBackground || child == messageMetricsView || child == pollAddOptionFieldLayout) {
+                } else if (child == searchViewPager) {
                     childTop = 0;
                 } else if (child == messagesSearchListContainer) {
                     if (isInsideContainer && parentChatActivity != null) {
@@ -18637,10 +18691,6 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 child.layout(childLeft, childTop, childLeft + width, childTop + height);
-            }
-
-            if (floatingTopicSeparator != null) {
-                floatingTopicSeparator.setBackgroundHeight(getMeasuredHeight());
             }
 
             invalidateChatListViewTopPadding();
@@ -18652,8 +18702,6 @@ public class ChatActivity extends BaseFragment implements
             }
 
             notifyHeightChanged();
-
-            checkUi_topFade();
         }
 
         private void setNonNoveTranslation(float y) {
@@ -18725,18 +18773,18 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void invalidateBlur() {
-            /*super.invalidateBlur();
+            super.invalidateBlur();
             if (parentChatActivity != null) {
                 parentChatActivity.contentView.invalidateBlur();
-            }*/
+            }
         }
 
         @Override
         public void updateBlurContent() {
-            /*super.updateBlurContent();
+            super.updateBlurContent();
             if (parentChatActivity != null) {
                 parentChatActivity.contentView.updateBlurContent();
-            }*/
+            }
         }
     };
 
@@ -18777,7 +18825,7 @@ public class ChatActivity extends BaseFragment implements
                     builder.setSpan(new TypefaceSpan(AndroidUtilities.bold()), 0, builder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                     builder.setSpan(new ImageSpan(combinedDrawable, ImageSpan.ALIGN_BASELINE), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
 
-                    bottomOverlayText.setBackground(Theme.createSelectorWithBackgroundDrawable(0, Theme.getColor(Theme.key_listSelector)));
+                    bottomOverlayText.setBackground(Theme.createSelectorWithBackgroundDrawable(Theme.getColor(Theme.key_windowBackgroundWhite), Theme.getColor(Theme.key_listSelector)));
                     bottomOverlayText.setText(builder);
                     bottomOverlayText.setOnClickListener(v -> LimitReachedBottomSheet.openBoostsForRemoveRestrictions(this, boostsStatus, canApplyBoosts, dialog_id, false));
                 } else {
@@ -19147,7 +19195,7 @@ public class ChatActivity extends BaseFragment implements
                     if (!messageObject.canDeleteMessage(chatMode == MODE_SCHEDULED, currentChat)) {
                         cantDeleteMessagesCount--;
                     }
-                    boolean noforwards = isPeerNoForwards();
+                    boolean noforwards = getMessagesController().isChatNoForwards(currentChat);
                     if (chatMode == MODE_SCHEDULED || !messageObject.canForwardMessage() || noforwards) {
                         cantForwardMessagesCount--;
                     } else {
@@ -19184,7 +19232,7 @@ public class ChatActivity extends BaseFragment implements
                     if (!messageObject.canDeleteMessage(chatMode == MODE_SCHEDULED, currentChat)) {
                         cantDeleteMessagesCount++;
                     }
-                    boolean noforwards = isPeerNoForwards();
+                    boolean noforwards = getMessagesController().isChatNoForwards(currentChat);
                     if (chatMode == MODE_SCHEDULED || !messageObject.canForwardMessage() || noforwards) {
                         cantForwardMessagesCount++;
                     } else {
@@ -19203,6 +19251,10 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
         }
+        if (forwardButtonAnimation != null) {
+            forwardButtonAnimation.cancel();
+            forwardButtonAnimation = null;
+        }
         if (last && actionBar.isActionModeShowed() && !isReport()) {
             int selectedCount = selectedMessagesIds[0].size() + selectedMessagesIds[1].size();
             if (selectedCount == 0) {
@@ -19219,7 +19271,8 @@ public class ChatActivity extends BaseFragment implements
                 ActionBarMenuItem tagItem = actionBar.createActionMode().getItem(tag_message);
                 ActionBarMenuItem shareItem = actionBar.createActionMode().getItem(share);
 
-                boolean noforwards = isPeerNoForwards() || hasSelectedNoforwardsMessage();
+                createBottomMessagesActionButtons();
+                boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || hasSelectedNoforwardsMessage();
                 if (prevCantForwardCount == 0 && cantForwardMessagesCount != 0 || prevCantForwardCount != 0 && cantForwardMessagesCount == 0) {
                     forwardButtonAnimation = new AnimatorSet();
                     ArrayList<Animator> animators = new ArrayList<>();
@@ -19233,8 +19286,14 @@ public class ChatActivity extends BaseFragment implements
                             forwardItem.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 5));
                         }
                     }
-                    if (actionsButtonsLayout != null) {
-                        actionsButtonsLayout.setForwardButtonEnabled(cantForwardMessagesCount == 0 || noforwards, true);
+                    if (forwardButton != null) {
+                        forwardButton.setEnabled(cantForwardMessagesCount == 0 || noforwards);
+                        if (noforwards && forwardButton.getBackground() != null) {
+                            forwardButton.setBackground(null);
+                        } else if (forwardButton.getBackground() == null) {
+                            forwardButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
+                        }
+                        animators.add(ObjectAnimator.ofFloat(forwardButton, View.ALPHA, cantForwardMessagesCount == 0 ? 1.0f : 0.5f));
                     }
                     forwardButtonAnimation.playTogether(animators);
                     forwardButtonAnimation.setDuration(100);
@@ -19250,12 +19309,21 @@ public class ChatActivity extends BaseFragment implements
                         forwardItem.setEnabled(cantForwardMessagesCount == 0 || noforwards);
                         forwardItem.setAlpha(cantForwardMessagesCount == 0 ? 1.0f : 0.5f);
                         if (noforwards) {
+                            if (forwardButton != null && forwardItem.getBackground() != null) {
+                                forwardButton.setBackground(null);
+                            }
                         } else if (forwardItem.getBackground() == null) {
                             forwardItem.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
                         }
                     }
-                    if (actionsButtonsLayout != null) {
-                        actionsButtonsLayout.setForwardButtonEnabled(cantForwardMessagesCount == 0 || noforwards, false);
+                    if (forwardButton != null) {
+                        forwardButton.setEnabled(cantForwardMessagesCount == 0 || noforwards);
+                        if (noforwards) {
+                            if (forwardButton.getBackground() != null) forwardButton.setBackground(null);
+                        } else if (forwardButton.getBackground() == null) {
+                            forwardButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_actionBarActionModeDefaultSelector), 3));
+                        }
+                        forwardButton.setAlpha(cantForwardMessagesCount == 0 ? 1.0f : 0.5f);
                     }
                 }
                 if (saveItem != null) {
@@ -19295,15 +19363,15 @@ public class ChatActivity extends BaseFragment implements
                     starItem.setIcon(hasUnfavedSelected ? R.drawable.msg_fave : R.drawable.msg_unfave);
                 }
                 final int newEditVisibility = canEditMessagesCount == 1 && selectedCount == 1 ? View.VISIBLE : View.GONE;
-                if (actionsButtonsLayout != null) {
+                createBottomMessagesActionButtons();
+                if (replyButton != null) {
                     boolean allowChatActions = true;
-                    if (bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !bottomOverlayChatWaitsReply ||
+                    if (bottomOverlayChat != null && bottomOverlayChat.getVisibility() == View.VISIBLE && !bottomOverlayChatWaitsReply ||
                             currentChat != null && (ChatObject.isNotInChat(currentChat) && !isThreadChat() || ChatObject.isChannel(currentChat) && !ChatObject.canPost(currentChat) && !currentChat.megagroup || !ChatObject.canSendMessages(currentChat))) {
                         allowChatActions = false;
                     }
 
                     int newVisibility;
-                    int groupButtonVisibility = View.GONE;
 
                     if (chatMode == MODE_SCHEDULED || !allowChatActions || selectedMessagesIds[0].size() != 0 && selectedMessagesIds[1].size() != 0) {
                         newVisibility = View.GONE;
@@ -19333,26 +19401,6 @@ public class ChatActivity extends BaseFragment implements
                                 break;
                             }
                         }
-                        /////////
-                        if (newVisibility == View.VISIBLE) {
-                            if (lastGroupId != 0) {
-                                MessageObject.GroupedMessages groupedMessages
-                                    = groupedMessagesMap.get(lastGroupId);
-                                if (groupedMessages != null
-                                    && groupedMessages.messages.size() > 1) {
-                                    if (selectedCount > 1 && selectedCount != groupedMessages.messages.size()) {
-                                        newVisibility = View.GONE;
-                                        groupButtonVisibility = View.VISIBLE;
-                                    }
-                                }
-                            }
-                        } else {
-                            if (notSingleMediaSelected()) {
-                                newVisibility = View.GONE;
-                                groupButtonVisibility = View.VISIBLE;
-                            }
-                        }
-                        /////////
                     }
                     if (threadMessageObjects != null && newVisibility == View.VISIBLE) {
                         for (int b = 0, N = selectedMessagesIds[0].size(); b < N; b++) {
@@ -19363,17 +19411,44 @@ public class ChatActivity extends BaseFragment implements
                         }
                     }
 
-                    if (!allowChatActions) {
-                        if (notSingleMediaSelected()) {
-                            newVisibility = View.GONE;
-                            groupButtonVisibility = View.VISIBLE;
+                    if (replyButton.getVisibility() != newVisibility) {
+                        if (replyButtonAnimation != null) {
+                            replyButtonAnimation.cancel();
                         }
+                        replyButtonAnimation = new AnimatorSet();
+                        if (newVisibility == View.VISIBLE) {
+                            replyButton.setVisibility(newVisibility);
+                            replyButtonAnimation.playTogether(
+                                    ObjectAnimator.ofFloat(replyButton, View.ALPHA, 1.0f),
+                                    ObjectAnimator.ofFloat(replyButton, View.SCALE_Y, 1.0f)
+                            );
+                        } else {
+                            replyButtonAnimation.playTogether(
+                                    ObjectAnimator.ofFloat(replyButton, View.ALPHA, 0.0f),
+                                    ObjectAnimator.ofFloat(replyButton, View.SCALE_Y, 0.0f)
+                            );
+                        }
+                        replyButtonAnimation.setDuration(100);
+                        int newVisibilityFinal = newVisibility;
+                        replyButtonAnimation.addListener(new AnimatorListenerAdapter() {
+                            @Override
+                            public void onAnimationEnd(Animator animation) {
+                                if (replyButtonAnimation != null && replyButtonAnimation.equals(animation) && replyButton != null) {
+                                    if (newVisibilityFinal == View.GONE) {
+                                        replyButton.setVisibility(View.GONE);
+                                    }
+                                }
+                            }
+
+                            @Override
+                            public void onAnimationCancel(Animator animation) {
+                                if (replyButtonAnimation != null && replyButtonAnimation.equals(animation)) {
+                                    replyButtonAnimation = null;
+                                }
+                            }
+                        });
+                        replyButtonAnimation.start();
                     }
-                    if (newVisibility == View.VISIBLE) {
-                        groupButtonVisibility = View.GONE;
-                    }
-                    actionsButtonsLayout.setGroupMediaButtonEnabled(groupButtonVisibility == View.VISIBLE);
-                    actionsButtonsLayout.showReplyButton(newVisibility == View.VISIBLE || groupButtonVisibility == View.VISIBLE, true);
                 }
 
                 if (editItem != null) {
@@ -19527,37 +19602,7 @@ public class ChatActivity extends BaseFragment implements
         if (type < 2 || type == 20 || type == MessageObject.TYPE_SUGGEST_PHOTO || message != null && (message.type == MessageObject.TYPE_JOINED_CHANNEL || message.type == MessageObject.TYPE_GIFT_STARS) || (message != null && message.isWallpaperAction())) {
             return;
         }
-        if (message != null && message.isSponsored()) {
-            return;
-        }
         addToSelectedMessages(message, outside);
-
-        // For selecting messages between the first and the last.
-        ArrayList<Integer> ids = new ArrayList<>();
-        for (int a = 1; a >= 0; a--) {
-            for (int b = 0; b < selectedMessagesIds[a].size(); b++) {
-                ids.add(selectedMessagesIds[a].keyAt(b));
-            }
-        }
-        Integer msgId = message.getId();
-        if (ids.contains(msgId)) {
-            if (!selectedMessagesIds[0].withTouch.contains(msgId)) {
-                ArrayList<Integer> sortIds = selectedMessagesIds[0].withTouch;
-                Collections.sort(sortIds);
-                // If there's a new extreme value,
-                // we should mark as 'withTouch' all selected messages.
-                if (sortIds.get(0) <= msgId || sortIds.get(sortIds.size() - 1) >= msgId) {
-                    selectedMessagesIds[0].withTouch.clear();
-                    for (Integer id : ids) {
-                        selectedMessagesIds[0].withTouch.add(id);
-                    }
-                } else {
-                    selectedMessagesIds[0].withTouch.add(msgId);
-                }
-            }
-        } else {
-            selectedMessagesIds[0].withTouch.remove(msgId);
-        }
         updateActionModeTitle();
         updateVisibleRows();
     }
@@ -19573,16 +19618,15 @@ public class ChatActivity extends BaseFragment implements
         } else {
             int size = selectedMessagesIds[0].size() + selectedMessagesIds[1].size();
             if (size == 0) {
-                bottomOverlayChatText.setText(LocaleController.getString(R.string.ReportMessagesNoCaps));
+                bottomOverlayChatText.setText(LocaleController.getString(R.string.ReportMessages));
                 bottomOverlayChatText.setAlpha(0.5f);
                 bottomOverlayChatText.setEnabled(false);
             } else {
-                bottomOverlayChatText.setText(LocaleController.formatString(R.string.ReportMessagesCountNoCaps, LocaleController.formatPluralString("messages", size)));
+                bottomOverlayChatText.setText(LocaleController.formatString("ReportMessagesCount", R.string.ReportMessagesCount, LocaleController.formatPluralString("messages", size)).toUpperCase());
                 bottomOverlayChatText.setAlpha(1.0f);
                 bottomOverlayChatText.setEnabled(true);
             }
         }
-        updateMultipleSelection(actionBar.createActionMode());
     }
 
     public void updateTitle(boolean animated) {
@@ -19816,7 +19860,13 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    // forkgram-classic: upstream LaunchActivity passes a CharSequence caption
+    // (from sendingText), but the classic editor expects a String. Coerce.
     public void openVideoEditor(String videoPath, CharSequence caption) {
+        openVideoEditor(videoPath, caption == null ? null : caption.toString());
+    }
+
+    public void openVideoEditor(String videoPath, String caption) {
         if (getParentActivity() != null) {
             final Bitmap thumb = SendMessagesHelper.createVideoThumbnail(videoPath, MediaStore.Video.Thumbnails.MINI_KIND);
             PhotoViewer.getInstance().setParentActivity(this, themeDelegate);
@@ -19835,6 +19885,7 @@ public class ChatActivity extends BaseFragment implements
 
                 @Override
                 public void sendButtonPressed(int index, VideoEditedInfo videoEditedInfo, boolean notify, int scheduleDate, int scheduleRepeatPeriod, boolean forceDocument) {
+                    // forkgram-classic: sendMedia sig added `int scheduleRepeatPeriod`.
                     sendMedia((MediaController.PhotoEntry) cameraPhoto.get(0), videoEditedInfo, notify, scheduleDate, 0, forceDocument, 0);
                 }
 
@@ -19957,18 +20008,13 @@ public class ChatActivity extends BaseFragment implements
                 }
                 info.thumbPath = entry.thumbPath;
                 info.coverPath = entry.coverPath;
-                info.isLivePhoto = entry.isLivePhoto();
                 info.isVideo = entry.isVideo;
-                info.discardLivePhoto = entry.isUnalivePhoto();
-                info.livePhotoVideoOffset = entry.livePhotoVideoOffset;
-                info.livePhotoTimestampUs = entry.livePhotoTimestampUs;
                 info.caption = entry.caption != null ? entry.caption.toString() : null;
                 info.entities = entry.entities;
                 info.masks = entry.stickers;
                 info.ttl = entry.ttl;
                 info.videoEditedInfo = entry.editedInfo;
                 info.canDeleteAfter = entry.canDeleteAfter;
-                info.highQuality = entry.isHighQuality();
                 photos.add(info);
                 entry.reset();
             }
@@ -20044,6 +20090,7 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
                 if (entry.isCropped || entry.isPainted || entry.isFiltered || videoEditedInfo != null) {
+                    // forkgram-classic: sendMedia sig added `int scheduleRepeatPeriod`.
                     sendMedia(entry, videoEditedInfo, notify, scheduleDate, 0, forceDocument, 0);
                 } else {
                     chatActivityEnterView.doneEditingMessage();
@@ -20099,11 +20146,7 @@ public class ChatActivity extends BaseFragment implements
                     ChatMessageCell cell = (ChatMessageCell) view;
                     MessageObject message = cell.getMessageObject();
                     if (message != null && message.getId() == messageObject.getId()) {
-                        if (message.pollMediaMapping != null && index >= 0 && index < message.pollMediaMapping.size()) {
-                            imageReceiver = cell.getPhotoImage(message.pollMediaMapping.get(index));
-                        } else {
-                            imageReceiver = cell.getPhotoImage(index);
-                        }
+                        imageReceiver = cell.getPhotoImage(index);
                     }
                 }
             } else if (view instanceof ChatActionCell) {
@@ -20140,7 +20183,7 @@ public class ChatActivity extends BaseFragment implements
                 view.getLocationInWindow(coords);
                 PhotoViewer.PlaceProviderObject object = new PhotoViewer.PlaceProviderObject();
                 object.viewX = coords[0];
-                object.viewY = coords[1] - 0 + view.getPaddingTop();
+                object.viewY = coords[1] - (Build.VERSION.SDK_INT >= 21 ? 0 : AndroidUtilities.statusBarHeight) + view.getPaddingTop();
                 object.parentView = chatListView;
                 object.animatingImageView = null;
                 object.imageReceiver = imageReceiver;
@@ -20152,11 +20195,7 @@ public class ChatActivity extends BaseFragment implements
                     object.dialogId = -currentChat.id;
                 }
                 object.clipTopAddition = (int) (chatListViewPaddingTop - chatListViewPaddingVisibleOffset - AndroidUtilities.dp(4));
-                object.clipBottomAddition = (int) (blurredViewBottomOffset
-                    + dp(9)
-                    + windowInsetsStateHolder.getAnimatedMaxBottomInset()
-                    + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                    + inputIslandHeightCurrent);
+                object.clipBottomAddition = blurredViewBottomOffset;
                 return object;
             }
         }
@@ -20266,6 +20305,7 @@ public class ChatActivity extends BaseFragment implements
                     if (editingMessageObject == null && chatMode == MODE_SCHEDULED) {
                         AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), dialog_id, (notify, scheduleDate, scheduleRepeatPeriod) -> {
                             fillEditingMediaWithCaption(null, null);
+                            // forkgram-classic: 18-arg sig (no scheduleRepeatPeriod here).
                             SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), null, uri, dialog_id, replyingMessageObject, getThreadMessage(), replyingQuote, null, null, null, null, 0, editingMessageObject, notify, scheduleDate, chatMode, quickReplyShortcut, getQuickReplyId());
                         }, themeDelegate);
                     } else {
@@ -20323,10 +20363,6 @@ public class ChatActivity extends BaseFragment implements
                     chatAttachAlert.dismiss();
                 }
                 afterMessageSend();
-            } else if (requestCode == 28) {
-                if (chatAttachAlert != null) {
-                    chatAttachAlert.onPollAttachFilePicker(data);
-                }
             }
         }
     }
@@ -20370,8 +20406,8 @@ public class ChatActivity extends BaseFragment implements
         if (SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW && !fromPullingDownTransition && fragmentBeginToShow) {
             boolean rotate = visible && startMessageAppearTransitionMs == 0;
             Drawable wallpaper = themeDelegate.getWallpaperDrawable();
-            if (contentView != null) {
-                wallpaper = contentView.getBackgroundImage();
+            if (fragmentView != null) {
+                wallpaper = ((SizeNotifierFrameLayout) fragmentView).getBackgroundImage();
             }
             if (wallpaper instanceof MotionBackgroundDrawable) {
                 MotionBackgroundDrawable motion = (MotionBackgroundDrawable) wallpaper;
@@ -20485,14 +20521,9 @@ public class ChatActivity extends BaseFragment implements
                     selectedMessagesIds[a].clear();
                     selectedMessagesCanCopyIds[a].clear();
                     selectedMessagesCanStarIds[a].clear();
-                    if (clearOnLoadButIsNewTopic) {
-                        endReached[a] = true;
-                    } else {
-                        endReached[a] = false;
-                    }
+                    endReached[a] = false;
                     forwardEndReached[a] = true;
                 }
-                clearOnLoadButIsNewTopic = false;
                 hideForwardEndReached = false;
                 hideActionMode();
                 updatePinnedMessageView(true);
@@ -20950,9 +20981,7 @@ public class ChatActivity extends BaseFragment implements
                         if (newUnreadMessageCount < 0) {
                             newUnreadMessageCount = 0;
                         }
-                        if (replyOriginalChat != null) {
-                            getMessagesStorage().updateRepliesMaxReadId(replyOriginalChat.id, replyOriginalMessageId, obj.getId(), newUnreadMessageCount, true);
-                        }
+                        getMessagesStorage().updateRepliesMaxReadId(replyOriginalChat.id, replyOriginalMessageId, obj.getId(), newUnreadMessageCount, true);
                     }
                     endReached[0] = true;
                     continue;
@@ -21233,12 +21262,10 @@ public class ChatActivity extends BaseFragment implements
                     }
                 } else if ((load_type == 3 || load_type == 4) && (startLoadFromMessageId < 0 && messageId == startLoadFromMessageId || startLoadFromMessageId > 0 && messageId > 0 && messageId <= startLoadFromMessageId) && !fakePostponedScroll) {
                     final Integer taskId = highlightTaskId;
-                    final byte[] pollOptionId = highlightPollOptionId;
                     removeSelectedMessageHighlight();
                     if (needSelectFromMessageId && messageId == startLoadFromMessageId) {
                         highlightMessageId = messageId;
                         highlightTaskId = taskId;
-                        highlightPollOptionId = pollOptionId;
                     }
                     if (showScrollToMessageError && messageId != startLoadFromMessageId) {
                         BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.MessageNotFound), themeDelegate).show();
@@ -21403,9 +21430,9 @@ public class ChatActivity extends BaseFragment implements
                                 canShowPagedownButton = true;
                                 updatePagedownButtonVisibility(true);
                                 if (unread_to_load != 0) {
-                                    if (sideControlsButtonsLayout != null) {
+                                    if (pagedownButtonCounter != null) {
                                         if (prevSetUnreadCount != newUnreadMessageCount) {
-                                            sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount = unread_to_load, openAnimationEnded);
+                                            pagedownButtonCounter.setCount(newUnreadMessageCount = unread_to_load, openAnimationEnded);
                                             prevSetUnreadCount = newUnreadMessageCount;
                                         }
                                     }
@@ -21419,10 +21446,9 @@ public class ChatActivity extends BaseFragment implements
                         }
                         if (loaded_mentions_count != 0) {
                             showMentionDownButton(true, true);
-                            if (sideControlsButtonsLayout != null) {
-                                sideControlsButtonsLayout.setButtonCount(
-                                    ChatActivitySideControlsButtonsLayout.BUTTON_MENTION,
-                                    newMentionsCount = loaded_mentions_count, true);
+                            if (mentiondownButtonCounter != null) {
+                                mentiondownButtonCounter.setVisibility(View.VISIBLE);
+                                mentiondownButtonCounter.setText(String.format("%d", newMentionsCount = loaded_mentions_count));
                             }
                         }
                     } else if (!universalNotify) {
@@ -21546,7 +21572,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
             }
-            if (messages.isEmpty() && currentEncryptedChat == null && currentUser != null && currentUser.bot && botUser == null && !UserObject.isBotForum(currentUser)) {
+            if (messages.isEmpty() && currentEncryptedChat == null && currentUser != null && currentUser.bot && botUser == null) {
                 botUser = "";
                 updateBottomOverlay();
             }
@@ -21650,7 +21676,7 @@ public class ChatActivity extends BaseFragment implements
                     sentBotStart = true;
                     getMessagesController().sendBotStart(currentUser, botUser);
 
-                    bottomChannelButtonsLayout.setVisibility(View.GONE);
+                    bottomOverlayChat.setVisibility(View.GONE);
                     if (!isInsideContainer) {
                         chatActivityEnterView.setVisibility(View.VISIBLE);
                     }
@@ -21759,6 +21785,9 @@ public class ChatActivity extends BaseFragment implements
             if (chatListView != null) {
                 chatListView.invalidateViews();
             }
+            if (replyObjectTextView != null) {
+                replyObjectTextView.invalidate();
+            }
             if (alertTextView != null) {
                 alertTextView.invalidate();
             }
@@ -21842,13 +21871,13 @@ public class ChatActivity extends BaseFragment implements
                 updateSubtitle = true;
             }
             if ((updateMask & MessagesController.UPDATE_MASK_CHAT) != 0 && currentChat != null) {
-                boolean fwdBefore = isPeerNoForwards();
+                boolean fwdBefore = getMessagesController().isChatNoForwards(currentChat);
                 TLRPC.Chat chat = getMessagesController().getChat(currentChat.id);
                 if (chat == null) {
                     return;
                 }
                 currentChat = chat;
-                boolean fwdChanged = isPeerNoForwards() != fwdBefore;
+                boolean fwdChanged = getMessagesController().isChatNoForwards(currentChat) != fwdBefore;
                 updateSubtitle = !isThreadChat();
                 updateBottomOverlay();
                 if (chatActivityEnterView != null) {
@@ -21861,7 +21890,7 @@ public class ChatActivity extends BaseFragment implements
             if (avatarContainer != null && updateSubtitle) {
                 avatarContainer.updateSubtitle(true);
             }
-            if ((updateMask & (MessagesController.UPDATE_MASK_USER_PHONE | MessagesController.UPDATE_MASK_AVATAR)) != 0) {
+            if ((updateMask & MessagesController.UPDATE_MASK_USER_PHONE) != 0) {
                 updateTopPanel(true);
             }
             if (headerItem != null) {
@@ -22051,10 +22080,10 @@ public class ChatActivity extends BaseFragment implements
                 if (newUnreadMessageCount < 0) {
                     newUnreadMessageCount = 0;
                 }
-                if (sideControlsButtonsLayout != null) {
+                if (pagedownButtonCounter != null) {
                     if (prevSetUnreadCount != newUnreadMessageCount) {
                         prevSetUnreadCount = newUnreadMessageCount;
-                        sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount, true);
+                        pagedownButtonCounter.setCount(newUnreadMessageCount, true);
                     }
                 }
             }
@@ -22172,10 +22201,10 @@ public class ChatActivity extends BaseFragment implements
             long channelId = (Long) args[1];
             boolean update = args.length > 2 && (boolean) args[2];
             boolean sent = args.length > 3 && (boolean) args[3];
+            boolean movedToScheduled = args.length > 4 && (boolean) args[4];
             int scheduledMessageId = args.length > 5 ? (int) args[5] : 0;
             ArrayList<Integer> sentMessages = null;
             if (args.length > 6) sentMessages = (ArrayList<Integer>) args[6];
-            boolean movedToScheduled = args.length > 4 && (boolean) args[4] || sentMessages != null && !sentMessages.isEmpty();
             final ArrayList<MessageObject> messages = new ArrayList<>();
             MessageObject conversionMessage = null;
             boolean conversion = false;
@@ -22367,9 +22396,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (obj == null || obj.messageOwner == null || !obj.messageOwner.silent) {
                     getNotificationsController().playOutChatSound();
-                }
-                if (botDraftHeightController != null) {
-                    botDraftHeightController.onMessageIdChanged(msgId, newMsgId, obj != null ? obj.getGroupId() : 0);
                 }
             }
         } else if (id == NotificationCenter.messageReceivedByAck) {
@@ -22659,11 +22685,8 @@ public class ChatActivity extends BaseFragment implements
                         forwardEndReached[0] = false;
                         hideForwardEndReached = false;
                         if (chatAdapter != null && !chatAdapter.isFiltered) {
-                            // chatAdapter.notifyItemInserted(0);
+                            chatAdapter.notifyItemInserted(0);
                         }
-                    }
-                    if (chatAdapter != null) {
-                        chatAdapter.notifyDataSetChanged(true);
                     }
                     getMessagesController().addToViewsQueue(threadMessageObject);
                 } else {
@@ -22744,55 +22767,49 @@ public class ChatActivity extends BaseFragment implements
             if (chatListView != null) {
                 int count = chatListView.getChildCount();
                 for (int a = 0; a < count; a++) {
-                    final View view = chatListView.getChildAt(a);
-                    if (!(view instanceof ChatMessageCell)) {
-                        continue;
-                    }
-
-                    final ChatMessageCell cell = (ChatMessageCell) view;
-                    final MessageObject messageObject1 = cell.getMessageObject();
-                    if (messageObject1 == null) {
-                        continue;
-                    }
-
-                    boolean isVideo = messageObject1.isVideo();
-                    if (messageObject1.isRoundVideo() || isVideo) {
-                        cell.checkVideoPlayback(!messageObject.equals(messageObject1), null);
-                        if (!MediaController.getInstance().isPlayingMessage(messageObject1)) {
-                            if (isVideo && !MediaController.getInstance().isGoingToShowMessageObject(messageObject1)) {
-                                AnimatedFileDrawable animation = cell.getPhotoImage().getAnimation();
-                                if (animation != null) {
-                                    animation.start();
-                                }
-                            }
-                            if (messageObject1.audioProgress != 0) {
-                                messageObject1.resetPlayingProgress();
-                                cell.invalidate();
-                            }
-                        } else if (isVideo) {
-                            cell.updateButtonState(false, true, false);
-                        }
-                        if (messageObject1.isRoundVideo()) {
-                            int position = chatListView.getChildAdapterPosition(cell);
-                            if (position >= 0) {
-                                if (MediaController.getInstance().isPlayingMessage(messageObject1)) {
-                                    boolean keyboardIsVisible = contentView.getKeyboardHeight() >= AndroidUtilities.dp(20);
-                                    float topPadding = chatListViewPaddingTop - (contentPanTranslation);
-                                    int offset = (int) ((chatListView.getMeasuredHeight() - topPadding - blurredViewBottomOffset) / 2 - (cell.reactionsLayoutInBubble == null ? 0 : cell.reactionsLayoutInBubble.totalHeight));
-                                    if (messageObject1.type != MessageObject.TYPE_ROUND_VIDEO) {
-                                        offset -= cell.getPhotoImage().getImageY();
-                                    } else {
-                                        offset -= (keyboardIsVisible ? AndroidUtilities.roundMessageSize : isSideMenued() ? AndroidUtilities.roundSidePlayingMessageSize : AndroidUtilities.roundPlayingMessageSize(isSideMenued())) / 2;
+                    View view = chatListView.getChildAt(a);
+                    if (view instanceof ChatMessageCell) {
+                        ChatMessageCell cell = (ChatMessageCell) view;
+                        MessageObject messageObject1 = cell.getMessageObject();
+                        if (messageObject1 != null) {
+                            boolean isVideo = messageObject1.isVideo();
+                            if (messageObject1.isRoundVideo() || isVideo) {
+                                cell.checkVideoPlayback(!messageObject.equals(messageObject1), null);
+                                if (!MediaController.getInstance().isPlayingMessage(messageObject1)) {
+                                    if (isVideo && !MediaController.getInstance().isGoingToShowMessageObject(messageObject1)) {
+                                        AnimatedFileDrawable animation = cell.getPhotoImage().getAnimation();
+                                        if (animation != null) {
+                                            animation.start();
+                                        }
                                     }
-                                    chatLayoutManager.scrollToPositionWithOffset(position, offset, false);
+                                    if (messageObject1.audioProgress != 0) {
+                                        messageObject1.resetPlayingProgress();
+                                        cell.invalidate();
+                                    }
+                                } else if (isVideo) {
+                                    cell.updateButtonState(false, true, false);
                                 }
-                                chatAdapter.notifyItemChanged(position);
+                                if (messageObject1.isRoundVideo()) {
+                                    int position = chatListView.getChildAdapterPosition(cell);
+                                    if (position >= 0) {
+                                        if (MediaController.getInstance().isPlayingMessage(messageObject1)) {
+                                            boolean keyboardIsVisible = contentView.getKeyboardHeight() >= AndroidUtilities.dp(20);
+                                            float topPadding = chatListViewPaddingTop - (contentPanTranslation + bottomPanelTranslationY);
+                                            int offset = (int) ((chatListView.getMeasuredHeight() - topPadding - blurredViewBottomOffset) / 2 - (cell.reactionsLayoutInBubble == null ? 0 : cell.reactionsLayoutInBubble.totalHeight));
+                                            if (messageObject1.type != MessageObject.TYPE_ROUND_VIDEO) {
+                                                offset -= cell.getPhotoImage().getImageY();
+                                            } else {
+                                                offset -= (keyboardIsVisible ? AndroidUtilities.roundMessageSize : isSideMenued() ? AndroidUtilities.roundSidePlayingMessageSize : AndroidUtilities.roundPlayingMessageSize(isSideMenued())) / 2;
+                                            }
+                                            chatLayoutManager.scrollToPositionWithOffset(position, offset, false);
+                                        }
+                                        chatAdapter.notifyItemChanged(position);
+                                    }
+                                }
+                            } else if (messageObject1.isVoice() || messageObject1.isMusic() || messageObject1.isRoundVideo()) {
+                                cell.updateButtonState(false, true, false);
                             }
                         }
-                    } else if (messageObject1.isVoice() || messageObject1.isMusic() || messageObject1.isRoundVideo()) {
-                        cell.updateButtonState(false, true, false);
-                    } else if (messageObject1.isPoll()) {
-                        cell.updatePollContentButtonState(false, true, false);
                     }
                 }
                 if (mentionContainer != null && mentionContainer.getListView() != null) {
@@ -22855,45 +22872,39 @@ public class ChatActivity extends BaseFragment implements
             if (chatListView != null) {
                 int count = chatListView.getChildCount();
                 for (int a = 0; a < count; a++) {
-                    final View view = chatListView.getChildAt(a);
-                    if (!(view instanceof ChatMessageCell)) {
-                        continue;
-                    }
-
-                    final ChatMessageCell cell = (ChatMessageCell) view;
-                    final MessageObject messageObject = cell.getMessageObject();
-                    if (messageObject == null) {
-                        continue;
-                    }
-
-                    if (messageObject.isRoundVideo()) {
-                        if (!MediaController.getInstance().isPlayingMessage(messageObject)) {
-                            Bitmap bitmap = null;
-                            if (id == NotificationCenter.messagePlayingDidReset && cell.getMessageObject() != null && cell.getMessageObject().getId() == messageId && videoTextureView != null) {
-                                bitmap = videoTextureView.getBitmap();
-                                if (bitmap != null && bitmap.getPixel(0, 0) == Color.TRANSPARENT) {
-                                    bitmap = null;
+                    View view = chatListView.getChildAt(a);
+                    if (view instanceof ChatMessageCell) {
+                        ChatMessageCell cell = (ChatMessageCell) view;
+                        MessageObject messageObject = cell.getMessageObject();
+                        if (messageObject != null) {
+                            if (messageObject.isRoundVideo()) {
+                                if (!MediaController.getInstance().isPlayingMessage(messageObject)) {
+                                    Bitmap bitmap = null;
+                                    if (id == NotificationCenter.messagePlayingDidReset && cell.getMessageObject() != null && cell.getMessageObject().getId() == messageId && videoTextureView != null) {
+                                        bitmap = videoTextureView.getBitmap();
+                                        if (bitmap != null && bitmap.getPixel(0, 0) == Color.TRANSPARENT) {
+                                            bitmap = null;
+                                        }
+                                    }
+                                    cell.checkVideoPlayback(true, bitmap);
+                                }
+                                int position = chatListView.getChildAdapterPosition(cell);
+                                messageObject.forceUpdate = true;
+                                if (position >= 0) {
+                                    chatAdapter.notifyItemChanged(position);
+                                }
+                            } else if (messageObject.isVoice() || messageObject.isMusic()) {
+                                cell.updateButtonState(false, true, false);
+                            } else if (messageObject.isVideo()) {
+                                cell.updateButtonState(false, true, false);
+                                if (!MediaController.getInstance().isPlayingMessage(messageObject) && !MediaController.getInstance().isGoingToShowMessageObject(messageObject)) {
+                                    AnimatedFileDrawable animation = cell.getPhotoImage().getAnimation();
+                                    if (animation != null) {
+                                        animation.start();
+                                    }
                                 }
                             }
-                            cell.checkVideoPlayback(true, bitmap);
                         }
-                        int position = chatListView.getChildAdapterPosition(cell);
-                        messageObject.forceUpdate = true;
-                        if (position >= 0) {
-                            chatAdapter.notifyItemChanged(position);
-                        }
-                    } else if (messageObject.isVoice() || messageObject.isMusic()) {
-                        cell.updateButtonState(false, true, false);
-                    } else if (messageObject.isVideo()) {
-                        cell.updateButtonState(false, true, false);
-                        if (!MediaController.getInstance().isPlayingMessage(messageObject) && !MediaController.getInstance().isGoingToShowMessageObject(messageObject)) {
-                            AnimatedFileDrawable animation = cell.getPhotoImage().getAnimation();
-                            if (animation != null) {
-                                animation.start();
-                            }
-                        }
-                    } else if (messageObject.isPoll()) {
-                        cell.updatePollContentButtonState(false, true, false);
                     }
                 }
                 if (mentionContainer != null && mentionContainer.getListView() != null) {
@@ -22921,7 +22932,7 @@ public class ChatActivity extends BaseFragment implements
                         MessageObject playing = cell.getMessageObject();
                         if (playing != null && playing.getId() == mid) {
                             MessageObject player = MediaController.getInstance().getPlayingMessageObject();
-                            if (player != null && !cell.isDraggingdAnyMusicSeekBar()) {
+                            if (player != null && !cell.getSeekBar().isDragging()) {
                                 playing.audioProgress = player.audioProgress;
                                 playing.audioProgressSec = player.audioProgressSec;
                                 playing.audioPlayerDuration = player.audioPlayerDuration;
@@ -22943,7 +22954,6 @@ public class ChatActivity extends BaseFragment implements
                 TLRPC.PollResults results = (TLRPC.PollResults) args[2];
                 View pollView = null;
                 boolean isVotedChanged = false;
-                boolean showBulletinAbountCloseResults = false;
                 boolean isQuiz = false;
                 for (int a = 0, N = arrayList.size(); a < N; a++) {
                     MessageObject object = arrayList.get(a);
@@ -22962,40 +22972,25 @@ public class ChatActivity extends BaseFragment implements
                     if (isVoted != object.isVoted()) {
                         isVotedChanged = true;
                     }
-                    if (isVotedChanged && object.isVotedButResultsHiddenUntilClose()) {
-                        showBulletinAbountCloseResults = true;
-                    }
                 }
                 createUndoView();
-                if (showBulletinAbountCloseResults) {
-                    BulletinFactory.of(this)
-                        .createSimpleBulletinWithIconSize(R.raw.timer_toast, getString(R.string.PollResultsWillLater), 24)
-                        .show();
-                } else if (isVotedChanged && isQuiz && undoView != null && pollView instanceof ChatMessageCell) {
+                if (isVotedChanged && isQuiz && undoView != null && pollView instanceof ChatMessageCell) {
                     ChatMessageCell cell = (ChatMessageCell) pollView;
                     if (cell.isAnimatingPollAnswer()) {
-                        boolean isQuizWin = true;
-                        boolean hasChosen = false;
                         for (int a = 0, N = results.results.size(); a < N; a++) {
                             TLRPC.PollAnswerVoters voters = results.results.get(a);
                             if (voters.chosen) {
-                                hasChosen = true;
-                            }
-                            if (voters.chosen && !voters.correct || voters.correct && !voters.chosen) {
-                                isQuizWin = false;
-                            }
-                        }
-                        if (hasChosen) {
-                            try {
-                                pollView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-                            } catch (Exception ignored) {
-                            }
-                            if (isQuizWin) {
-                                fireworksOverlay.start();
-                            } else {
-                                ((ChatMessageCell) pollView).shakeView();
-                                showPollSolution(cell.getMessageObject(), results);
-                                // cell.showHintButton(false, true, 0);
+                                try {
+                                    pollView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+                                } catch (Exception ignored) {};
+                                if (voters.correct) {
+                                    fireworksOverlay.start();
+                                } else {
+                                    ((ChatMessageCell) pollView).shakeView();
+                                    showPollSolution(cell.getMessageObject(), results);
+                                    cell.showHintButton(false, true, 0);
+                                }
+                                break;
                             }
                         }
                     }
@@ -23432,7 +23427,7 @@ public class ChatActivity extends BaseFragment implements
                 updateVisibleRows();
             }
         } else if (id == NotificationCenter.didReceivedWebpagesInUpdates) {
-            if (foundWebPage != null && forkExtractMediaFrozenWebPage == null) {
+            if (foundWebPage != null) {
                 LongSparseArray<TLRPC.WebPage> hashMap = (LongSparseArray<TLRPC.WebPage>) args[0];
                 for (int a = 0; a < hashMap.size(); a++) {
                     TLRPC.WebPage webPage = hashMap.valueAt(a);
@@ -23478,8 +23473,8 @@ public class ChatActivity extends BaseFragment implements
                             hasAllMentionsLocal = true;
                             showMentionDownButton(false, true);
                         } else {
-                            if (sideControlsButtonsLayout != null) {
-                                sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                            if (mentiondownButtonCounter != null) {
+                                mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
                             }
                         }
                     }
@@ -23871,9 +23866,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 birthdayAssetsFetcher = ProfileBirthdayEffect.BirthdayEffectFetcher.of(currentAccount, userInfo, birthdayAssetsFetcher);
                 updateTopPanel(true);
-                if (flagSecure != null) {
-                    flagSecure.invalidate();
-                }
             }
         } else if (id == NotificationCenter.didSetNewWallpapper) {
             if (fragmentView != null) {
@@ -23957,7 +23949,7 @@ public class ChatActivity extends BaseFragment implements
                         hasAllMentionsLocal = true;
                         showMentionDownButton(false, true);
                     } else {
-                        sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                        mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
                     }
                 }
             }
@@ -24042,34 +24034,6 @@ public class ChatActivity extends BaseFragment implements
                 chatInfo = getMessagesController().getChatFull(chatId);
                 gotChatInfo();
             }
-        } else if (id == NotificationCenter.dialogsUnreadPollVotesCounterChanged) {
-            long dialogId = (long) args[0];
-            long topicId = (long) args[1];
-            if (dialogId == dialog_id && ((!isTopic && (!ChatObject.isMonoForum(currentChat) || getTopicId() == 0)) || topicId == getTopicId())) {
-                pollVotesMentionCount = (int) args[2];
-                ArrayList<Integer> messages = null;
-                if (args[2] != null) {
-                    messages = (ArrayList<Integer>) args[3];
-                }
-                if (messages != null) {
-                    for (int i = 0; i < messages.size(); i++) {
-                        int messageId = messages.get(i);
-                        BaseCell cell = findMessageCell(messageId, true);
-                        if (cell != null && pollVotesMentionCount > 0) {
-                            pollVotesMentionCount--;
-                            getMessagesStorage().markMessagePollVotesAsRead(getDialogId(), getTopicId(), messageId);
-                            //AndroidUtilities.runOnUIThread(() -> {
-                            //    playReactionAnimation(messageId);
-                            //}, 200);
-                        }
-                    }
-                }
-                if (pollVotesMentionCount <= 0) {
-                    pollVotesMentionCount = 0;
-                    getMessagesController().markPollVotesAsRead(dialogId, getTopicId());
-                }
-                updatePollVotesMentionButton(true);
-            }
         } else if (id == NotificationCenter.dialogsUnreadReactionsCounterChanged) {
             long dialogId = (long) args[0];
             long topicId = (long) args[1];
@@ -24085,6 +24049,8 @@ public class ChatActivity extends BaseFragment implements
                         BaseCell cell = findMessageCell(messageId, true);
                         if (cell != null && reactionsMentionCount > 0) {
                             reactionsMentionCount--;
+                            // forkgram-classic: upstream dropped the `boolean updateReactions` arg;
+                            // method now only handles the reactions table.
                             getMessagesStorage().markMessageReactionsAsRead(getDialogId(), getTopicId(), messageId);
                             AndroidUtilities.runOnUIThread(() -> {
                                 playReactionAnimation(messageId);
@@ -24133,7 +24099,6 @@ public class ChatActivity extends BaseFragment implements
             updateTopPanel(true);
             if (chatListView != null && chatAdapter != null) {
                 boolean updatedPinned = false;
-                saveGeneralScroll();
                 ArrayList<Long> groupChecked = new ArrayList<>();
                 for (int i = 0; i < chatListView.getChildCount(); ++i) {
                     View child = chatListView.getChildAt(i);
@@ -24209,13 +24174,12 @@ public class ChatActivity extends BaseFragment implements
             checkTranslation(true);
             updateTranslateItemVisibility();
         } else if (id == NotificationCenter.messageTranslated) {
-            final MessageObject messageObject = (MessageObject) args[0];
-            final boolean summary = args.length > 1 && (boolean) args[1];
+            MessageObject messageObject = (MessageObject) args[0];
             if (getDialogId() != messageObject.getDialogId()) {
                 return;
             }
-            updateMessageTranslation(messageObject, summary);
-            if (args.length > 2 && (boolean) args[2]) {
+            updateMessageTranslation(messageObject);
+            if (args.length > 1 && (boolean) args[1]) {
                 checkTranslation(true);
             }
         } else if (id == NotificationCenter.messageTranslating) {
@@ -24313,26 +24277,6 @@ public class ChatActivity extends BaseFragment implements
             }
         } else if (id == NotificationCenter.premiumFloodWaitReceived) {
             invalidateMessagesVisiblePart();
-        } else if (id == NotificationCenter.updatedChatRanks) {
-            final long chatId = (long) args[0];
-            final long userId = (long) args[1];
-            final String rank = (String) args[2];
-            if (currentChat == null || currentChat.id != chatId) return;
-            updateVisibleRows(msg -> {
-                if (userId == msg.getFromChatId()) {
-                    if (msg.messageOwner != null) {
-                        if (TextUtils.isEmpty(rank)) {
-                            msg.messageOwner.flags2 &=~ TLObject.FLAG_12;
-                            msg.messageOwner.from_rank = null;
-                        } else {
-                            msg.messageOwner.flags2 |= TLObject.FLAG_12;
-                            msg.messageOwner.from_rank = rank;
-                        }
-                    }
-                    return true;
-                }
-                return false;
-            });
         } else if (id == NotificationCenter.hashtagSearchUpdated) {
             int guid = (Integer) args[0];
             if (guid != classGuid) {
@@ -24372,8 +24316,7 @@ public class ChatActivity extends BaseFragment implements
             }
         } else if (id == NotificationCenter.messagesFeeUpdated) {
             final long did = (long) args[0];
-            if (dialog_id != did) return;
-            if (getSendMonoForumPeerId() != 0 && getSendMonoForumPeerId() != did) return;
+            if (dialog_id != did && getSendMonoForumPeerId() != did) return;
             updateTopPanel(true);
             updateBottomOverlay(true);
         } else if (id == NotificationCenter.starBalanceUpdated) {
@@ -24389,27 +24332,19 @@ public class ChatActivity extends BaseFragment implements
             if (topicsTabs != null) {
                 topicsTabs.selectTopic(arg.topicId, false);
             }
-            clearOnLoadButIsNewTopic = true; // This is a newly created topic.
         } else if (id == NotificationCenter.botForumDraftUpdate) {
             final BotForumHelper.BotForumTextDraftUpdateNotification arg = (BotForumHelper.BotForumTextDraftUpdateNotification) args[0];
             if (dialog_id != arg.botUserId) return;
             if (getTopicId() != arg.botTopicId) return;
 
-            saveScrollPosition2();
-            final int startRow = chatAdapter.messagesStartRow;
             final ArrayList<MessageObject> arr = new ArrayList<>(1);
             arr.add(arg.messageObject);
-            replaceMessageObjects(arr, 0, true, true);
-
-            if (!arr.isEmpty()) {
-                BotForumHelper.getInstance(currentAccount).saveIsStreamingTopic(getDialogId(), getTopicId(), true);
-
-                final int firstMessageGroupHeight = calculateFirstMessageGroupHeight(startRow);
-                botDraftHeightController.setPreviousMessageHeight(firstMessageGroupHeight);
+            if (arg.isNew) {
                 processNewMessages(arr);
+
+            } else {
+                replaceMessageObjects(arr, 0, false);
             }
-            botDraftHeightController.setMessageIdToOverride(arg.messageObject.getId(), arg.messageObject.getGroupId());
-            checkSendButtonBlockedByTyping(true);
         } else if (id == NotificationCenter.botForumDraftDelete) {
             final BotForumHelper.BotForumTextDraftDeleteNotification arg = (BotForumHelper.BotForumTextDraftDeleteNotification) args[0];
             final ArrayList<Integer> arr = new ArrayList<>(1);
@@ -24417,71 +24352,12 @@ public class ChatActivity extends BaseFragment implements
             if (getTopicId() != arg.botTopicId) return;
 
             arr.add(arg.messageId);
-            processDeletedMessages(arr, 0, false);
+            processDeletedMessages(arr, -dialog_id, false);
 
             if (avatarContainer != null) {
                 avatarContainer.updateSubtitle(true);
             }
-            checkSendButtonBlockedByTyping(true);
-        } else if (id == NotificationCenter.joinedGroup) {
-            final long chatId = (long) args[0];
-            if (getDialogId() != -chatId || currentChat == null) return;
-
-            final boolean admin = currentChat.admin_rights != null;
-            final boolean owner = currentChat.creator;
-            if (ChatObject.canManageMyTag(currentChat)) {
-                BulletinFactory.of(this)
-                    .createSimpleBulletin(R.raw.contact_check, getString(R.string.JoinedGroup), getString(R.string.JoinedGroupAddTag), () -> {
-                        if (!AndroidUtilities.isContextSafe(getContext())) return;
-                        TagEditCell.showSheet(getContext(), currentAccount, -chatId, getUserConfig().getCurrentUser(), null, admin, owner, getResourceProvider());
-                    })
-                    .show(true);
-            } else {
-                BulletinFactory.of(this)
-                    .createSimpleBulletin(R.raw.contact_check, getString(R.string.JoinedGroup))
-                    .show(true);
-            }
         }
-    }
-
-    private int calculateFirstMessageGroupHeight(int startRow) {
-        int t = chatListView.getHeight();
-        int b = 0;
-
-        int a = startRow;
-        long groupId = 0;
-        while (true) {
-            final View view = chatListView.findViewByPosition(a);
-            final MessageObject messageObject;
-            final int padding;
-            if (view instanceof ChatMessageCell) {
-                messageObject = ((ChatMessageCell) view).getMessageObject();
-                padding = ((ChatMessageCell) view).getAdditionalPaddingHeight();
-            } else if (view instanceof ChatActionCell) {
-                messageObject = ((ChatActionCell) view).getMessageObject();
-                padding = 0;
-            } else {
-                break;
-            }
-            if (messageObject == null) {
-                break;
-            }
-            final long msgGroupId = messageObject.getGroupId();
-            if (a != startRow && msgGroupId != groupId) {
-                break;
-            }
-
-            t = Math.min(t, view.getTop());
-            b = Math.max(b, view.getBottom() - padding);
-
-            if (msgGroupId == 0) {
-                break;
-            }
-
-            a++;
-        }
-
-        return Math.max(0, b - t);
     }
 
     private AlertDialog quoteMessageUpdateAlert;
@@ -24507,32 +24383,12 @@ public class ChatActivity extends BaseFragment implements
             .show();
     }
 
-    private void saveGeneralScroll() {
-        int scrollByCellHeight = 0;
-        ChatMessageCell scrollByCell = null;
-        for (int i = 0; i < chatListView.getChildCount(); ++i) {
-            View child = chatListView.getChildAt(i);
-            if (child instanceof ChatMessageCell) {
-                ChatMessageCell cell = (ChatMessageCell) child;
-
-                int visibleHeight = Math.min(cell.getBottom(), chatListView.getHeight()) - Math.max(0, cell.getTop());
-                if (visibleHeight > scrollByCellHeight) {
-                    scrollByCell = cell;
-                    scrollByCellHeight = visibleHeight;
-                }
-            }
-        }
-        if (scrollByCell != null) {
-            chatLayoutManager.scrollToPositionWithOffset(chatListView.getChildAdapterPosition(scrollByCell), scrollByCell.getTop() - (int) chatListViewPaddingTop, false);
-        }
-    }
-
     private int getScrollingOffsetForView(View v) {
         FileLog.d("getScrollingOffsetForView view=" + v + " results in {"+(chatListView.getMeasuredHeight() - v.getBottom() - chatListView.getPaddingBottom())+"} chatHeight=" + chatListView.getMeasuredHeight() + " bottom=" + v.getBottom() + " paddingBottom=" + chatListView.getPaddingBottom());
         return chatListView.getMeasuredHeight() - v.getBottom() - chatListView.getPaddingBottom();
     }
 
-    private boolean updateMessageTranslation(MessageObject messageObject, boolean scroll) {
+    private boolean updateMessageTranslation(MessageObject messageObject) {
         if (messageObject == null || messageObject.messageOwner == null) {
             return false;
         }
@@ -24563,9 +24419,6 @@ public class ChatActivity extends BaseFragment implements
                 if (cellMessageObject.getId() == messageObject.getId()) {
                     cellMessageObject.messageOwner.translatedText = messageObject.messageOwner.translatedText;
                     cellMessageObject.messageOwner.translatedToLanguage = messageObject.messageOwner.translatedToLanguage;
-                    cellMessageObject.messageOwner.summaryText = messageObject.messageOwner.summaryText;
-                    cellMessageObject.messageOwner.translatedSummaryText = messageObject.messageOwner.translatedSummaryText;
-                    cellMessageObject.messageOwner.translatedSummaryLanguage = messageObject.messageOwner.translatedSummaryLanguage;
                     if (cellMessageObject.updateTranslation(false)) {
                         update = true;
                         ArrayList<Integer> dependentMessages = replyMessageOwners.get(cellMessageObject.getId());
@@ -24587,18 +24440,11 @@ public class ChatActivity extends BaseFragment implements
                 if (cellMessageObject.replyMessageObject != null && cellMessageObject.replyMessageObject.getId() == messageObject.getId() && cellMessageObject.replyMessageObject.getDialogId() == messageObject.getDialogId()) {
                     cellMessageObject.replyMessageObject.messageOwner.translatedText = messageObject.messageOwner.translatedText;
                     cellMessageObject.replyMessageObject.messageOwner.translatedToLanguage = messageObject.messageOwner.translatedToLanguage;
-                    cellMessageObject.replyMessageObject.messageOwner.translatedSummaryText = messageObject.messageOwner.translatedSummaryText;
-                    cellMessageObject.replyMessageObject.messageOwner.translatedSummaryLanguage = messageObject.messageOwner.translatedSummaryLanguage;
                     if (cellMessageObject.replyMessageObject.updateTranslation(false)) {
                         update = true;
                     }
                 }
                 if (update) {
-                    if (scroll) {
-                        chatLayoutManager.scrollToPositionWithOffset(chatListView.getChildAdapterPosition(child), cell.getTop() - (int) chatListViewPaddingTop, false);
-                    } else {
-                        saveGeneralScroll();
-                    }
                     cellMessageObject.forceUpdate = true;
                     cell.setMessageObject(cellMessageObject, cell.getCurrentMessagesGroup(), cell.isPinnedBottom(), cell.isPinnedTop(), cell.isFirstInChat(), cell.isLastInChatList());
                     if (group != null) {
@@ -24925,8 +24771,8 @@ public class ChatActivity extends BaseFragment implements
             newUnreadMessageCount = differenceTooLong.dialog.unread_count;
             newMentionsCount = differenceTooLong.dialog.unread_mentions_count;
             if (prevSetUnreadCount != newUnreadMessageCount) {
-                if (sideControlsButtonsLayout != null) {
-                    sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount, openAnimationEnded);
+                if (pagedownButtonCounter != null) {
+                    pagedownButtonCounter.setCount(newUnreadMessageCount, openAnimationEnded);
                 }
                 prevSetUnreadCount = newUnreadMessageCount;
                 updatePagedownButtonVisibility(true);
@@ -24938,9 +24784,8 @@ public class ChatActivity extends BaseFragment implements
                     hasAllMentionsLocal = true;
                     showMentionDownButton(false, true);
                 } else {
-                    if (sideControlsButtonsLayout != null) {
-                        sideControlsButtonsLayout.setButtonCount(
-                            ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                    if (mentiondownButtonCounter != null) {
+                        mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
                     }
                     showMentionDownButton(true, true);
                 }
@@ -25122,7 +24967,7 @@ public class ChatActivity extends BaseFragment implements
         }
         Drawable wallpaper = themeDelegate.getWallpaperDrawable();
         if (fragmentView != null) {
-            wallpaper = (contentView).getBackgroundImage();
+            wallpaper = ((SizeNotifierFrameLayout) fragmentView).getBackgroundImage();
         }
         if (wallpaper instanceof ChatBackgroundDrawable) {
             wallpaper = ((ChatBackgroundDrawable) wallpaper).getDrawable(true);
@@ -25145,16 +24990,6 @@ public class ChatActivity extends BaseFragment implements
     }
     private void processNewMessages(ArrayList<MessageObject> arr, final boolean animatedFromBottom) {
         FileLog.d("processNewMessages " + arr.size() + " messages");
-
-        if (arr.size() == 1 && UserObject.isBot(currentUser) && BotForumHelper.getInstance(currentAccount).isStreamingTopic(getDialogId(), getTopicId())) {
-            MessageObject message = arr.get(0);
-            if (message.getId() < 0 && message.isOutOwner()) {
-                botDraftHeightController.setPreviousMessageHeight(0);
-                botDraftHeightController.setMessageIdToOverride(message.getId(), message.getGroupId());
-            }
-        }
-
-
         long currentUserId = getUserConfig().getClientUserId();
         boolean updateChat = false;
         boolean hasFromMe = false;
@@ -25189,7 +25024,6 @@ public class ChatActivity extends BaseFragment implements
         }
 
         boolean notifiedSearch = false;
-        boolean hasDraftsReplaces = false;
         LongSparseArray<Long> scheduledGroupReplacement = null;
         for (int a = 0, N = arr.size(); a < N; a++) {
             FileLog.d("processNewMessages " + a + " our of " + N);
@@ -25332,18 +25166,9 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
-        if (!arr.isEmpty()) {
-            if ((chatMode == MODE_SCHEDULED || chatMode == MODE_QUICK_REPLIES)) {
-                replaceMessageObjects(arr, 0, true);
-            } else if (UserObject.isBot(currentUser) && BotForumHelper.getInstance(currentAccount).hasBotForumDrafts(currentUser.id, (int) getTopicId())) {
-                replaceMessageObjects(arr, 0, false);
-                hasDraftsReplaces = !BotForumHelper.getInstance(currentAccount).hasBotForumDrafts(currentUser.id, (int) getTopicId());
-            }
+        if ((chatMode == MODE_SCHEDULED || chatMode == MODE_QUICK_REPLIES || UserObject.isBotForum(currentUser)) && !arr.isEmpty()) {
+            replaceMessageObjects(arr, 0, true);
         }
-
-        checkSendButtonBlockedByTyping(true);
-
-        forceScrollToMessageBottom = hasDraftsReplaces;
 
         boolean needMoveScrollToLastMessage = false;
 
@@ -25442,14 +25267,16 @@ public class ChatActivity extends BaseFragment implements
                     updateChat = true;
                 }
             }
-            if (newUnreadMessageCount != 0 && sideControlsButtonsLayout != null) {
+            if (newUnreadMessageCount != 0 && pagedownButtonCounter != null) {
+                pagedownButtonCounter.setVisibility(View.VISIBLE);
                 if (prevSetUnreadCount != newUnreadMessageCount) {
                     prevSetUnreadCount = newUnreadMessageCount;
-                    sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount, true);
+                    pagedownButtonCounter.setCount(newUnreadMessageCount, true);
                 }
             }
-            if (newMentionsCount != 0 && sideControlsButtonsLayout != null) {
-                sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+            if (newMentionsCount != 0 && mentiondownButtonCounter != null) {
+                mentiondownButtonCounter.setVisibility(View.VISIBLE);
+                mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
                 showMentionDownButton(true, true);
             }
 
@@ -25463,12 +25290,8 @@ public class ChatActivity extends BaseFragment implements
 
             MessageObject lastActionSetChatThemeMessageObject = null;
             boolean addedAdUnder = false;
-            boolean hasSentMessages = false;
             for (int a = 0; a < arr.size(); a++) {
                 MessageObject obj = arr.get(a);
-                if (obj.getId() < 0) {
-                    hasSentMessages = true;
-                }
                 if (obj.scheduled != (chatMode == MODE_SCHEDULED)) {
                     continue;
                 }
@@ -25692,13 +25515,6 @@ public class ChatActivity extends BaseFragment implements
                 if (obj.messageOwner.action instanceof TLRPC.TL_messageActionSetMessagesTTL && messages.size() == 2) {
                     placeToPaste = 1;
                 }
-                
-                if (hasSentMessages) {
-                    if (chatAdapter != null) {
-                        chatAdapter.checkRemoveBotForumRowsStartThreadRow(true);
-                    }
-                }
-                
                 if (dayArray == null) {
                     dayArray = new ArrayList<>();
                     messagesByDays.put(obj.dateKey, dayArray);
@@ -25729,7 +25545,6 @@ public class ChatActivity extends BaseFragment implements
                         dateObj.stableId = getStableIdForDateObject(obj.dateKeyInt);
                         messages.add(placeToPaste, dateObj);
                         if (chatAdapter != null && chatAdapter.messagesStartRow >= 0) {
-                            chatAdapter.checkRemoveBotForumRowsStartThreadRow(false);
                             chatAdapter.notifyItemInserted(chatAdapter.messagesStartRow + placeToPaste);
                         }
                     }
@@ -25782,7 +25597,6 @@ public class ChatActivity extends BaseFragment implements
                     notPushedSponsoredMessages.remove(obj);
                 }
                 if (chatAdapter != null) {
-                    chatAdapter.checkRemoveBotForumRowsStartThreadRow(false);
                     chatAdapter.notifyItemChanged(chatAdapter.messagesStartRow + placeToPaste);
                     chatAdapter.notifyItemInserted(chatAdapter.messagesStartRow + placeToPaste);
                 }
@@ -25808,10 +25622,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (obj.messageOwner.action instanceof TLRPC.TL_messageActionSetChatTheme) {
                     lastActionSetChatThemeMessageObject = obj;
-                }
-
-                if (botDraftHeightController != null && !botDraftHeightController.filter(obj)) {
-                    botDraftHeightController.setMessageIdToOverride(0, 0);
                 }
             }
             if (lastActionSetChatThemeMessageObject != null && lastActionSetChatThemeMessageObject.messageOwner != null && lastActionSetChatThemeMessageObject.messageOwner.action instanceof TLRPC.TL_messageActionSetChatTheme) {
@@ -25854,7 +25664,7 @@ public class ChatActivity extends BaseFragment implements
                     diff = 0;
                 }
                 if (!isAd) {
-                    if (lastVisible == 0 && diff <= AndroidUtilities.dp(5) && !hasDraftsReplaces || hasFromMe) {
+                    if (lastVisible == 0 && diff <= AndroidUtilities.dp(5) || hasFromMe) {
                         newUnreadMessageCount = 0;
                         if (!firstLoading && chatMode != MODE_SCHEDULED) {
                             if (paused) {
@@ -25865,13 +25675,13 @@ public class ChatActivity extends BaseFragment implements
                             }
                         }
                     } else {
-                        if (newUnreadMessageCount != 0 && sideControlsButtonsLayout != null) {
+                        if (newUnreadMessageCount != 0 && pagedownButtonCounter != null) {
                             if (prevSetUnreadCount != newUnreadMessageCount) {
                                 prevSetUnreadCount = newUnreadMessageCount;
-                                sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN,  newUnreadMessageCount, true);
+                                pagedownButtonCounter.setCount(newUnreadMessageCount, true);
                             }
                         }
-                        canShowPagedownButton = !botDraftHeightController.hasAdditionalHeight();
+                        canShowPagedownButton = true;
                         updatePagedownButtonVisibility(true);
                     }
                 } else {
@@ -25886,8 +25696,9 @@ public class ChatActivity extends BaseFragment implements
                         chatLayoutManager.scrollToPositionWithOffset(chatAdapter.messagesStartRow + scrollToIndex, getScrollingOffsetForView(child));
                     }
                 }
-                if (newMentionsCount != 0 && sideControlsButtonsLayout != null) {
-                    sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                if (newMentionsCount != 0 && mentiondownButtonCounter != null) {
+                    mentiondownButtonCounter.setVisibility(View.VISIBLE);
+                    mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
                     showMentionDownButton(true, true);
                 }
             } else {
@@ -25968,35 +25779,6 @@ public class ChatActivity extends BaseFragment implements
             conversionObjectsStableIds.put(mid, id);
         }
         return id;
-    }
-
-    private void saveScrollPosition2() {
-        int top = 0, bottom = 0;
-        int position = RecyclerListView.NO_POSITION;
-        if (chatListView != null && chatLayoutManager != null /*&& !chatLayoutManager.hasPendingScrollPosition()*/) {
-            for (int i = chatListView.getChildCount() - 1; i >= 0; i--) {
-                View v = chatListView.getChildAt(i);
-                final int vposition = chatListView.getChildAdapterPosition(v);
-                if (vposition < 0) continue;
-                if (v instanceof ChatMessageCell) {
-                    if (((ChatMessageCell) v).getCurrentMessagesGroup() != null) {
-                        continue;
-                    }
-                    position = vposition;
-                    top = getScrollingOffsetForView(v);
-                    bottom = 0;
-                    break;
-                } else if (v instanceof ChatActionCell) {
-                    position = vposition;
-                    top = getScrollingOffsetForView(v);
-                    bottom = 0;
-                    break;
-                }
-            }
-        }
-        if (position >= 0) {
-            chatLayoutManager.scrollToPositionWithOffset(position, top);
-        }
     }
 
     private void saveScrollPosition() {
@@ -26391,13 +26173,8 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private final BotForumHelper.BotDraftAnimationsPool botDraftAnimationsPool = new BotForumHelper.BotDraftAnimationsPool();
-    private final ChatActivityDraftMessageMeasureController botDraftHeightController = new ChatActivityDraftMessageMeasureController();
 
     private void replaceMessageObjects(ArrayList<MessageObject> messageObjects, int loadIndex, boolean remove) {
-        replaceMessageObjects(messageObjects, loadIndex, remove, false);
-    }
-
-    private void replaceMessageObjects(ArrayList<MessageObject> messageObjects, int loadIndex, boolean remove, boolean ignoreDateCheckBeforeRemove) {
         LongSparseArray<MessageObject.GroupedMessages> newGroups = null;
         for (int a = 0; a < messageObjects.size(); a++) {
             MessageObject messageObject = messageObjects.get(a);
@@ -26407,18 +26184,13 @@ public class ChatActivity extends BaseFragment implements
                 pinnedMessageObjects.put(messageObject.getId(), messageObject);
             }
             MessageObject old = messagesDict[loadIndex].get(messageObject.getId());
-            if (messageObject.getId() > 0 && old == null && UserObject.isBot(currentUser)) {
+            if (messageObject.getId() > 0 && old == null && UserObject.isBotForum(currentUser)) {
                 old = BotForumHelper.getInstance(currentAccount).onBotForumDraftCheckNewMessages(currentUser.id, (int) getTopicId(), messageObject.getId(), messageObject.messageText.toString());
                 if (old != null) {
-                    saveScrollPosition2();
-                    botDraftHeightController.setMessageIdToOverride(messageObject.getId(), messageObject.getGroupId());
-                    if (!messages.contains(old)) {
-                        old = null;
-                    } else {
-                        botDraftAnimationsPool.bind(old.messageOwner.id, messageObject.getId());
-                        old.messageOwner.id = old.messageOwner.local_id = messageObject.getId();
-                        old.messageOwner.date = messageObject.messageOwner.date;
-                    }
+                    botDraftAnimationsPool.bind(old.messageOwner.id, messageObject.getId());
+
+                    old.messageOwner.id = old.messageOwner.local_id = messageObject.getId();
+                    old.messageOwner.date = messageObject.messageOwner.date;
                 }
             }
             if (pinnedMessageObjects.containsKey(messageObject.getId())) {
@@ -26430,7 +26202,7 @@ public class ChatActivity extends BaseFragment implements
             if (loadIndex == 0 && repliesMessagesDict.indexOfKey(messageObject.getId()) >= 0) {
                 repliesMessagesDict.put(messageObject.getId(), messageObject);
             }
-            if (old == null || remove && !ignoreDateCheckBeforeRemove && old.messageOwner.date != messageObject.messageOwner.date || messageObject.scheduled && chatMode != MODE_SCHEDULED) {
+            if (old == null || remove && old.messageOwner.date != messageObject.messageOwner.date || messageObject.scheduled && chatMode != MODE_SCHEDULED) {
                 continue;
             }
             if (remove) {
@@ -26756,9 +26528,13 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void updateSearchButtons(int mask, int num, int count) {
-        if (sideControlsButtonsLayout != null) {
-            sideControlsButtonsLayout.setButtonEnabled(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_UP, (mask & (reversed ? 2 : 1)) != 0, true);
-            sideControlsButtonsLayout.setButtonEnabled(ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_DOWN, (mask & (reversed ? 1 : 2)) != 0, true);
+        if (searchUpButton != null) {
+            searchUpButton.setEnabled((mask & (reversed ? 2 : 1)) != 0);
+            searchUpButtonArrow.setAlpha(searchUpButton.isEnabled() ? 1.0f : 0.5f);
+        }
+        if (searchDownButton != null) {
+            searchDownButton.setEnabled((mask & (reversed ? 1 : 2)) != 0);
+            searchDownButtonArrow.setAlpha(searchDownButton.isEnabled() ? 1.0f : 0.5f);
         }
         searchLastCount = count;
         searchLastIndex = num;
@@ -26829,7 +26605,7 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean shownConversionDateTimeToast;
     private void checkConversionDateTimeToast() {
-        if (shownConversionDateTimeToast || !isFullyVisible || !chatListView.isAttachedToWindow() || getContext() == null) return;
+        if (shownConversionDateTimeToast || !isFullyVisible || !chatListView.isAttachedToWindow()) return;
         final int[] loc = new int[2];
         ChatMessageCell foundCell = null;
         for (int i = chatListView.getChildCount() - 1; i >= 0; --i) {
@@ -27073,15 +26849,15 @@ public class ChatActivity extends BaseFragment implements
                 if (currentChat != null) {
                     isChannel = ChatObject.isChannel(currentChat) && !currentChat.megagroup;
                 }
-
-                final HintsController.Hint hint = isChannel ?
-                    HintsController.Hint.RoundHintChannel2 :
-                    HintsController.Hint.RoundHint2;
-
-                if (hint.show()) {
-                    hint.increment();
-                    showVoiceHint(false, chatActivityEnterView.isInVideoMode());
-                    hintShown = true;
+                SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+                String key = isChannel ? "needShowRoundHintChannel2" : "needShowRoundHint2";
+                int showCount = preferences.getInt(key, 0);
+                if (showCount < 3) {
+                    if (Utilities.random.nextFloat() <= 0.2f) {
+                        showVoiceHint(false, chatActivityEnterView.isInVideoMode());
+                        preferences.edit().putInt(key, ++showCount).commit();
+                        hintShown = true;
+                    }
                 }
             }
 
@@ -27177,21 +26953,16 @@ public class ChatActivity extends BaseFragment implements
     private void checkGroupEmojiPackHint() {
         if (groupEmojiPackHint == null && ChatObject.isMegagroup(currentChat)) {
             final TLRPC.ChatFull chatFull = getMessagesController().getChatFull(currentChat.id);
-            if (chatFull == null || chatActivityEnterView == null || getContext() == null) {
+            if (chatFull == null || chatFull.emojiset == null || chatActivityEnterView == null || getContext() == null) {
                 return;
             }
-            TLRPC.StickerSet emojiSet = /*chatFull.emojiset != null ?*/ chatFull.emojiset; // : chatFull.stickerset;
-            if (emojiSet == null) {
+            if (bottomOverlayChat != null && bottomOverlayChat.getVisibility() == View.VISIBLE) {
                 return;
             }
-
-            if (bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE) {
+            if (MessagesController.getGlobalMainSettings().getBoolean("groupEmojiPackHintShown", false)) {
                 return;
             }
-            if (!HintsController.Hint.GroupEmojiPackHintShown.show()) {
-                return;
-            }
-
+            TLRPC.StickerSet emojiSet = chatFull.emojiset;
             long thumbDocumentId = emojiSet.thumb_document_id;
             if (thumbDocumentId == 0) {
                 TLRPC.TL_messages_stickerSet stickerSet = getMediaDataController().getGroupStickerSetById(emojiSet);
@@ -27199,10 +26970,10 @@ public class ChatActivity extends BaseFragment implements
                     thumbDocumentId = stickerSet.documents.get(0).id;
                 }
             }
-            if (thumbDocumentId == 0 || getContext() == null) {
+            if (thumbDocumentId == 0) {
                 return;
             }
-            HintsController.Hint.GroupEmojiPackHintShown.increment();
+            MessagesController.getGlobalMainSettings().edit().putBoolean("groupEmojiPackHintShown", true).apply();
             groupEmojiPackHint = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);
             groupEmojiPackHint.setCloseButton(true);
             groupEmojiPackHint.setMultilineText(true);
@@ -27210,7 +26981,7 @@ public class ChatActivity extends BaseFragment implements
             groupEmojiPackHint.setRounding(12);
             SpannableStringBuilder packFullName = new SpannableStringBuilder("d");
             packFullName.setSpan(new AnimatedEmojiSpan(thumbDocumentId, groupEmojiPackHint.getTextPaint().getFontMetricsInt()), 0, packFullName.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            SpannableStringBuilder titleBuilder = new SpannableStringBuilder(emojiSet.title);
+            SpannableStringBuilder titleBuilder = new SpannableStringBuilder(chatFull.emojiset.title);
             titleBuilder.setSpan(new TypefaceSpan(AndroidUtilities.bold()), 0, titleBuilder.length(), Spanned.SPAN_EXCLUSIVE_INCLUSIVE);
             packFullName.append(" ");
             packFullName.append(titleBuilder);
@@ -27219,11 +26990,10 @@ public class ChatActivity extends BaseFragment implements
             groupEmojiPackHint.setDuration(-1);
             groupEmojiPackHint.setPadding(dp(6), 0, dp(6), 0);
             AndroidUtilities.runOnUIThread(() -> {
-                FrameLayout.LayoutParams lp = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL);
+                FrameLayout.LayoutParams lp = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, 0);
                 lp.bottomMargin = chatActivityEnterView.getMeasuredHeight();
                 contentView.addView(groupEmojiPackHint, lp);
-                groupEmojiPackHint.setTranslationY(-AndroidUtilities.navigationBarHeight);
-                groupEmojiPackHint.setJointPx(0, chatActivityEnterView.getEmojiButton().getX() + dp(22));
+                groupEmojiPackHint.setJointPx(0, chatActivityEnterView.getEmojiButton().getX() + dp(18));
                 groupEmojiPackHint.show();
             }, 300);
         }
@@ -27376,11 +27146,17 @@ public class ChatActivity extends BaseFragment implements
                 return true;
             }
         }
-        fillActionModeMenu(menu, currentEncryptedChat, true, true);
+        fillActionModeMenu(menu, currentEncryptedChat, true);
         return true;
     }
 
+    // forkgram-classic: upstream callers pass `boolean includeLinks` (a 4th arg).
+    // The classic implementation doesn't differentiate; ignore the flag.
     public static void fillActionModeMenu(Menu menu, TLRPC.EncryptedChat encryptedChat, boolean chat, boolean includeLinks) {
+        fillActionModeMenu(menu, encryptedChat, chat);
+    }
+
+    public static void fillActionModeMenu(Menu menu, TLRPC.EncryptedChat encryptedChat, boolean chat) {
         if (menu.findItem(R.id.menu_bold) != null) {
             return;
         }
@@ -27414,13 +27190,7 @@ public class ChatActivity extends BaseFragment implements
             stringBuilder.setSpan(new TextStyleSpan(run), 0, stringBuilder.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             menu.add(R.id.menu_groupbolditalic, R.id.menu_underline, order++, stringBuilder);
         }
-        if (includeLinks) menu.add(R.id.menu_groupbolditalic, R.id.menu_link, order++, LocaleController.getString(R.string.CreateLink));
-        if (chat && encryptedChat == null) {
-            menu.add(R.id.menu_groupbolditalic, R.id.menu_date, order++, LocaleController.getString(R.string.FormattedDate));
-        }
-//        if (MessagesController.getInstance(UserConfig.selectedAccount).getTranslateController().isContextTranslateEnabled()) {
-//            menu.add(R.id.menu_groupbolditalic, R.id.menu_translate, order++, "Translate");
-//        }
+        menu.add(R.id.menu_groupbolditalic, R.id.menu_link, order++, LocaleController.getString(R.string.CreateLink));
         menu.add(R.id.menu_groupbolditalic, R.id.menu_regular, order++, LocaleController.getString(R.string.Regular));
     }
 
@@ -27439,17 +27209,13 @@ public class ChatActivity extends BaseFragment implements
         }
         bottomOverlayChatWaitsReply = false;
         bottomOverlayLinks = false;
-
-        boolean accentTextButton = false;
         boolean forceVisible = false;
         boolean forceNoBottom = false;
         boolean showGiftButton = false;
         boolean showSuggestButton = false;
-        boolean showSearchButton = chatMode == MODE_DEFAULT && ChatObject.isChannelOrGiga(currentChat);
-        boolean showGigaGroupButton = false;
         if (chatMode == MODE_DEFAULT && getMessagesController().isFrozen() && !AccountFrozenAlert.isSpamBot(currentAccount, currentUser)) {
             if (bottomOverlayStartButton != null) {
-                bottomOverlayStartButton.setVisibility(View.INVISIBLE);
+                bottomOverlayStartButton.setVisibility(View.GONE);
             }
             forceVisible = true;
             bottomOverlayLinks = true;
@@ -27495,7 +27261,7 @@ public class ChatActivity extends BaseFragment implements
                 forceNoBottom = true;
             } else {
                 bottomOverlayChatText.setTag(null);
-                bottomOverlayChatText.setText(LocaleController.getString(currentUser != null ? R.string.SavedOpenChatNoCaps : (ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.SavedOpenChannelNoCaps : R.string.SavedOpenGroupNoCaps)));
+                bottomOverlayChatText.setText(LocaleController.getString(currentUser != null ? R.string.SavedOpenChat : (ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.SavedOpenChannel : R.string.SavedOpenGroup)));
                 showBottomOverlayProgress(false, false);
             }
         } else if (isReport()) {
@@ -27513,18 +27279,18 @@ public class ChatActivity extends BaseFragment implements
             }
             if (allowPin) {
                 bottomOverlayChatText.setTag(1);
-                bottomOverlayChatText.setText(LocaleController.getString(R.string.UnpinAllMessagesNoCaps));
+                bottomOverlayChatText.setText(LocaleController.getString(R.string.UnpinAllMessages));
             } else {
                 bottomOverlayChatText.setTag(null);
-                bottomOverlayChatText.setText(LocaleController.getString(R.string.HidePinnedMessagesNoCaps));
+                bottomOverlayChatText.setText(LocaleController.getString(R.string.HidePinnedMessages));
             }
             showBottomOverlayProgress(false, false);
         } else if (currentUser != null && currentUser.id == UserObject.VERIFY) {
             if (!getMessagesController().isDialogMuted(dialog_id, getTopicId())) {
-                bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMuteNoCaps), false);
+                bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMute), false);
                 bottomOverlayChatText.setEnabled(true);
             } else {
-                bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelUnmuteNoCaps), true);
+                bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelUnmute), true);
                 bottomOverlayChatText.setEnabled(true);
             }
             showBottomOverlayProgress(false, bottomOverlayProgress.getTag() != null);
@@ -27539,19 +27305,17 @@ public class ChatActivity extends BaseFragment implements
                         if (currentChat.join_request) {
                             shouldApply = true;
                             if (requestedTime > 0 && System.currentTimeMillis() - requestedTime < 1000 * 60 * 2) {
-                                bottomOverlayChatText.setText(LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.ChannelJoinRequestSentNoCaps : R.string.GroupJoinRequestSentNoCaps), true);
+                                bottomOverlayChatText.setText(LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.ChannelJoinRequestSent : R.string.GroupJoinRequestSent), true);
                                 bottomOverlayChatText.setEnabled(false);
                             } else {
-                                bottomOverlayChatText.setText(LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.ChannelJoinRequestNoCaps : R.string.GroupJoinRequestNoCaps));
+                                bottomOverlayChatText.setText(LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.ChannelJoinRequest : R.string.GroupJoinRequest));
                                 bottomOverlayChatText.setEnabled(true);
-                                accentTextButton = true;
                             }
                         } else {
-                            bottomOverlayChatText.setText(LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.ChannelJoinNoCaps : R.string.GroupJoinNoCaps));
+                            bottomOverlayChatText.setText(LocaleController.getString(ChatObject.isChannelAndNotMegaGroup(currentChat) ? R.string.ChannelJoin : R.string.GroupJoin));
                             bottomOverlayChatText.setEnabled(true);
                             showGiftButton = chatInfo != null && chatInfo.stargifts_available;
                             showSuggestButton = currentChat.broadcast_messages_allowed && currentChat.linked_monoforum_id != 0;
-                            accentTextButton = true;
                         }
                         showBottomOverlayProgress(false, false);
                     }
@@ -27562,10 +27326,10 @@ public class ChatActivity extends BaseFragment implements
                     bottomOverlayChatText.setEnabled(false);
                 } else if (!isThreadChat()) {
                     if (!getMessagesController().isDialogMuted(dialog_id, getTopicId())) {
-                        bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMuteNoCaps), false);
+                        bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMute), false);
                         bottomOverlayChatText.setEnabled(true);
                     } else {
-                        bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelUnmuteNoCaps), true);
+                        bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelUnmute), true);
                         bottomOverlayChatText.setEnabled(true);
                     }
                     showBottomOverlayProgress(false, bottomOverlayProgress.getTag() != null);
@@ -27590,7 +27354,7 @@ public class ChatActivity extends BaseFragment implements
                 bottomOverlayChatText.setEnabled(true);
             }
             if (bottomOverlayStartButton != null) {
-                bottomOverlayStartButton.setVisibility(View.INVISIBLE);
+                bottomOverlayStartButton.setVisibility(View.GONE);
             }
             if (!shouldApply && requestedTime > 0) {
                 MessagesController.getNotificationsSettings(currentAccount).edit().putLong("dialog_join_requested_time_" + dialog_id, -1).commit();
@@ -27599,10 +27363,10 @@ public class ChatActivity extends BaseFragment implements
             showBottomOverlayProgress(false, true);
             if (userBlocked) {
                 if (bottomOverlayStartButton != null) {
-                    bottomOverlayStartButton.setVisibility(View.INVISIBLE);
+                    bottomOverlayStartButton.setVisibility(View.GONE);
                 }
                 if (currentUser.bot) {
-                    bottomOverlayChatText.setText(LocaleController.getString(R.string.BotUnblockNoCaps));
+                    bottomOverlayChatText.setText(LocaleController.getString(R.string.BotUnblock));
                 } else {
                     bottomOverlayChatText.setText(LocaleController.getString(R.string.Unblock));
                 }
@@ -27619,12 +27383,13 @@ public class ChatActivity extends BaseFragment implements
                 }
             } else if (UserObject.isReplyUser(currentUser)) {
                 if (!getMessagesController().isDialogMuted(dialog_id, getTopicId())) {
-                    bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMuteNoCaps), false);
+                    bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMute), false);
                 } else {
-                    bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelUnmuteNoCaps), true);
+                    bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelUnmute), true);
                 }
                 showBottomOverlayProgress(false, true);
-            } else if (botUser != null && currentUser.bot && !UserObject.isDeleted(currentUser)) {
+            } else if (botUser != null && currentUser.bot && !UserObject.isDeleted(currentUser) && !UserObject.isBotForum(currentUser)) {
+//                bottomOverlayStartButton.setText(LocaleController.getString(R.string.BotStart));
                 if (bottomOverlayStartButton != null) {
                     bottomOverlayStartButton.setVisibility(View.VISIBLE);
                 }
@@ -27641,32 +27406,42 @@ public class ChatActivity extends BaseFragment implements
                 bottomOverlayChatText.setText(LocaleController.getString(R.string.DeleteThisChat));
             }
         }
-        if (MessagesController.getGlobalMainSettings().getBoolean("hideBottomButton", false)) {
-            bottomOverlayChatText.setText("");
-        }
 
         if (currentChat != null && currentChat.gigagroup && !isReport() && chatMode == 0) {
-            showGigaGroupButton = true;
+            bottomOverlayImage.setVisibility(View.VISIBLE);
             showGiftButton = false;
             showSuggestButton = false;
+        } else {
+            bottomOverlayImage.setVisibility(View.INVISIBLE);
         }
         if (inPreviewMode) {
-            bottomViewsVisibilityController.setViewVisible(MESSAGE_SEARCH_CONTAINER, false, false);
-            bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
+            if (searchContainer != null) {
+                searchContainer.setVisibility(View.INVISIBLE);
+            }
+            bottomOverlayChat.setVisibility(View.INVISIBLE);
             chatActivityEnterView.setFieldFocused(false);
             chatActivityEnterView.setVisibility(View.INVISIBLE);
         } else if (bottomOverlayLinks || forceVisible) {
-            bottomChannelButtonsLayout.setVisibility(View.VISIBLE);
+            bottomOverlayChat.setVisibility(View.VISIBLE);
             chatActivityEnterView.setVisibility(View.INVISIBLE);
         } else if (searchItem != null && searchItemVisible) {
             createSearchContainer();
             if (searchContainer == null) {
                 return;
             }
-            bottomViewsVisibilityController.setViewVisible(MESSAGE_SEARCH_CONTAINER, true, true);
-            if (searchCountText != null) {
-                searchCountText.setText("", false);
+            searchContainer.animate().setListener(null).cancel();
+            if (searchContainer.getVisibility() != View.VISIBLE) {
+                searchContainer.setVisibility(View.VISIBLE);
+                searchContainer.setAlpha(0f);
+                if (searchCountText != null) {
+                    searchCountText.setText("", false);
+                }
             }
+            ViewPropertyAnimator anim = searchContainer.animate().alpha(1f).setDuration(220).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+            if (isInsideContainer) {
+                anim.translationY(0);
+            }
+            anim.start();
 
             if (searchExpandAnimator != null) {
                 searchExpandAnimator.removeAllListeners();
@@ -27677,6 +27452,8 @@ public class ChatActivity extends BaseFragment implements
                 searchExpandAnimator = ValueAnimator.ofFloat(searchExpandProgress, 1f);
                 searchExpandAnimator.addUpdateListener(animation -> {
                     searchExpandProgress = (float) animation.getAnimatedValue();
+                    chatListView.setTranslationY(searchExpandProgress * (chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(searchContainerHeight)));
+                    chatActivityEnterView.setChatSearchExpandOffset(searchExpandProgress * (chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(searchContainerHeight)));
                     invalidateChatListViewTopPadding();
                 });
                 searchExpandAnimator.addListener(new AnimatorListenerAdapter() {
@@ -27684,7 +27461,7 @@ public class ChatActivity extends BaseFragment implements
                     public void onAnimationEnd(Animator animation) {
                         searchExpandProgress = 1f;
                         chatActivityEnterView.setVisibility(View.INVISIBLE);
-                        bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
+                        bottomOverlayChat.setVisibility(View.INVISIBLE);
                         invalidateChatListViewTopPadding();
                     }
                 });
@@ -27693,7 +27470,7 @@ public class ChatActivity extends BaseFragment implements
                 searchExpandAnimator.start();
             } else {
                 chatActivityEnterView.setVisibility(View.INVISIBLE);
-                bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
+                bottomOverlayChat.setVisibility(View.INVISIBLE);
                 invalidateChatListViewTopPadding();
             }
 
@@ -27710,10 +27487,28 @@ public class ChatActivity extends BaseFragment implements
             if (searchContainer == null) {
                 return;
             }
-            bottomViewsVisibilityController.setViewVisible(MESSAGE_SEARCH_CONTAINER, true, false);
+            if (searchContainer.getVisibility() != View.VISIBLE) {
+                searchContainer.setVisibility(View.VISIBLE);
+            }
             invalidateChatListViewTopPadding();
         } else {
-            bottomViewsVisibilityController.setViewVisible(MESSAGE_SEARCH_CONTAINER, false, true);
+            if (searchContainer != null) {
+                searchContainer.animate().setListener(null).cancel();
+                if (searchContainer.getVisibility() == View.VISIBLE) {
+                    ViewPropertyAnimator anim = searchContainer.animate().alpha(0f).setDuration(220).setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+                    if (isInsideContainer) {
+                        anim.translationY(dp(searchContainerHeight));
+                    }
+                    anim.setListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            super.onAnimationEnd(animation);
+                            searchContainer.setVisibility(View.INVISIBLE);
+                        }
+                    }).start();
+                }
+            }
+
             chatActivityEnterView.setVisibility(View.VISIBLE);
 
             if (searchExpandAnimator != null) {
@@ -27726,6 +27521,8 @@ public class ChatActivity extends BaseFragment implements
                 invalidateChatListViewTopPadding();
                 searchExpandAnimator.addUpdateListener(animation -> {
                     searchExpandProgress = (float) animation.getAnimatedValue();
+                    chatListView.setTranslationY(searchExpandProgress * (chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(searchContainerHeight)));
+                    chatActivityEnterView.setChatSearchExpandOffset(searchExpandProgress * (chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(searchContainerHeight)));
                     invalidateChatListViewTopPadding();
                 });
                 searchExpandAnimator.addListener(new AnimatorListenerAdapter() {
@@ -27750,23 +27547,23 @@ public class ChatActivity extends BaseFragment implements
                 }
             }
             if (isInsideContainer || forceNoBottom) {
-                bottomChannelButtonsLayout.setVisibility(View.GONE);
+                bottomOverlayChat.setVisibility(View.GONE);
                 chatActivityEnterView.setVisibility(View.GONE);
             } else if (isReport()) {
-                bottomChannelButtonsLayout.setVisibility(View.VISIBLE);
+                bottomOverlayChat.setVisibility(View.VISIBLE);
                 chatActivityEnterView.setVisibility(View.INVISIBLE);
             } else if (chatMode == MODE_PINNED ||
                     currentChat != null && (!ChatObject.isMonoForum(currentChat) || !isSubscriberSuggestions) && ((ChatObject.isNotInChat(currentChat) && !UserObject.isBotForum(currentUser) || !ChatObject.canWriteToChat(currentChat)) && (currentChat.join_to_send || !isThreadChat() || ChatObject.isForum(currentChat)) || forumTopic != null && forumTopic.closed && !ChatObject.canManageTopic(currentAccount, currentChat, forumTopic) || shouldDisplaySwipeToLeftToReplyInForum()) ||
                     currentUser != null && (UserObject.isDeleted(currentUser) || userBlocked || UserObject.isReplyUser(currentUser))) {
                 if (chatActivityEnterView.isEditingMessage()) {
                     chatActivityEnterView.setVisibility(View.VISIBLE);
-                    // AndroidUtilities.updateViewShow(bottomChannelButtonsLayout, false, false, true);
-                    bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
+                    AndroidUtilities.updateViewShow(bottomOverlayChat, false, false, true);
+                    bottomOverlayChat.setVisibility(View.INVISIBLE);
                     chatActivityEnterView.setFieldFocused();
                     AndroidUtilities.runOnUIThread(() -> chatActivityEnterView.openKeyboard(), 100);
                 } else {
-                    bottomChannelButtonsLayout.setVisibility(View.VISIBLE);
-                    // AndroidUtilities.updateViewShow(bottomChannelButtonsLayout, true, false, true);
+                    bottomOverlayChat.setVisibility(View.VISIBLE);
+                    AndroidUtilities.updateViewShow(bottomOverlayChat, true, false, true);
                     chatActivityEnterView.setFieldFocused(false);
                     chatActivityEnterView.setVisibility(View.INVISIBLE);
                     chatActivityEnterView.closeKeyboard();
@@ -27777,9 +27574,6 @@ public class ChatActivity extends BaseFragment implements
                 if (attachItem != null) {
                     attachItem.setVisibility(View.GONE);
                 }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(false);
-                }
                 if (editTextItem != null) {
                     editTextItem.setVisibility(View.GONE);
                 }
@@ -27787,11 +27581,11 @@ public class ChatActivity extends BaseFragment implements
                     headerItem.setVisibility(View.VISIBLE);
                 }
             } else {
-                if (botUser != null && currentUser != null && currentUser.bot || currentUser != null && currentUser.id == UserObject.VERIFY || chatMode == MODE_SAVED && getSavedDialogId() != getUserConfig().getClientUserId()) {
-                    bottomChannelButtonsLayout.setVisibility(View.VISIBLE);
+                if (botUser != null && currentUser != null && !UserObject.isBotForum(currentUser) && currentUser.bot || currentUser != null && currentUser.id == UserObject.VERIFY || chatMode == MODE_SAVED && getSavedDialogId() != getUserConfig().getClientUserId()) {
+                    bottomOverlayChat.setVisibility(View.VISIBLE);
                     chatActivityEnterView.setVisibility(View.INVISIBLE);
                 } else {
-                    bottomChannelButtonsLayout.setVisibility(View.INVISIBLE);
+                    bottomOverlayChat.setVisibility(View.INVISIBLE);
                     chatActivityEnterView.setVisibility(View.VISIBLE);
                 }
             }
@@ -27801,23 +27595,86 @@ public class ChatActivity extends BaseFragment implements
             }
         }
         if (sentBotStart) {
-            bottomChannelButtonsLayout.setVisibility(View.GONE);
+            bottomOverlayChat.setVisibility(View.GONE);
             chatActivityEnterView.setVisibility(View.VISIBLE);
             chatActivityEnterView.setBotInfo(botInfo);
         }
-
-
-
-        bottomOverlayChatText.setTextColorKey(accentTextButton ? Theme.key_featuredStickers_buttonText : Theme.key_glass_defaultText);
-
-        bottomChannelButtonsLayout.setCenterAccentBackground(accentTextButton, animated);
-        bottomChannelButtonsLayout.updateWrappingVisible(animated);
-        bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_SEARCH, showSearchButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
-        bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_DIRECT, showSuggestButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
-        bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_GIFT, showGiftButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
-        bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_GIGA_GROUP_INFO, showGigaGroupButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
-
+        showSuggestButton(showSuggestButton && bottomOverlayChat.getVisibility() == View.VISIBLE, animated);
+        showGiftButton(showGiftButton && bottomOverlayChat.getVisibility() == View.VISIBLE, animated);
         checkRaiseSensors();
+    }
+
+    private void showGiftButton(boolean show, boolean animated) {
+        if (getContext() == null) return;
+        final boolean wasShown = bottomGiftButton != null && bottomGiftButton.getAlpha() > 0.5f;
+        if (bottomGiftButton == null) {
+            bottomGiftButton = new ImageView(getContext());
+            bottomGiftButton.setImageResource(R.drawable.input_gift_s);
+            bottomGiftButton.setScaleType(ImageView.ScaleType.CENTER);
+            bottomGiftButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_fieldOverlayText), PorterDuff.Mode.SRC_IN));
+            bottomOverlayChat.addView(bottomGiftButton, LayoutHelper.createFrame(48, 48, Gravity.RIGHT | Gravity.CENTER_VERTICAL));
+            bottomGiftButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_chat_fieldOverlayText), .10f), Theme.RIPPLE_MASK_CIRCLE_20DP));
+            bottomGiftButton.setOnClickListener(v -> {
+                MessagesController.getGlobalMainSettings().edit().putInt("channelgifthint", 3).apply();
+                showDialog(new GiftSheet(getContext(), currentAccount, getDialogId(), null, null));
+            });
+            bottomGiftButton.setContentDescription(getString(R.string.Gift2ChannelSend));
+            ScaleStateListAnimator.apply(bottomGiftButton);
+        }
+        AndroidUtilities.updateViewShow(bottomGiftButton, show, true, animated);
+        if (show && !wasShown && bottomGiftHintView == null && MessagesController.getGlobalMainSettings().getInt("channelgifthint", 0) < 2 && (bottomSuggestHintView == null || !bottomSuggestHintView.shown())) {
+            bottomGiftHintView = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);
+            bottomGiftHintView.setPadding(dp(7.33f), 0, dp(7.33f), 0);
+            bottomGiftHintView.setMultilineText(false);
+            bottomGiftHintView.setText(getString(R.string.Gift2ChannelSendHint));
+            bottomGiftHintView.setJoint(1, -24 + 7.33f);
+            contentView.addView(bottomGiftHintView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 100, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, 51 - 8.66f));
+            bottomGiftHintView.setOnHiddenListener(() -> AndroidUtilities.removeFromParent(bottomGiftHintView));
+            bottomGiftHintView.show();
+            MessagesController.getGlobalMainSettings().edit().putInt("channelgifthint", MessagesController.getGlobalMainSettings().getInt("channelgifthint", 0) + 1).apply();
+        }
+    }
+
+    private void showSuggestButton(boolean show, boolean animated) {
+        if (bottomSuggestButton == null && !show) {
+            return;
+        }
+
+        final boolean wasShown = bottomSuggestButton != null && bottomSuggestButton.getAlpha() > 0.5f;
+        if (bottomSuggestButton == null) {
+            bottomSuggestButton = new ImageView(getContext());
+            bottomSuggestButton.setImageResource(R.drawable.input_message);
+            bottomSuggestButton.setScaleType(ImageView.ScaleType.CENTER);
+            bottomSuggestButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_fieldOverlayText), PorterDuff.Mode.SRC_IN));
+            bottomOverlayChat.addView(bottomSuggestButton, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.CENTER_VERTICAL));
+            bottomSuggestButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_chat_fieldOverlayText), .10f), Theme.RIPPLE_MASK_CIRCLE_20DP));
+            bottomSuggestButton.setOnClickListener(v -> {
+                MessagesController.getGlobalMainSettings().edit().putInt("channelsuggesthint", 3).apply();
+
+                if (currentChat != null && currentChat.linked_monoforum_id != 0) {
+                    getMessagesController().putMonoForumLinkedChat(currentChat.id, currentChat.linked_monoforum_id);
+                    Bundle bundle = new Bundle();
+                    bundle.putLong("chat_id", currentChat.linked_monoforum_id);
+                    bundle.putInt("chatMode", MODE_SUGGESTIONS);
+                    bundle.putBoolean("isSubscriberSuggestions", true);
+                    presentFragment(new ChatActivity(bundle));
+                }
+            });
+            bottomSuggestButton.setContentDescription(getString(R.string.PostSuggestions));
+            ScaleStateListAnimator.apply(bottomSuggestButton);
+        }
+        AndroidUtilities.updateViewShow(bottomSuggestButton, show, true, animated);
+        if (show && !wasShown && bottomSuggestHintView == null && MessagesController.getGlobalMainSettings().getInt("channelsuggesthint", 0) < 2) {
+            bottomSuggestHintView = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);
+            bottomSuggestHintView.setPadding(dp(7.33f), 0, dp(7.33f), 0);
+            bottomSuggestHintView.setMultilineText(false);
+            bottomSuggestHintView.setText(TextCell.applyNewSpan(getString(R.string.Suggest2ChannelSendHint), true));
+            bottomSuggestHintView.setJoint(0, 24 - 7.33f);
+            contentView.addView(bottomSuggestHintView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 100, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, 51 - 8.66f));
+            bottomSuggestHintView.setOnHiddenListener(() -> AndroidUtilities.removeFromParent(bottomSuggestHintView));
+            bottomSuggestHintView.show();
+            MessagesController.getGlobalMainSettings().edit().putInt("channelsuggesthint", MessagesController.getGlobalMainSettings().getInt("channelsuggesthint", 0) + 1).apply();
+        }
     }
 
     private boolean shouldDisplaySwipeToLeftToReplyInForum() {
@@ -27899,14 +27756,23 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void createAlertView() {
-        if (alertView != null || topPanelLayout == null || getContext() == null) {
+        if (alertView != null || getContext() == null) {
             return;
         }
 
         alertView = new FrameLayout(getContext());
-        topPanelLayout.addView(alertView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-        topPanelLayout.setPriority(alertView, 11);
-        topPanelLayout.setDebugName(alertView, "alert view");
+        alertView.setTag(1);
+        alertView.setVisibility(View.GONE);
+        alertView.setBackgroundResource(R.drawable.blockpanel_shadow);
+        alertView.getBackground().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
+        int index = 9;
+        if (topChatPanelView != null && topChatPanelView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(topChatPanelView) + 1);
+        }
+        if (pinnedMessageView != null && pinnedMessageView.getParent() == contentView) {
+            index = Math.max(index, contentView.indexOfChild(pinnedMessageView) + 1);
+        }
+        contentView.addView(alertView, index, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 50, Gravity.TOP | Gravity.LEFT));
 
         alertNameTextView = new TextView(getContext());
         alertNameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
@@ -27930,11 +27796,49 @@ public class ChatActivity extends BaseFragment implements
     public void showAlert(String name, String message) {
         createAlertView();
 
-        if (alertView == null || topPanelLayout == null || name == null || message == null) {
+        if (alertView == null || name == null || message == null) {
             return;
         }
 
-        topPanelLayout.setViewVisible(alertView, true);
+        if (alertView.getTag() != null) {
+            alertView.setTag(null);
+            if (alertViewAnimator != null) {
+                alertViewAnimator.cancel();
+                alertViewAnimator = null;
+            }
+
+            if (alertView.getVisibility() != View.VISIBLE) {
+                alertViewEnterProgress = 0;
+                invalidateChatListViewTopPadding();
+            }
+            alertView.setVisibility(View.VISIBLE);
+            alertViewAnimator = new AnimatorSet();
+            ValueAnimator animator = ValueAnimator.ofFloat(alertViewEnterProgress, 1f);
+            animator.addUpdateListener(valueAnimator -> {
+                alertViewEnterProgress = (float) valueAnimator.getAnimatedValue();
+                invalidateChatListViewTopPadding();
+            });
+            alertViewAnimator.playTogether(animator);
+            alertViewAnimator.setDuration(200);
+            alertViewAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if (alertViewAnimator != null && alertViewAnimator.equals(animation)) {
+                        alertViewEnterProgress = 1f;
+                        invalidateChatListViewTopPadding();
+                        alertViewAnimator = null;
+                    }
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                    if (alertViewAnimator != null && alertViewAnimator.equals(animation)) {
+                        alertViewAnimator = null;
+                    }
+                }
+            });
+            alertViewAnimator.start();
+        }
         alertNameTextView.setText(name);
         alertTextView.setText(Emoji.replaceEmoji(message.replace('\n', ' '), alertTextView.getPaint().getFontMetricsInt(), false));
         if (hideAlertViewRunnable != null) {
@@ -27943,8 +27847,42 @@ public class ChatActivity extends BaseFragment implements
         AndroidUtilities.runOnUIThread(hideAlertViewRunnable = new Runnable() {
             @Override
             public void run() {
-                if (hideAlertViewRunnable == this && topPanelLayout != null && alertView != null) {
-                    topPanelLayout.setViewVisible(alertView, false);
+                if (hideAlertViewRunnable != this) {
+                    return;
+                }
+                if (alertView.getTag() == null) {
+                    alertView.setTag(1);
+                    if (alertViewAnimator != null) {
+                        alertViewAnimator.cancel();
+                        alertViewAnimator = null;
+                    }
+                    alertViewAnimator = new AnimatorSet();
+                    ValueAnimator animator = ValueAnimator.ofFloat(alertViewEnterProgress, 0f);
+                    animator.addUpdateListener(valueAnimator -> {
+                        alertViewEnterProgress = (float) valueAnimator.getAnimatedValue();
+                        invalidateChatListViewTopPadding();
+                    });
+                    alertViewAnimator.playTogether(animator);
+                    alertViewAnimator.setDuration(200);
+                    alertViewAnimator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            if (alertViewAnimator != null && alertViewAnimator.equals(animation)) {
+                                alertView.setVisibility(View.GONE);
+                                alertViewEnterProgress = 0;
+                                invalidateChatListViewTopPadding();
+                                alertViewAnimator = null;
+                            }
+                        }
+
+                        @Override
+                        public void onAnimationCancel(Animator animation) {
+                            if (alertViewAnimator != null && alertViewAnimator.equals(animation)) {
+                                alertViewAnimator = null;
+                            }
+                        }
+                    });
+                    alertViewAnimator.start();
                 }
             }
         }, 3000);
@@ -27952,10 +27890,6 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean hidePinnedMessageView(boolean animated) {
         if (pinnedMessageView != null && pinnedMessageView.getTag() == null) {
-            if (topPanelLayout != null && pinnedMessageView != null) {
-                topPanelLayout.setViewVisible(pinnedMessageView, false, animated);
-            }
-
             for (int a = 0; a < pinnedNextAnimation.length; a++) {
                 if (pinnedNextAnimation[a] != null) {
                     pinnedNextAnimation[a].cancel();
@@ -27964,6 +27898,45 @@ public class ChatActivity extends BaseFragment implements
             }
             setPinnedTextTranslationX = false;
             pinnedMessageView.setTag(1);
+            if (pinnedMessageViewAnimator != null) {
+                pinnedMessageViewAnimator.cancel();
+                pinnedMessageViewAnimator = null;
+            }
+            if (animated) {
+                pinnedMessageViewAnimator = new AnimatorSet();
+                ValueAnimator animator = ValueAnimator.ofFloat(pinnedMessageEnterOffset, -AndroidUtilities.dp(50));
+                animator.addUpdateListener(animation -> {
+                    pinnedMessageEnterOffset = (float) animation.getAnimatedValue();
+                    invalidateChatListViewTopPadding();
+                    invalidateMessagesVisiblePart();
+                    chatListView.invalidate();
+                });
+                pinnedMessageViewAnimator.playTogether(animator);
+                pinnedMessageViewAnimator.setDuration(200);
+                pinnedMessageViewAnimator.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        if (pinnedMessageViewAnimator != null && pinnedMessageViewAnimator.equals(animation)) {
+                            if (pinnedMessageView != null) {
+                                pinnedMessageView.setVisibility(View.GONE);
+                            }
+                            pinnedMessageViewAnimator = null;
+                        }
+                    }
+
+                    @Override
+                    public void onAnimationCancel(Animator animation) {
+                        if (pinnedMessageViewAnimator != null && pinnedMessageViewAnimator.equals(animation)) {
+                            pinnedMessageViewAnimator = null;
+                        }
+                    }
+                });
+                pinnedMessageViewAnimator.start();
+            } else {
+                pinnedMessageEnterOffset = -AndroidUtilities.dp(50);
+                pinnedMessageView.setVisibility(View.GONE);
+                chatListView.invalidate();
+            }
             return true;
         }
         return false;
@@ -28130,9 +28103,46 @@ public class ChatActivity extends BaseFragment implements
                 if (pinnedMessageView != null && pinnedMessageView.getTag() != null) {
                     pinnedMessageView.setTag(null);
                     changed = true;
+                    if (pinnedMessageViewAnimator != null) {
+                        pinnedMessageViewAnimator.cancel();
+                        pinnedMessageViewAnimator = null;
+                    }
+                    if (animated) {
+                        ValueAnimator animator = ValueAnimator.ofFloat(pinnedMessageEnterOffset, 0);
+                        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                            int position = -1;
+                            @Override
+                            public void onAnimationUpdate(ValueAnimator animation) {
+                                pinnedMessageEnterOffset = (float) animation.getAnimatedValue();
+                                invalidateChatListViewTopPadding();
+                                invalidateMessagesVisiblePart();
+                            }
+                        });
+                        pinnedMessageView.setVisibility(View.VISIBLE);
+                        pinnedMessageViewAnimator = new AnimatorSet();
+                        pinnedMessageViewAnimator.playTogether(animator);
+                        pinnedMessageViewAnimator.setDuration(200);
+                        pinnedMessageViewAnimator.addListener(new AnimatorListenerAdapter() {
+                            @Override
+                            public void onAnimationEnd(Animator animation) {
+                                if (pinnedMessageViewAnimator != null && pinnedMessageViewAnimator.equals(animation)) {
+                                    pinnedMessageViewAnimator = null;
+                                }
+                            }
 
-                    if (topPanelLayout != null && pinnedMessageView != null) {
-                        topPanelLayout.setViewVisible(pinnedMessageView, true, animated);
+                            @Override
+                            public void onAnimationCancel(Animator animation) {
+                                if (pinnedMessageViewAnimator != null && pinnedMessageViewAnimator.equals(animation)) {
+                                    pinnedMessageViewAnimator = null;
+                                }
+                            }
+                        });
+                        pinnedMessageViewAnimator.start();
+                    } else {
+                        pinnedMessageEnterOffset = 0;
+                        invalidateChatListViewTopPadding();
+                        invalidateMessagesVisiblePart();
+                        pinnedMessageView.setVisibility(View.VISIBLE);
                     }
                 }
                 for (int a = 0; a < pinnedNextAnimation.length; a++) {
@@ -28159,7 +28169,7 @@ public class ChatActivity extends BaseFragment implements
                     buttonTextView.setText(string);
                     final MessageObject buttonMessage = pinnedMessageObject;
                     buttonTextView.setOnClickListener(e -> {
-                        if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
+                        if (getParentActivity() == null || bottomOverlayChat.getVisibility() == View.VISIBLE &&
                                 !(botButton instanceof TLRPC.TL_keyboardButtonSwitchInline) && !(botButton instanceof TLRPC.TL_keyboardButtonCallback) &&
                                 !(botButton instanceof TLRPC.TL_keyboardButtonGame) && !(botButton instanceof TLRPC.TL_keyboardButtonUrl) &&
                                 !(botButton instanceof TLRPC.TL_keyboardButtonBuy) && !(botButton instanceof TLRPC.TL_keyboardButtonUrlAuth) &&
@@ -28169,7 +28179,7 @@ public class ChatActivity extends BaseFragment implements
                         chatActivityEnterView.didPressedBotButton(botButton, buttonMessage, buttonMessage);
                     });
                     buttonTextView.setOnLongClickListener(e -> {
-                        if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
+                        if (getParentActivity() == null || bottomOverlayChat.getVisibility() == View.VISIBLE &&
                                 !(botButton instanceof TLRPC.TL_keyboardButtonSwitchInline) && !(botButton instanceof TLRPC.TL_keyboardButtonCallback) &&
                                 !(botButton instanceof TLRPC.TL_keyboardButtonGame) && !(botButton instanceof TLRPC.TL_keyboardButtonUrl) &&
                                 !(botButton instanceof TLRPC.TL_keyboardButtonBuy) && !(botButton instanceof TLRPC.TL_keyboardButtonUrlAuth) &&
@@ -28190,7 +28200,9 @@ public class ChatActivity extends BaseFragment implements
                     buttonTextView.setOnClickListener(e -> {
                         final Uri uri = Uri.parse(callLink);
                         final String slug = uri.getPathSegments().get(uri.getPathSegments().size() - 1);
-                        GroupCallSheet.show(getContext(), currentAccount, 0L, slug, null);
+                        final TLRPC.TL_inputGroupCallSlug inputGroupCallSlug = new TLRPC.TL_inputGroupCallSlug();
+                        inputGroupCallSlug.slug = slug;
+                        VoIPHelper.joinConference(getParentActivity(), currentAccount, inputGroupCallSlug, false, null);
                     });
                 } else {
                     buttonTextView.setText(null);
@@ -28200,13 +28212,13 @@ public class ChatActivity extends BaseFragment implements
                 if (messageTextView.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
                     ((ViewGroup.MarginLayoutParams) messageTextView.getLayoutParams()).rightMargin = (
                          (botButton == null && TextUtils.isEmpty(callLink) ? dp(44) : buttonTextView.getMeasuredWidth() + dp(14 + 8)) +
-                         0 /*(isSideMenued() ? dp(SIDE_MENU_WIDTH) : 0)*/
+                         (isSideMenued() ? dp(64) : 0)
                     );
                 }
                 if (nameTextView.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
                     ((ViewGroup.MarginLayoutParams) nameTextView.getLayoutParams()).rightMargin = (
                         (botButton == null && TextUtils.isEmpty(callLink) ? dp(44) : buttonTextView.getMeasuredWidth() + dp(14 + 8)) +
-                        0 /*(isSideMenued() ? dp(SIDE_MENU_WIDTH) : 0) */
+                        (isSideMenued() ? dp(64) : 0)
                     );
                 }
 
@@ -28246,7 +28258,7 @@ public class ChatActivity extends BaseFragment implements
                         pinnedMessageImageView[0].setImageBitmap(null);
                         pinnedMessageImageView[0].setVisibility(View.INVISIBLE);
                     }
-                    layoutParams1.leftMargin = layoutParams2.leftMargin = layoutParams3.leftMargin = layoutParams4.leftMargin = layoutParams5.leftMargin = dp(23);
+                    layoutParams1.leftMargin = layoutParams2.leftMargin = layoutParams3.leftMargin = layoutParams4.leftMargin = layoutParams5.leftMargin = dp(18);
                 } else {
                     if (pinnedMessageObject.isRoundVideo()) {
                         pinnedMessageImageView[1].setRoundRadius(AndroidUtilities.dp(16));
@@ -28265,7 +28277,7 @@ public class ChatActivity extends BaseFragment implements
                     if (animateToNext != 0) {
                         pinnedMessageImageView[1].setAlpha(0.0f);
                     }
-                    layoutParams1.leftMargin = layoutParams2.leftMargin = layoutParams3.leftMargin = layoutParams4.leftMargin = layoutParams5.leftMargin = dp(60);
+                    layoutParams1.leftMargin = layoutParams2.leftMargin = layoutParams3.leftMargin = layoutParams4.leftMargin = layoutParams5.leftMargin = dp(55);
                 }
                 pinnedNameTextView[0].setLayoutParams(layoutParams1);
                 pinnedNameTextView[1].setLayoutParams(layoutParams2);
@@ -28336,7 +28348,7 @@ public class ChatActivity extends BaseFragment implements
                         "telegram_call".equalsIgnoreCase(pinnedMessageObject.messageOwner.media.webpage.type)
                     ) {
                         final SpannableStringBuilder sb = new SpannableStringBuilder("x ").append(getString(R.string.PinnedCall));
-                        final ColoredImageSpan span = new ColoredImageSpan(R.drawable.call);
+                        final ColoredImageSpan span = new ColoredImageSpan(R.drawable.ic_call);
                         span.setSize(dp(16));
                         sb.setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                         nameTextView.setText(sb, true);
@@ -28513,11 +28525,18 @@ public class ChatActivity extends BaseFragment implements
                     }
 
                     BackupImageView animateImage;
-                    final float tx = 0; // getSideMenuWidth();
+                    final float tx = getSideMenuWidth();
                     if (layoutParams1.leftMargin != prevMargin) {
                         animateImage = null;
                         setPinnedTextTranslationX = true;
                         int diff = prevMargin - layoutParams1.leftMargin;
+                        if (!isSideMenuAnimating()) {
+                            animators.add(ObjectAnimator.ofFloat(pinnedMessageTextView[0], View.TRANSLATION_X, tx + diff, tx));
+                            animators.add(ObjectAnimator.ofFloat(pinnedMessageTextView[1], View.TRANSLATION_X, tx + diff, tx));
+                            animators.add(ObjectAnimator.ofFloat(pinnedNameTextView[0], View.TRANSLATION_X, tx + diff, tx));
+                            animators.add(ObjectAnimator.ofFloat(pinnedNameTextView[1], View.TRANSLATION_X, tx + diff, tx));
+                        }
+                        animators.add(ObjectAnimator.ofFloat(pinnedCounterTextView, View.TRANSLATION_X, tx + pinnedCounterTextViewX + diff, tx + pinnedCounterTextViewX));
                         if (diff > 0) {
                             pinnedMessageImageView[0].setAlpha(1f);
                             animators.add(ObjectAnimator.ofFloat(pinnedMessageImageView[0], View.ALPHA, 1.0f, 0.0f));
@@ -28626,7 +28645,7 @@ public class ChatActivity extends BaseFragment implements
                             } else {
                                 pinnedCounterTextView.setAlpha(1.0f);
                             }
-                            final float tx2 = 0; // getSideMenuWidth();
+                            final float tx2 = getSideMenuWidth();
                             pinnedCounterTextView.setTranslationY(0.0f);
                             pinnedMessageTextView[0].setTranslationX(tx2);
                             pinnedMessageTextView[1].setTranslationX(tx2);
@@ -28698,26 +28717,26 @@ public class ChatActivity extends BaseFragment implements
                             }
                         }
                         pinnedCounterTextView.setTranslationY(0.0f);
-                        // pinnedCounterTextView.setTranslationX(getSideMenuWidth() + pinnedCounterTextViewX);
+                        pinnedCounterTextView.setTranslationX(getSideMenuWidth() + pinnedCounterTextViewX);
                         pinnedCounterTextView.setAlpha(shouldAnimateName || currentPinnedMessageIndex[0] == 0 ? 0.0f : 1.0f);
                     }
 
                     messageTextView.setVisibility(View.VISIBLE);
                     messageTextView.setAlpha(1.0f);
-                    // messageTextView.setTranslationX(getSideMenuWidth());
+                    messageTextView.setTranslationX(getSideMenuWidth());
                     messageTextView.setTranslationY(0);
                     nameTextView.setVisibility(View.VISIBLE);
                     nameTextView.setAlpha(1.0f);
-                    // nameTextView.setTranslationX(getSideMenuWidth());
+                    nameTextView.setTranslationX(getSideMenuWidth());
                     nameTextView.setTranslationY(0);
                     pinnedMessageTextView[1].setVisibility(View.INVISIBLE);
-                    //pinnedMessageTextView[1].setTranslationX(getSideMenuWidth());
+                    pinnedMessageTextView[1].setTranslationX(getSideMenuWidth());
                     pinnedMessageTextView[1].setTranslationY(0);
                     pinnedMessageButton[1].setVisibility(View.INVISIBLE);
                     pinnedMessageButton[1].setTranslationX(0);
                     pinnedMessageButton[1].setTranslationY(0);
                     pinnedNameTextView[1].setVisibility(View.INVISIBLE);
-                    // pinnedNameTextView[1].setTranslationX(getSideMenuWidth());
+                    pinnedNameTextView[1].setTranslationX(getSideMenuWidth());
                     pinnedNameTextView[1].setTranslationY(0);
                     pinnedMessageImageView[0].setVisibility(View.INVISIBLE);
                     BackupImageView backupImageView = pinnedMessageImageView[1];
@@ -28784,7 +28803,7 @@ public class ChatActivity extends BaseFragment implements
             if (trackWidth && getVisibility() == View.VISIBLE) {
                 pinnedCounterTextViewX = getTextWidth() + dp(4);
                 if (pinnedCounterTextView != null) {
-                    pinnedCounterTextView.setTranslationX(/*getSideMenuWidth() +*/ pinnedCounterTextViewX);
+                    pinnedCounterTextView.setTranslationX(getSideMenuWidth() + pinnedCounterTextViewX);
                 }
             }
             return result;
@@ -28795,7 +28814,7 @@ public class ChatActivity extends BaseFragment implements
     private boolean shownBotVerification;
     public static final boolean DEBUG_TOP_PANELS = false;
     public void updateTopPanel(boolean animated) {
-        if (chatMode != 0 && chatMode != MODE_SUGGESTIONS || topPanelLayout == null) {
+        if (chatMode != 0 && chatMode != MODE_SUGGESTIONS) {
             return;
         }
         SharedPreferences preferences = MessagesController.getNotificationsSettings(currentAccount);
@@ -28875,7 +28894,6 @@ public class ChatActivity extends BaseFragment implements
                 getMessagesController().getTranslateController().isDialogTranslatable(getDialogId()) && !getMessagesController().getTranslateController().isTranslateDialogHidden(getDialogId()) :
                 !getMessagesController().premiumFeaturesBlocked() && preferences.getInt("dialog_show_translate_count" + did, 5) <= 0
         ) || DEBUG_TOP_PANELS;
-        boolean showAddProfilePicture = UserObject.isBot(currentUser) && currentUser.bot_can_edit && currentUser.photo == null;
         boolean showBizBot = currentEncryptedChat == null && getUserConfig().isPremium() && preferences.getLong("dialog_botid" + did, 0) != 0 || DEBUG_TOP_PANELS;
         boolean showBotAd = currentUser != null && currentUser.bot && messages.size() >= 2 && botSponsoredMessage != null;
         if (showRestartTopic) {
@@ -28891,6 +28909,8 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
         }
+        boolean show2 = showBotAd;
+
         if (showBizBot) {
             createBizBotButton();
             if (bizBotButton != null) {
@@ -28907,9 +28927,6 @@ public class ChatActivity extends BaseFragment implements
             if (translateButton != null) {
                 translateButton.updateText();
             }
-        }
-        if (showAddProfilePicture) {
-            createAddProfilePictureButton();
         }
         if (showBotAd) {
             createBotAdView();
@@ -29049,15 +29066,20 @@ public class ChatActivity extends BaseFragment implements
         if (reportSpamButton != null) {
             reportSpamButton.setVisibility(showReport || showBlock || showGeo ? View.VISIBLE : View.GONE);
         }
+        if (restartTopicButton != null) {
+            restartTopicButton.setVisibility(showRestartTopic1 ? View.VISIBLE : View.GONE);
+        }
+        if (translateButton != null) {
+            translateButton.setVisibility(showTranslate ? View.VISIBLE : View.GONE);
+        }
+        if (botAdView != null) {
+            botAdView.setVisibility(showBotAd ? View.VISIBLE : View.GONE);
+        }
+        if (bizBotButton != null) {
+            bizBotButton.setVisibility(showBizBot ? View.VISIBLE : View.GONE);
+        }
         if (closeReportSpam != null) {
             closeReportSpam.setVisibility(showRestartTopic1 || (showTranslate || showBizBot) && !(showReport || showBlock || showGeo) ? View.GONE : View.VISIBLE);
-        }
-        if (topPanelLayout != null) {
-            topPanelLayout.setViewVisible(restartTopicButton, showRestartTopic1, animated);
-            topPanelLayout.setViewVisible(translateButton, showTranslate, animated);
-            topPanelLayout.setViewVisible(bizBotButton, showBizBot, animated);
-            topPanelLayout.setViewVisible(botAdView, showBotAd, animated);
-            topPanelLayout.setViewVisible(addProfilePictureButton, showAddProfilePicture, animated);
         }
 
         if (!showRestartTopic) {
@@ -29081,12 +29103,15 @@ public class ChatActivity extends BaseFragment implements
                 chatWithAdminTextView.setGravity(Gravity.CENTER_VERTICAL);
                 chatWithAdminTextView.setPadding(AndroidUtilities.dp(14), 0, AndroidUtilities.dp(46), 0);
                 chatWithAdminTextView.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 2));
-                topPanelLayout.addView(chatWithAdminTextView, 0, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
-                topPanelLayout.setPriority(chatWithAdminTextView, 9);
-                topPanelLayout.setDebugName(chatWithAdminTextView, "chat with admin text view");
+                topChatPanelView.addView(chatWithAdminTextView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, 0, 0, 0, 0, 1));
                 chatWithAdminTextView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
                 chatWithAdminTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-                chatWithAdminTextView.setOnClickListener(view -> AlertsCreator.showChatWithAdmin(ChatActivity.this, user, chatWithAdmin, chatWithAdminChannel, chatWithAdminDate));
+                chatWithAdminTextView.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        AlertsCreator.showChatWithAdmin(ChatActivity.this, user, chatWithAdmin, chatWithAdminChannel, chatWithAdminDate);
+                    }
+                });
             }
             String str;
             if (chatWithAdminChannel) {
@@ -29106,7 +29131,9 @@ public class ChatActivity extends BaseFragment implements
             addToContactsButton.setText(LocaleController.getString(R.string.GroupAddMembers));
             addToContactsButton.setTag(4);
             addToContactsButton.setTextColor(getThemedColor(Theme.key_chat_addContact));
-            Theme.setSelectorDrawableColor(addToContactsButton.getBackground(), getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, true);
+            if (Build.VERSION.SDK_INT >= 21) {
+                Theme.setSelectorDrawableColor(addToContactsButton.getBackground(), getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, true);
+            }
             reportSpamButton.setTag(Theme.key_chat_addContact);
         } else if (user != null) {
             if (UserObject.isReplyUser(user)) {
@@ -29123,7 +29150,7 @@ public class ChatActivity extends BaseFragment implements
                 addToContactsButton.setVisibility(View.VISIBLE);
                 if (showArchive) {
                     addToContactsButtonArchive = true;
-                    addToContactsButton.setText(LocaleController.getString(R.string.Unarchive));
+                    addToContactsButton.setText(LocaleController.getString(R.string.Unarchive).toUpperCase());
                     addToContactsButton.setTag(3);
                 } else {
                     if (reportSpamButton.getVisibility() == View.VISIBLE) {
@@ -29131,7 +29158,7 @@ public class ChatActivity extends BaseFragment implements
                     } else {
                         // todo
                         float baseWidth = addToContactsButton.getPaint().measureText(LocaleController.formatString(R.string.AddContactFullChatNoCaps, ""));
-                        addToContactsButton.setText(LocaleController.formatString(R.string.AddContactFullChatNoCaps, TextUtils.ellipsize(UserObject.getFirstName(user), addToContactsButton.getPaint(), AndroidUtilities.displaySize.x - baseWidth - AndroidUtilities.dp(64 * 2), TextUtils.TruncateAt.MIDDLE)));
+                        addToContactsButton.setText(LocaleController.formatString(R.string.AddContactFullChatNoCaps, TextUtils.ellipsize(UserObject.getFirstName(user), addToContactsButton.getPaint(), AndroidUtilities.displaySize.x - baseWidth - AndroidUtilities.dp(64 * 2), TextUtils.TruncateAt.MIDDLE)).toUpperCase());
                     }
                 }
                 addToContactsButton.setTag(null);
@@ -29144,7 +29171,7 @@ public class ChatActivity extends BaseFragment implements
                 addContactItem.setVisibility(View.VISIBLE);
                 addToContactsButton.setVisibility(View.VISIBLE);
                 addContactItem.setText(LocaleController.getString(R.string.ShareMyContactInfo));
-                addToContactsButton.setText(LocaleController.getString(R.string.ShareMyPhoneNoCaps));
+                addToContactsButton.setText(LocaleController.getString(R.string.ShareMyPhone).toUpperCase());
                 addToContactsButton.setTag(1);
                 addToContactsButton.setVisibility(View.VISIBLE);
             } else {
@@ -29175,7 +29202,9 @@ public class ChatActivity extends BaseFragment implements
                 reportSpamButton.setText(LocaleController.getString(R.string.ReportSpamLocationNoCaps));
                 reportSpamButton.setTag(R.id.object_tag, 1);
                 reportSpamButton.setTextColor(getThemedColor(Theme.key_chat_addContact));
-                Theme.setSelectorDrawableColor(reportSpamButton.getBackground(), getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, true);
+                if (Build.VERSION.SDK_INT >= 21) {
+                    Theme.setSelectorDrawableColor(reportSpamButton.getBackground(), getThemedColor(Theme.key_chat_addContact) & 0x19ffffff, true);
+                }
                 reportSpamButton.setTag(Theme.key_chat_addContact);
             } else {
                 if (showArchive) {
@@ -29184,7 +29213,7 @@ public class ChatActivity extends BaseFragment implements
                         return;
                     }
                     addToContactsButtonArchive = true;
-                    addToContactsButton.setText(LocaleController.getString(R.string.Unarchive));
+                    addToContactsButton.setText(LocaleController.getString(R.string.Unarchive).toUpperCase());
                     addToContactsButton.setTag(3);
                     addToContactsButton.setVisibility(View.VISIBLE);
                     reportSpamButton.setText(LocaleController.getString(R.string.ReportSpamNoCaps));
@@ -29199,7 +29228,9 @@ public class ChatActivity extends BaseFragment implements
                 if (reportSpamButton != null) {
                     reportSpamButton.setTag(R.id.object_tag, null);
                     reportSpamButton.setTextColor(getThemedColor(Theme.key_text_RedBold));
-                    Theme.setSelectorDrawableColor(reportSpamButton.getBackground(), getThemedColor(Theme.key_text_RedBold) & 0x19ffffff, true);
+                    if (Build.VERSION.SDK_INT >= 21) {
+                        Theme.setSelectorDrawableColor(reportSpamButton.getBackground(), getThemedColor(Theme.key_text_RedBold) & 0x19ffffff, true);
+                    }
                     reportSpamButton.setTag(Theme.key_text_RedBold);
                 }
             }
@@ -29209,31 +29240,34 @@ public class ChatActivity extends BaseFragment implements
             }
         }
 
-        if (topPanelLayout != null) {
-            topPanelLayout.setViewVisible(chatWithAdminTextView, isChatWithAdmin, animated);
+        if (chatWithAdminTextView != null) {
+            chatWithAdminTextView.setVisibility(isChatWithAdmin ? View.VISIBLE : View.GONE);
         }
-
-        if (userBlocked || ((addToContactsButton == null || addToContactsButton.getVisibility() == View.GONE) && (reportSpamButton == null || reportSpamButton.getVisibility() == View.GONE))) {
+        if (userBlocked || (showBotVerificationReport == null && showCost <= 0 && (addToContactsButton == null || addToContactsButton.getVisibility() == View.GONE) && (reportSpamButton == null || reportSpamButton.getVisibility() == View.GONE) && (chatWithAdminTextView == null || chatWithAdminTextView.getVisibility() == View.GONE) && (restartTopicButton == null || restartTopicButton.getVisibility() == View.GONE) && (translateButton == null || translateButton.getVisibility() == View.GONE) && (bizBotButton == null || bizBotButton.getVisibility() == View.GONE))) {
             show = false;
         }
 
+        int topChatPanelHeight = AndroidUtilities.dp(50);
         if (showCost > 0 || showEmojiStatusReport != null && show) {
             createTopPanel();
             if (topChatPanelView == null) {
                 return;
             }
             emojiStatusSpamHint.resetEmojiColor();
+            topViewSeparator2.setVisibility(View.VISIBLE);
             if ((restartTopicButton == null || restartTopicButton.getVisibility() != View.VISIBLE) &&
                 (reportSpamButton == null || reportSpamButton.getVisibility() != View.VISIBLE) &&
                 (addToContactsButton == null || addToContactsButton.getVisibility() != View.VISIBLE) &&
                 (user == null || TextUtils.isEmpty(chatWithAdmin))
             ) {
+                topChatPanelHeight -= AndroidUtilities.dp(48);
+                topViewSeparator2.setVisibility(View.GONE);
                 closeReportSpam.setVisibility(View.GONE);
             }
-            topPanelLayout.setViewVisible(emojiStatusSpamHint, true, animated);
+            emojiStatusSpamHint.setVisibility(View.VISIBLE);
             emojiStatusSpamHint.setTextColor(getThemedColor(Theme.key_chat_topPanelMessage));
             emojiStatusSpamHint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13.3f);
-            emojiStatusSpamHint.setLineSpacing(dp(1), 1);
+            topViewSeparator1.setVisibility(View.VISIBLE);
             SpannableStringBuilder totalText = new SpannableStringBuilder();
             if (showEmojiStatusReport != null && show) {
                 final TLRPC.EmojiStatus status = showEmojiStatusReport;
@@ -29316,43 +29350,52 @@ public class ChatActivity extends BaseFragment implements
                     totalText.append("\n\n");
                 }
                 final ColoredImageSpan[] span = new ColoredImageSpan[1];
-                totalText.append(StarsIntroActivity.replaceStars(AndroidUtilities.replaceSingleTag(formatString(R.string.MessageLockedStarsRemoveFeeShort, DialogObject.getShortName(user_id), LocaleController.formatNumber(showCost, ',')), () -> {
+                totalText.append(StarsIntroActivity.replaceStars(AndroidUtilities.replaceSingleTag(formatString(R.string.MessageLockedStars, DialogObject.getShortName(user_id), LocaleController.formatNumber(showCost, ',')), () -> {
                     StarsController.getInstance(currentAccount).getPaidRevenue(user_id, parent_id, revenue -> {
                         if (getContext() == null) return;
                         AlertsCreator.showAlertWithCheckbox(
-                            getContext(),
-                            getString(R.string.RemoveMessageFeeTitle),
-                            AndroidUtilities.replaceTags(formatString(ChatObject.isMonoForum(currentChat) ? R.string.RemoveMessageFeeMessageChannel : R.string.RemoveMessageFeeMessage, DialogObject.getShortName(user_id))),
-                            revenue > 0 ? formatPluralStringComma("RemoveMessageFeeRefund", (int) (long) revenue) : null,
-                            getString(R.string.Confirm),
-                            refund -> StarsController.getInstance(currentAccount).stopPaidMessages(user_id, parent_id, revenue > 0 && refund, true),
-                            resourceProvider
+                                getContext(),
+                                getString(R.string.RemoveMessageFeeTitle),
+                                AndroidUtilities.replaceTags(formatString(ChatObject.isMonoForum(currentChat) ? R.string.RemoveMessageFeeMessageChannel : R.string.RemoveMessageFeeMessage, DialogObject.getShortName(user_id))),
+                                revenue > 0 ? formatPluralStringComma("RemoveMessageFeeRefund", (int) (long) revenue) : null,
+                                getString(R.string.Confirm),
+                                refund -> StarsController.getInstance(currentAccount).stopPaidMessages(user_id, parent_id, revenue > 0 && refund, true),
+                                resourceProvider
                         );
                     });
                 }), .9f, span));
-                // span[0].setTranslateY(dp(1));
+                span[0].setTranslateY(-dp(1));
                 span[0].setTranslateX(+dp(1));
             }
             ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) emojiStatusSpamHint.getLayoutParams();
             lp.leftMargin = dp(25 + (isSideMenued() ? 32 : 0));
             lp.rightMargin = dp(25 + (isSideMenued() ? 32 : 0));
+            emojiStatusSpamHint.setTranslationX(getSideMenuWidth() / 2.0f);
             emojiStatusSpamHint.setText(totalText);
+            emojiStatusSpamHint.measure(View.MeasureSpec.makeMeasureSpec(AndroidUtilities.displaySize.x - dp(50 + (isSideMenued() ? 64 : 0)), View.MeasureSpec.AT_MOST), View.MeasureSpec.makeMeasureSpec(99999, View.MeasureSpec.AT_MOST));
+            topChatPanelHeight += AndroidUtilities.dp(4);
+            emojiStatusSpamHint.setTranslationY(topChatPanelHeight);
+            topChatPanelHeight += AndroidUtilities.dp(10) + emojiStatusSpamHint.getMeasuredHeight();
         } else if (showBotVerificationReport != null) {
             createTopPanel();
             if (topChatPanelView == null) {
                 return;
             }
+            topViewSeparator2.setVisibility(View.VISIBLE);
             if ((restartTopicButton == null || restartTopicButton.getVisibility() != View.VISIBLE) &&
                 (reportSpamButton == null || reportSpamButton.getVisibility() != View.VISIBLE) &&
                 (addToContactsButton == null || addToContactsButton.getVisibility() != View.VISIBLE) &&
                 (user == null || TextUtils.isEmpty(chatWithAdmin))
             ) {
+                topChatPanelHeight -= AndroidUtilities.dp(48);
+                topViewSeparator2.setVisibility(View.GONE);
                 closeReportSpam.setVisibility(View.GONE);
             }
-            topPanelLayout.setViewVisible(emojiStatusSpamHint, true, animated);
+            emojiStatusSpamHint.setVisibility(View.VISIBLE);
             emojiStatusSpamHint.setTextColor(getThemedColor(Theme.key_chat_topPanelMessage));
             emojiStatusSpamHint.setEmojiColor(getThemedColor(Theme.key_chat_topPanelMessage));
             emojiStatusSpamHint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13.3f);
+            topViewSeparator1.setVisibility(View.VISIBLE);
             SpannableStringBuilder text = new SpannableStringBuilder("x");
             text.setSpan(new AnimatedEmojiSpan(showBotVerificationReport.icon, emojiStatusSpamHint.getPaint().getFontMetricsInt()), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             text.append(" ");
@@ -29360,22 +29403,254 @@ public class ChatActivity extends BaseFragment implements
             ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) emojiStatusSpamHint.getLayoutParams();
             lp.leftMargin = dp(25 + (isSideMenued() ? 32 : 0));
             lp.rightMargin = dp(25 + (isSideMenued() ? 32 : 0));
+            emojiStatusSpamHint.setTranslationX(getSideMenuWidth() / 2.0f);
             emojiStatusSpamHint.setText(text);
+            emojiStatusSpamHint.measure(View.MeasureSpec.makeMeasureSpec(AndroidUtilities.displaySize.x - dp(50 + (isSideMenued() ? 64 : 0)), View.MeasureSpec.AT_MOST), View.MeasureSpec.makeMeasureSpec(99999, View.MeasureSpec.AT_MOST));
+            topChatPanelHeight += AndroidUtilities.dp(4);
+            emojiStatusSpamHint.setTranslationY(topChatPanelHeight);
+            topChatPanelHeight += AndroidUtilities.dp(10) + emojiStatusSpamHint.getMeasuredHeight();
         } else {
-            topPanelLayout.setViewVisible(emojiStatusSpamHint, false, animated);
+            if (emojiStatusSpamHint != null) {
+                emojiStatusSpamHint.setVisibility(View.GONE);
+            }
+            if (topViewSeparator1 != null) {
+                topViewSeparator1.setVisibility(View.GONE);
+            }
+            if (topViewSeparator2 != null) {
+                topViewSeparator2.setVisibility(View.GONE);
+            }
         }
         if (showTranslate || showBizBot) {
             createTopPanel();
             if (topChatPanelView == null) {
                 return;
             }
+            if (restartTopicButton.getVisibility() == View.VISIBLE ||
+                reportSpamButton.getVisibility() == View.VISIBLE ||
+                addToContactsButton.getVisibility() == View.VISIBLE ||
+                user != null && !TextUtils.isEmpty(chatWithAdmin)
+            ) {
+                topViewSeparator3.setVisibility(View.VISIBLE);
+                topViewSeparator3.setTranslationY(showTranslate ? 0 : -dp(48 - 36));
+            } else {
+                if (showBotVerificationReport == null && showCost <= 0) {
+                    topChatPanelHeight -= AndroidUtilities.dp(48);
+                }
+                topViewSeparator3.setVisibility(View.GONE);
+            }
+            if (showTranslate) {
+                topChatPanelHeight += AndroidUtilities.dp(36);
+            }
+            if (showBizBot) {
+                topChatPanelHeight += AndroidUtilities.dp(48);
+            }
+            if (bizBotButton != null) {
+                bizBotButton.setTranslationY(AndroidUtilities.dp(showBizBot && showTranslate ? -36 : 0));
+            }
+        } else if (topViewSeparator3 != null) {
+            topViewSeparator3.setVisibility(View.GONE);
         }
+        if (topViewSeparator1 != null) {
+            topViewSeparator1.setVisibility((topViewSeparator3 != null && topViewSeparator3.getVisibility() == View.VISIBLE || topViewSeparator2 != null && topViewSeparator2.getVisibility() == View.VISIBLE) ? View.VISIBLE : View.GONE);
+        }
+        if (topChatPanelView != null) {
+            topChatPanelView.getLayoutParams().height = topChatPanelHeight;
+        }
+        int topChatPanel2Height = 0;
+        if (show2) {
+            topChatPanel2Height += dp(2);
+            if (showBotAd) {
+                // forkgram-classic: BotAdView no longer exposes a custom
+                // height() helper; use the standard View.getHeight().
+                topChatPanel2Height += botAdView.getHeight();
+            }
+        }
+        if (topChatPanelView2 != null) {
+            topChatPanelView2.getLayoutParams().height = topChatPanel2Height;
+        }
+
         if (show) {
             createTopPanel();
+            if (topChatPanelView == null) {
+                return;
+            }
+            if (topChatPanelView.getTag() != null) {
+                if (BuildVars.LOGS_ENABLED) {
+                    FileLog.d("show spam button");
+                }
+                topChatPanelView.setTag(null);
+                topChatPanelView.setVisibility(View.VISIBLE);
+                if (reportSpamViewAnimator != null) {
+                    reportSpamViewAnimator.cancel();
+                    reportSpamViewAnimator = null;
+                }
+                if (animated) {
+                    reportSpamViewAnimator = new AnimatorSet();
+                    ValueAnimator animator = ValueAnimator.ofFloat(topChatPanelViewOffset, 0);
+                    animator.addUpdateListener(animation -> {
+                        topChatPanelViewOffset = (float) animation.getAnimatedValue();
+                        invalidateChatListViewTopPadding();
+                        invalidateMessagesVisiblePart();
+                    });
+                    reportSpamViewAnimator.playTogether(animator);
+                    reportSpamViewAnimator.setDuration(200);
+                    reportSpamViewAnimator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            if (reportSpamViewAnimator != null && reportSpamViewAnimator.equals(animation)) {
+                                reportSpamViewAnimator = null;
+                            }
+                        }
+
+                        @Override
+                        public void onAnimationCancel(Animator animation) {
+                            if (reportSpamViewAnimator != null && reportSpamViewAnimator.equals(animation)) {
+                                reportSpamViewAnimator = null;
+                            }
+                        }
+                    });
+                    reportSpamViewAnimator.start();
+                } else {
+                    topChatPanelViewOffset = 0;
+                    invalidateChatListViewTopPadding();
+                    invalidateMessagesVisiblePart();
+                }
+            }
+        } else if (topChatPanelView != null) {
+            if (topChatPanelView.getTag() == null) {
+                if (BuildVars.LOGS_ENABLED) {
+                    FileLog.d("hide spam button");
+                }
+                topChatPanelView.setTag(1);
+
+                if (reportSpamViewAnimator != null) {
+                    reportSpamViewAnimator.cancel();
+                    reportSpamViewAnimator = null;
+                }
+                if (animated) {
+                    reportSpamViewAnimator = new AnimatorSet();
+                    ValueAnimator animator = ValueAnimator.ofFloat(topChatPanelViewOffset, -topChatPanelHeight);
+                    animator.addUpdateListener(animation -> {
+                        topChatPanelViewOffset = (float) animation.getAnimatedValue();
+                        invalidateChatListViewTopPadding();
+                        invalidateMessagesVisiblePart();
+                    });
+                    reportSpamViewAnimator.playTogether(animator);
+                    reportSpamViewAnimator.setDuration(200);
+                    reportSpamViewAnimator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            if (reportSpamViewAnimator != null && reportSpamViewAnimator.equals(animation)) {
+                                topChatPanelView.setVisibility(View.GONE);
+                                reportSpamViewAnimator = null;
+                            }
+                            invalidateChatListViewTopPadding();
+                            invalidateMessagesVisiblePart();
+                        }
+
+                        @Override
+                        public void onAnimationCancel(Animator animation) {
+                            if (reportSpamViewAnimator != null && reportSpamViewAnimator.equals(animation)) {
+                                reportSpamViewAnimator = null;
+                            }
+                        }
+                    });
+                    reportSpamViewAnimator.start();
+                } else {
+                    topChatPanelViewOffset = -topChatPanelHeight;
+                    invalidateChatListViewTopPadding();
+                    invalidateMessagesVisiblePart();
+                }
+            }
         }
+        if (show2) {
+            createTopPanel2();
+            if (topChatPanelView2 == null) {
+                return;
+            }
+            if (topChatPanelView2.getTag() != null) {
+                topChatPanelView2.setTag(null);
+                topChatPanelView2.setVisibility(View.VISIBLE);
+                if (topChatPanelView2Animator != null) {
+                    topChatPanelView2Animator.cancel();
+                    topChatPanelView2Animator = null;
+                }
+                if (animated) {
+                    topChatPanelView2Animator = new AnimatorSet();
+                    ValueAnimator animator = ValueAnimator.ofFloat(topChatPanelView2Offset, 0);
+                    animator.addUpdateListener(animation -> {
+                        topChatPanelView2Offset = (float) animation.getAnimatedValue();
+                        invalidateChatListViewTopPadding();
+                        invalidateMessagesVisiblePart();
+                    });
+                    topChatPanelView2Animator.playTogether(animator);
+                    topChatPanelView2Animator.setDuration(200);
+                    topChatPanelView2Animator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            if (topChatPanelView2Animator != null && topChatPanelView2Animator.equals(animation)) {
+                                topChatPanelView2Animator = null;
+                            }
+                        }
 
-        topPanelLayout.setViewVisible(topChatPanelView, show, animated);
+                        @Override
+                        public void onAnimationCancel(Animator animation) {
+                            if (topChatPanelView2Animator != null && topChatPanelView2Animator.equals(animation)) {
+                                topChatPanelView2Animator = null;
+                            }
+                        }
+                    });
+                    topChatPanelView2Animator.start();
+                } else {
+                    topChatPanelView2Offset = 0;
+                    invalidateChatListViewTopPadding();
+                    invalidateMessagesVisiblePart();
+                }
+            }
+        } else if (topChatPanelView2 != null) {
+            if (topChatPanelView2.getTag() == null) {
+                topChatPanelView.setTag(1);
 
+                if (topChatPanelView2Animator != null) {
+                    topChatPanelView2Animator.cancel();
+                    topChatPanelView2Animator = null;
+                }
+                if (animated) {
+                    topChatPanelView2Animator = new AnimatorSet();
+                    ValueAnimator animator = ValueAnimator.ofFloat(topChatPanelView2Offset, -topChatPanel2Height);
+                    animator.addUpdateListener(animation -> {
+                        topChatPanelView2Offset = (float) animation.getAnimatedValue();
+                        invalidateChatListViewTopPadding();
+                        invalidateMessagesVisiblePart();
+                    });
+                    topChatPanelView2Animator.playTogether(animator);
+                    topChatPanelView2Animator.setDuration(200);
+                    topChatPanelView2Animator.addListener(new AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            if (topChatPanelView2Animator != null && topChatPanelView2Animator.equals(animation)) {
+                                topChatPanelView2.setVisibility(View.GONE);
+                                topChatPanelView2Animator = null;
+                            }
+                            invalidateChatListViewTopPadding();
+                            invalidateMessagesVisiblePart();
+                        }
+
+                        @Override
+                        public void onAnimationCancel(Animator animation) {
+                            if (topChatPanelView2Animator != null && topChatPanelView2Animator.equals(animation)) {
+                                topChatPanelView2Animator = null;
+                            }
+                        }
+                    });
+                    topChatPanelView2Animator.start();
+                } else {
+                    topChatPanelView2Offset = -topChatPanel2Height;
+                    invalidateChatListViewTopPadding();
+                    invalidateMessagesVisiblePart();
+                }
+            }
+        }
         checkListViewPaddings();
     }
 
@@ -29405,7 +29680,7 @@ public class ChatActivity extends BaseFragment implements
             MediaController.getInstance().setAllowStartRecord(false);
         } else if (currentChat != null && !ChatObject.canSendVoice(currentChat)) {
             MediaController.getInstance().setAllowStartRecord(false);
-        } else if (!ApplicationLoader.mainInterfacePaused && (bottomChannelButtonsLayout == null || bottomChannelButtonsLayout.getVisibility() != View.VISIBLE) && (bottomOverlay == null || bottomOverlay.getVisibility() != View.VISIBLE) && (searchContainer == null || searchContainer.getVisibility() != View.VISIBLE)) {
+        } else if (!ApplicationLoader.mainInterfacePaused && (bottomOverlayChat == null || bottomOverlayChat.getVisibility() != View.VISIBLE) && (bottomOverlay == null || bottomOverlay.getVisibility() != View.VISIBLE) && (searchContainer == null || searchContainer.getVisibility() != View.VISIBLE)) {
             MediaController.getInstance().setAllowStartRecord(true);
         } else {
             MediaController.getInstance().setAllowStartRecord(false);
@@ -29478,7 +29753,7 @@ public class ChatActivity extends BaseFragment implements
                             hasAllMentionsLocal = true;
                             showMentionDownButton(false, true);
                         } else {
-                            sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                            mentiondownButtonCounter.setText(String.format(Locale.US, "%d", newMentionsCount));
                         }
                         getMessagesController().markMentionMessageAsRead(message.getId(), ChatObject.isChannel(currentChat) ? currentChat.id : 0, dialog_id);
                         message.setContentIsRead();
@@ -29502,9 +29777,6 @@ public class ChatActivity extends BaseFragment implements
         }
         if (pinnedMessageView != null) {
             pinnedMessageView.setEnabled(!isInPreviewMode());
-        }
-        if (contentView != null) {
-            contentView.setOccupyStatusBar(!inBubbleMode && !isInsideContainer && !inPreviewMode);
         }
     }
 
@@ -29543,10 +29815,24 @@ public class ChatActivity extends BaseFragment implements
                 if (tag == 1) {
                     return 0;
                 }
-
-                return Math.round(windowInsetsStateHolder.getAnimatedMaxBottomInset()
-                    + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-                    + (chatInputViewsContainer.getInputBubbleHeight() + dp(9 + 7)));
+                int height;
+                if (chatActivityEnterView != null && chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                    if (contentView.getKeyboardHeight() < AndroidUtilities.dp(20) && chatActivityEnterView.isPopupShowing() || chatActivityEnterView.panelAnimationInProgress()) {
+                        height = chatActivityEnterView.getHeight() + chatActivityEnterView.getEmojiPadding();
+                    } else {
+                        height = chatActivityEnterView.getHeight();
+                    }
+                } else if (!isInsideContainer) {
+                    height = AndroidUtilities.dp(51);
+                } else {
+                    height = 0;
+                }
+                if (chatActivityEnterView.panelAnimationInProgress()) {
+                    float translationY = bottomPanelTranslationY - chatActivityEnterView.getEmojiPadding();
+                    height += translationY;
+                }
+                height += contentPanTranslation;
+                return height - AndroidUtilities.dp(1.5f);
             }
 
             @Override
@@ -29558,22 +29844,11 @@ public class ChatActivity extends BaseFragment implements
             public boolean allowLayoutChanges() {
                 return false;
             }
-
-            @Override
-            public void onShow(Bulletin bulletin) {
-                bulletin.getLayout().setCustomBackground(glassBackgroundDrawableFactory
-                    // fake multiwindow flag because bulleting parent is not child of fragment
-                    // todo: fix?
-                    .create(bulletin.getLayout(), true)
-                    .setColorProvider(BlurredBackgroundProviderImpl.bulletin(themeDelegate))
-                    .setRadius(dp(16))
-                );
-            }
         });
 
         checkActionBarMenu(false);
-        if (replyImageLocation != null && replyLayout != null) {
-            replyLayout.current().image.setImage(ImageLocation.getForObject(replyImageLocation, replyImageLocationObject), "50_50", ImageLocation.getForObject(replyImageThumbLocation, replyImageLocationObject), "50_50_b", null, replyImageSize, replyImageCacheType, replyingMessageObject);
+        if (replyImageLocation != null && replyImageView != null) {
+            replyImageView.setImage(ImageLocation.getForObject(replyImageLocation, replyImageLocationObject), "50_50", ImageLocation.getForObject(replyImageThumbLocation, replyImageLocationObject), "50_50_b", null, replyImageSize, replyImageCacheType, replyingMessageObject);
         }
         if (pinnedImageLocation != null && pinnedMessageImageView != null) {
             MessageObject pinnedMessageObject = pinnedMessageObjects.get(currentPinnedMessageId);
@@ -29622,7 +29897,7 @@ public class ChatActivity extends BaseFragment implements
         fixLayout();
         applyDraftMaybe(false);
         applyChatLinkMessageMaybe();
-        if (bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() != View.VISIBLE && !actionBar.isSearchFieldVisible() && chatMode != MODE_SEARCH && !BaseFragment.hasSheets(this)) {
+        if (bottomOverlayChat != null && bottomOverlayChat.getVisibility() != View.VISIBLE && !actionBar.isSearchFieldVisible() && chatMode != MODE_SEARCH && !BaseFragment.hasSheets(this)) {
             chatActivityEnterView.setFieldFocused(true);
         }
         if (chatActivityEnterView != null) {
@@ -29687,7 +29962,7 @@ public class ChatActivity extends BaseFragment implements
         CharSequence draftMessage = null;
         MessageObject replyMessage = null;
         boolean searchWebpage = true;
-        if (!ignoreAttachOnPause && chatActivityEnterView != null && bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() != View.VISIBLE) {
+        if (!ignoreAttachOnPause && chatActivityEnterView != null && bottomOverlayChat != null && bottomOverlayChat.getVisibility() != View.VISIBLE) {
             replyMessage = replyingMessageObject;
             draftMessage = AndroidUtilities.getTrimmedString(chatActivityEnterView.getDraftMessage());
             searchWebpage = chatActivityEnterView.isMessageWebPageSearchEnabled();
@@ -29728,7 +30003,7 @@ public class ChatActivity extends BaseFragment implements
         }
         Bulletin.removeDelegate(this);
         getMessagesController().setLastVisibleDialogId(dialog_id, chatMode == MODE_SCHEDULED, false);
-        if (!ignoreAttachOnPause && chatActivityEnterView != null && bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() != View.VISIBLE) {
+        if (!ignoreAttachOnPause && chatActivityEnterView != null && bottomOverlayChat != null && bottomOverlayChat.getVisibility() != View.VISIBLE) {
             chatActivityEnterView.onPause();
             chatActivityEnterView.setFieldFocused(false);
         }
@@ -30209,9 +30484,6 @@ public class ChatActivity extends BaseFragment implements
         if (chatListView == null) {
             return false;
         }
-        if (org.telegram.messenger.MessagesController.getGlobalMainSettings().getBoolean("disablePlayVisibleVideoOnVolume", false)) {
-            return false;
-        }
         MessageObject playingMessage = MediaController.getInstance().getPlayingMessageObject();
         if (playingMessage != null && !playingMessage.isVideo()) {
             return false;
@@ -30340,7 +30612,6 @@ public class ChatActivity extends BaseFragment implements
             if (!actionBar.isActionModeShowed()) {
                 return;
             }
-            bottomViewsVisibilityController.setViewVisible(MESSAGE_ACTION_CONTAINER, false, true);
             actionBar.hideActionMode();
         }
         cantDeleteMessagesCount = 0;
@@ -30462,25 +30733,6 @@ public class ChatActivity extends BaseFragment implements
             if (message.messageOwner.action instanceof TLRPC.TL_messageActionGiveawayResults) {
                 isGiveawayResultsMessage = true;
             }
-            if (message.messageOwner.action instanceof TLRPC.TL_messageActionPollAppendAnswer) {
-                if (message.getReplyMsgId() != 0) {
-                    AndroidUtilities.runOnUIThread(() -> scrollToMessageId(message.getReplyMsgId(), message.messageOwner.id, true,
-                        message.getDialogId() == mergeDialogId ? 1 : 0, false, 0, null,
-                        ((TLRPC.TL_messageActionPollAppendAnswer) message.messageOwner.action).answer.option, null));
-                } else {
-                    BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.MessageNotFound), themeDelegate).show();
-                }
-                return true;
-            }
-            if (message.messageOwner.action instanceof TLRPC.TL_messageActionPollDeleteAnswer) {
-                if (message.getReplyMsgId() != 0) {
-                    AndroidUtilities.runOnUIThread(() -> scrollToMessageId(message.getReplyMsgId(), message.messageOwner.id, true,
-                            message.getDialogId() == mergeDialogId ? 1 : 0, false, 0, null, null, null));
-                } else {
-                    BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.MessageNotFound), themeDelegate).show();
-                }
-                return true;
-            }
             if (message.messageOwner.action instanceof TLRPC.TL_messageActionPinMessage || isGiveawayResultsMessage) {
                 if (message.getReplyMsgId() != 0) {
                     AndroidUtilities.runOnUIThread(() -> scrollToMessageId(message.getReplyMsgId(), message.messageOwner.id, true, message.getDialogId() == mergeDialogId ? 1 : 0, false, 0));
@@ -30590,7 +30842,7 @@ public class ChatActivity extends BaseFragment implements
             allowPin = false;
         }
         allowPin = allowPin && message.getId() > 0 && (message.messageOwner.action == null || message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty) && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION;
-        boolean noforwards = isPeerNoForwards() || message.messageOwner.noforwards || getDialogId() == UserObject.VERIFY;
+        boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || message.messageOwner.noforwards || getDialogId() == UserObject.VERIFY;
         boolean noforwardsOrPaidMedia = noforwards || message.type == MessageObject.TYPE_PAID_MEDIA;
         boolean allowUnpin = message.getDialogId() != mergeDialogId && allowPin && (pinnedMessageObjects.containsKey(message.getId()) || groupedMessages != null && !groupedMessages.messages.isEmpty() && pinnedMessageObjects.containsKey(groupedMessages.messages.get(0).getId())) && !message.isExpiredStory();
         boolean allowEdit = message.canEditMessage(currentChat) && !chatActivityEnterView.hasAudioToSend() && message.getDialogId() != mergeDialogId && message.type != MessageObject.TYPE_STORY && message.type != MessageObject.TYPE_POLL;
@@ -30611,7 +30863,7 @@ public class ChatActivity extends BaseFragment implements
                 message.isSponsored() || type == 1 && message.getDialogId() == mergeDialogId ||
                 message.messageOwner.action instanceof TLRPC.TL_messageActionSecureValuesSent ||
                 currentEncryptedChat == null && message.getId() < 0 ||
-                bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && selectedObject != null && (MessageObject.getTopicId(currentAccount, selectedObject.messageOwner, ChatObject.isForum(currentChat)) != 0 || selectedObject.wasJustSent))) {
+                bottomOverlayChat != null && bottomOverlayChat.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && selectedObject != null && (MessageObject.getTopicId(currentAccount, selectedObject.messageOwner, ChatObject.isForum(currentChat)) != 0 || selectedObject.wasJustSent))) {
             allowChatActions = false;
         }
 
@@ -30758,31 +31010,10 @@ public class ChatActivity extends BaseFragment implements
                 if (chatInfo == null) {
                     isReactionsAvailable = true;
                 } else {
-                    isReactionsAvailable = !isSecretChat()
-                        && chatMode != MODE_QUICK_REPLIES
-                        && !isInScheduleMode()
-                        && primaryMessage.isReactionsAvailable()
-                        && !availableReacts.isEmpty()
-                        && (chatInfo != null && (
-                            !(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone)
-                            || chatInfo.paid_reactions_available)
-                        );
+                    isReactionsAvailable = !isSecretChat() && chatMode != MODE_QUICK_REPLIES && !isInScheduleMode() && primaryMessage.isReactionsAvailable() && (chatInfo != null && (!(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone) || chatInfo.paid_reactions_available)) && !availableReacts.isEmpty();
                 }
             } else {
-                isReactionsAvailable = !isSecretChat()
-                    && chatMode != MODE_QUICK_REPLIES
-                    && !isInScheduleMode()
-                    && primaryMessage.isReactionsAvailable()
-                    && !availableReacts.isEmpty()
-                    && !message.isSecretMedia()
-                    && (chatInfo != null && (
-                        !(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone)
-                        || chatInfo.paid_reactions_available)
-                        || (chatInfo == null && !ChatObject.isChannel(currentChat))
-                        || currentUser != null
-                        || ChatObject.isMonoForum(currentChat)
-                    )
-                    && (currentChat == null || ChatObject.isChannelAndNotMegaGroup(currentChat) || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS));
+                isReactionsAvailable = !message.isSecretMedia() && chatMode != MODE_QUICK_REPLIES && !isSecretChat() && !isInScheduleMode() && primaryMessage.isReactionsAvailable() && (chatInfo != null && (!(chatInfo.available_reactions instanceof TLRPC.TL_chatReactionsNone) || chatInfo.paid_reactions_available) || (chatInfo == null && !ChatObject.isChannel(currentChat)) || currentUser != null || ChatObject.isMonoForum(currentChat)) && !availableReacts.isEmpty();
             }
             final boolean showMessageSeen = !suggestEdit && !isReactionsViewAvailable && !isInScheduleMode() && currentChat != null && message.isOutOwner() && message.isSent() && !message.isEditing() && !message.isSending() && !message.isSendError() && !message.isContentUnread() && !message.isUnread() && (ConnectionsManager.getInstance(currentAccount).getCurrentTime() - message.messageOwner.date < getMessagesController().chatReadMarkExpirePeriod) && (ChatObject.isMegagroup(currentChat) || !ChatObject.isChannel(currentChat)) && chatInfo != null && chatInfo.participants_count <= getMessagesController().chatReadMarkSizeThreshold && !(message.messageOwner.action instanceof TLRPC.TL_messageActionChatJoinedByRequest) && chatMode != MODE_SAVED && message.canSetReaction() && !ChatObject.isMonoForum(currentChat);
             final boolean showMessageAuthor = !suggestEdit && currentChat != null && !message.isOut() && ChatObject.isMonoForum(currentChat) && ChatObject.canManageMonoForum(currentAccount, currentChat) && -currentChat.linked_monoforum_id == message.getFromChatId();
@@ -30797,10 +31028,10 @@ public class ChatActivity extends BaseFragment implements
                 flags |= ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_USE_SWIPEBACK;
             }
 
-            ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert4, themeDelegate, flags);
+            ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert, themeDelegate, flags);
             popupLayout.setMinimumWidth(AndroidUtilities.dp(200));
             Rect backgroundPaddings = new Rect();
-            Drawable shadowDrawable = getParentActivity().getResources().getDrawable(R.drawable.popup_fixed_alert4).mutate();
+            Drawable shadowDrawable = getParentActivity().getResources().getDrawable(R.drawable.popup_fixed_alert).mutate();
             shadowDrawable.getPadding(backgroundPaddings);
             popupLayout.setBackgroundColor(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground));
             MessageSeenView messageSeenView = null;
@@ -30811,25 +31042,12 @@ public class ChatActivity extends BaseFragment implements
                 if (isReactionsViewAvailable) {
                     ReactedHeaderView reactedView = new ReactedHeaderView(contentView.getContext(), currentAccount, primaryMessage, dialog_id);
 
-                    boolean hasReactionsFromOtherUsers = false;
                     int count = 0;
                     if (primaryMessage.messageOwner.reactions != null) {
                         for (TLRPC.ReactionCount r : primaryMessage.messageOwner.reactions.results) {
                             count += r.count;
-                            if (r.count > 1 || !r.chosen) {
-                                hasReactionsFromOtherUsers = true;
-                            }
                         }
                     }
-                    final boolean canDeleteReactions = hasReactionsFromOtherUsers && ChatObject.canUserDoAdminAction(currentChat, ChatObject.ACTION_DELETE_MESSAGES);
-                    final View tapAndHoldView;
-                    if (canDeleteReactions) {
-                        tapAndHoldView = createMenuTextOption(getContext(), themeDelegate, getString(R.string.TapAndHoldToDeleteReaction));
-                        tapAndHoldView.setMinimumHeight(dp(32));
-                    } else {
-                        tapAndHoldView = null;
-                    }
-
                     boolean hasHeader = count > 10 && primaryMessage.messageOwner.reactions.results.size() > 1;
                     ReactedUsersListView.ContainerLinerLayout linearLayout = new ReactedUsersListView.ContainerLinerLayout(contentView.getContext());
                     linearLayout.hasHeader = hasHeader;
@@ -30930,8 +31148,7 @@ public class ChatActivity extends BaseFragment implements
                                 ReactedUsersListView v = new ReactedUsersListView(container.getContext(), themeDelegate, currentAccount, message, reactionCount, false, true)
                                         .setSeenUsers(reactedView.getSeenUsers())
                                         .setOnCustomEmojiSelectedListener((reactedUsersListView1, customEmojiStickerSets) -> {
-                                            if (getParentActivity() == null || getContext() == null) return;
-                                            final EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, customEmojiStickerSets) {
+                                            EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, customEmojiStickerSets) {
                                                 @Override
                                                 public void dismiss() {
                                                     super.dismiss();
@@ -31020,8 +31237,7 @@ public class ChatActivity extends BaseFragment implements
                         reactedUsersListView = new ReactedUsersListView(contentView.getContext(), themeDelegate, currentAccount, primaryMessage, null, false, true)
                                 .setSeenUsers(reactedView.getSeenUsers())
                                 .setOnCustomEmojiSelectedListener((reactedUsersListView1, customEmojiStickerSets) -> {
-                                    if (getParentActivity() == null || getContext() == null) return;
-                                    final EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, customEmojiStickerSets) {
+                                    EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, customEmojiStickerSets) {
                                         @Override
                                         public void dismiss() {
                                             super.dismiss();
@@ -31040,66 +31256,14 @@ public class ChatActivity extends BaseFragment implements
                                     } else {
                                         args.putLong("chat_id", -userId);
                                     }
-                                    if (!(messagePeerReaction == null || messagePeerReaction.reaction == null)) {
-                                        args.putInt("report_reaction_message_id", primaryMessage.getId());
-                                        args.putLong("report_reaction_from_dialog_id", dialog_id);
-                                    }
+                                    args.putInt("report_reaction_message_id", primaryMessage.getId());
+                                    args.putLong("report_reaction_from_dialog_id", dialog_id);
                                     ProfileActivity fragment = new ProfileActivity(args);
                                     presentFragment(fragment);
                                     closeMenu();
-                                })
-                                .setOnProfileLongSelectedListener((view, userId, messagePeerReaction) -> {
-                                    if (messagePeerReaction == null || messagePeerReaction.reaction == null || userId == getUserConfig().getClientUserId() || !canDeleteReactions) {
-                                        return;
-                                    }
-
-                                    final ArrayList<MessageObject> arrMessages = new ArrayList<>(1);
-                                    arrMessages.add(primaryMessage);
-
-                                    final TLObject userOrChat = getMessagesController().getUserOrChat(userId);
-                                    final ArrayList<TLObject> actionParticipants = new ArrayList<>(1);
-                                    actionParticipants.add(userOrChat);
-
-                                    final TLRPC.ChannelParticipant[] participants = new TLRPC.ChannelParticipant[1];
-                                    final TLRPC.TL_channels_getParticipant req = new TLRPC.TL_channels_getParticipant();
-                                    req.channel = MessagesController.getInputChannel(currentChat);
-                                    req.participant = MessagesController.getInputPeer(userOrChat);
-                                    getConnectionsManager().sendRequestTyped(req, AndroidUtilities::runOnUIThread, (res, err) -> {
-                                        if (res != null) {
-                                            getMessagesController().putUsers(res.users, false);
-                                            getMessagesController().putChats(res.chats, false);
-                                            participants[0] = res.participant;
-                                        }
-                                        new DeleteMessagesBottomSheet(this, currentChat,
-                                                arrMessages, actionParticipants, participants,
-                                                mergeDialogId, (int) getTopicId(),
-                                                chatMode, true, () -> {}).show();
-                                    });
-                                    closeMenu();
-                                })
-                                .setOnHeightChangedListener((view, newHeight) -> {
-                                    int addH = 0;
-                                    if (tapAndHoldView != null) {
-                                        final int oldW = tapAndHoldView.getMeasuredWidth();
-                                        final int oldH = tapAndHoldView.getMeasuredHeight();
-                                        tapAndHoldView.measure(
-                                            View.MeasureSpec.makeMeasureSpec(view.getMeasuredWidth(), View.MeasureSpec.EXACTLY),
-                                            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-                                        addH += dp(8) + tapAndHoldView.getMeasuredHeight();
-                                        tapAndHoldView.measure(
-                                            View.MeasureSpec.makeMeasureSpec(oldW, View.MeasureSpec.EXACTLY),
-                                            View.MeasureSpec.makeMeasureSpec(oldH, View.MeasureSpec.EXACTLY));
-                                    }
-
-                                    popupLayout.getSwipeBack().setNewForegroundHeight(foregroundIndex[0],
-                                            AndroidUtilities.dp(44 + 8) + addH + newHeight, true);
-                                });
+                                }).setOnHeightChangedListener((view, newHeight) -> popupLayout.getSwipeBack().setNewForegroundHeight(foregroundIndex[0], AndroidUtilities.dp(44 + 8) + newHeight, true));
                         reactedView.setSeenCallback(reactedUsersListView::setSeenUsers);
                         linearLayout.addView(reactedUsersListView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
-                        if (tapAndHoldView != null) {
-                            linearLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
-                            linearLayout.addView(tapAndHoldView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-                        }
                     }
 
                     foregroundIndex[0] = popupLayout.addViewToSwipeBack(linearLayout);
@@ -31112,31 +31276,6 @@ public class ChatActivity extends BaseFragment implements
                     });
                     popupLayout.addView(reactedView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48));
                     addGap = true;
-                }
-
-                if (message.messageOwner != null && message.messageOwner.media instanceof TLRPC.TL_messageMediaPoll) {
-                    TLRPC.TL_messageMediaPoll poll = (TLRPC.TL_messageMediaPoll) message.messageOwner.media;
-                    if (poll.poll.hide_results_until_close && !poll.poll.closed && !poll.poll.creator) {
-                        popupLayout.addView(createMenuTextOption(getContext(), themeDelegate, LocaleController.getString(R.string.PollResultsWillLater)));
-                        popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
-                    }
-                    if (!poll.poll.closed) {
-                        int rFlags = 0;
-                        if (poll.poll.subscribers_only)  {
-                            rFlags |= PollUtils.VOTE_RESTRICTED_NOT_SUBSCRIBED_FLAG;
-                        }
-                        if (poll.poll.countries_iso2 != null && !poll.poll.countries_iso2.isEmpty()) {
-                            rFlags |= PollUtils.VOTE_RESTRICTED_BY_COUNTRY_FLAG;
-                        }
-
-                        if (rFlags != 0) {
-                            CharSequence rText = PollUtils.getVoteRestrictedToastText(message, rFlags);
-                            if (!TextUtils.isEmpty(rText)) {
-                                popupLayout.addView(createMenuTextOption(getContext(), themeDelegate, rText));
-                                popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
-                            }
-                        }
-                    }
                 }
 
                 if (showMessageSeen) {
@@ -31496,7 +31635,12 @@ public class ChatActivity extends BaseFragment implements
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
                     }
                     if (!selectedObject.sponsoredCanReport) {
-                        FrameLayout sponsoredAbout = new FrameLayout(getParentActivity());
+                        FrameLayout sponsoredAbout = new FrameLayout(getParentActivity()) {
+                            @Override
+                            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+                            }
+                        };
                         sponsoredAbout.setMinimumHeight(AndroidUtilities.dp(56));
                         sponsoredAbout.setBackground(Theme.createRadSelectorDrawable(getThemedColor(Theme.key_dialogButtonSelector), popupLayout.getItemsCount() <= 0 ? 6 : 0, 0));
                         sponsoredAbout.setPadding(AndroidUtilities.dp(18), 0, AndroidUtilities.dp(18), 0);
@@ -31585,7 +31729,6 @@ public class ChatActivity extends BaseFragment implements
                             return true;
                         };
                         TLRPC.InputPeer inputPeer = selectedObject != null && (selectedObject.isPoll() || selectedObject.isVoiceTranscriptionOpen() || selectedObject.isSponsored() || selectedObject.scheduled || chatMode == MODE_QUICK_REPLIES) ? null : getMessagesController().getInputPeer(dialog_id);
-//                        final boolean shouldTranslateByText = selectedObject != null && (selectedObject.isPoll() || selectedObject.isVoiceTranscriptionOpen() || selectedObject.isSponsored() || selectedObject.scheduled || chatMode == MODE_QUICK_REPLIES);
                         if (selectedObject != null && selectedObject.messageOwner != null && selectedObject.messageOwner.originalLanguage != null) {
                             waitForLangDetection.set(false);
                             String fromLang = selectedObject.messageOwner.originalLanguage;
@@ -31599,24 +31742,12 @@ public class ChatActivity extends BaseFragment implements
                                 if (selectedObject == null || i >= options.size() || getParentActivity() == null) {
                                     return;
                                 }
-
                                 String toLangValue = fromLang != null && fromLang.equals(toLang) ? toLangDefault : toLang;
                                 ArrayList<TLRPC.MessageEntity> entities = selectedObject != null && selectedObject.messageOwner != null ? selectedObject.messageOwner.entities : null;
-                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], selectedObject.summarized, fromLang, toLangValue, finalMessageText, entities, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
+                                // forkgram-classic: upstream sig added `boolean sum` at pos 5.
+                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], false, fromLang, toLangValue, finalMessageText, entities, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
                                 alert.setDimBehind(false);
                                 closeMenu(false);
-
-//                                final TranslateAlert3 alert =
-//                                    new TranslateAlert3(getContext(), resourceProvider)
-//                                        .setText(fromLang, finalMessageText)
-//                                        .setMessage(dialog_id, shouldTranslateByText ? 0 : messageIdToTranslate[0], selectedObject.summarized)
-//                                        .setToLanguage(fromLang != null && fromLang.equals(toLang) ? toLangDefault : toLang)
-//                                        .setNoforwards(noforwardsOrPaidMedia)
-//                                        .setOnLinkPress(onLinkPress);
-//                                alert.setOnDismissListener(() -> dimBehindView(false));
-//                                alert.setDimBehind(false);
-//                                alert.show();
-//                                closeMenu(false);
 
                                 int hintCount = MessagesController.getNotificationsSettings(currentAccount).getInt("dialog_show_translate_count" + getDialogId(), 5);
                                 if (hintCount > 0) {
@@ -31625,7 +31756,7 @@ public class ChatActivity extends BaseFragment implements
                                     updateTopPanel(true);
                                 }
                             });
-                        } else /*if (LanguageDetector.hasSupport()) {
+                        } else if (LanguageDetector.hasSupport()) {
                             final String[] fromLang = {null};
                             cell.setVisibility(View.GONE);
                             waitForLangDetection.set(true);
@@ -31660,21 +31791,10 @@ public class ChatActivity extends BaseFragment implements
                                 }
                                 String toLangValue = fromLang[0] != null && fromLang[0].equals(toLang) ? toLangDefault : toLang;
                                 ArrayList<TLRPC.MessageEntity> entities = selectedObject != null && selectedObject.messageOwner != null ? selectedObject.messageOwner.entities : null;
-                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], selectedObject.summarized, fromLang[0], toLangValue, finalMessageText, entities, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
+                                // forkgram-classic: upstream sig added `boolean sum` at pos 5.
+                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], false, fromLang[0], toLangValue, finalMessageText, entities, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
                                 alert.setDimBehind(false);
                                 closeMenu(false);
-
-//                                final TranslateAlert3 alert =
-//                                    new TranslateAlert3(getContext(), resourceProvider)
-//                                        .setText(fromLang[0], finalMessageText)
-//                                        .setMessage(dialog_id, shouldTranslateByText ? 0 : messageIdToTranslate[0], selectedObject.summarized)
-//                                        .setToLanguage(fromLang[0] != null && fromLang[0].equals(toLang) ? toLangDefault : toLang)
-//                                        .setNoforwards(noforwardsOrPaidMedia)
-//                                        .setOnLinkPress(onLinkPress);
-//                                alert.setOnDismissListener(() -> dimBehindView(false));
-//                                alert.setDimBehind(false);
-//                                alert.show();
-//                                closeMenu(false);
 
                                 int hintCount = MessagesController.getNotificationsSettings(currentAccount).getInt("dialog_show_translate_count" + getDialogId(), 5);
                                 if (hintCount > 0) {
@@ -31688,25 +31808,15 @@ public class ChatActivity extends BaseFragment implements
                                     onLangDetectionDone.getAndSet(null).run();
                                 }
                             }, 250);
-                        } else */if (translateEnabled) {
+                        } else if (translateEnabled) {
                             cell.setOnClickListener(e -> {
                                 if (selectedObject == null || i >= options.size() || getParentActivity() == null) {
                                     return;
                                 }
-
-                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], selectedObject.summarized, "und", toLang, finalMessageText, null, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
+                                // forkgram-classic: upstream sig added `boolean sum` at pos 5.
+                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], false, "und", toLang, finalMessageText, null, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
                                 alert.setDimBehind(false);
                                 closeMenu(false);
-
-//                                final TranslateAlert3 alert = new TranslateAlert3(getContext(), getResourceProvider())
-//                                    .setMessage(dialog_id, shouldTranslateByText ? 0 : messageIdToTranslate[0], selectedObject.summarized)
-//                                    .setText(finalMessageText)
-//                                    .setNoforwards(noforwardsOrPaidMedia)
-//                                    .setOnLinkPress(onLinkPress);
-//                                alert.setOnDismissListener(() ->  dimBehindView(false));
-//                                alert.setDimBehind(false);
-//                                alert.show();
-//                                closeMenu(false);
 
                                 int hintCount = MessagesController.getNotificationsSettings(currentAccount).getInt("dialog_show_translate_count" + getDialogId(), 5);
                                 if (hintCount > 0) {
@@ -31722,7 +31832,12 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (selectedObject != null && selectedObject.messageOwner != null && selectedObject.messageOwner.video_processing_pending) {
                     popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
-                    FrameLayout layout = new FrameLayout(getParentActivity());
+                    FrameLayout layout = new FrameLayout(getParentActivity()) {
+                        @Override
+                        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+                        }
+                    };
                     TextView infoText = new TextView(getParentActivity()) {
                         @Override
                         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
@@ -31880,7 +31995,7 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
 
-                boolean showNoForwards = (isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
+                boolean showNoForwards = (getMessagesController().isChatNoForwards(currentChat) || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
                 scrimPopupContainerLayout.addView(popupLayout, LayoutHelper.createLinearRelatively(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, 0, isReactionsAvailable ? 36 : 0, 0));
                 scrimPopupContainerLayout.setPopupWindowLayout(popupLayout);
                 if (showNoForwards) {
@@ -31889,27 +32004,15 @@ public class ChatActivity extends BaseFragment implements
                     TextView tv = new TextView(contentView.getContext());
                     tv.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
                     tv.setTextColor(getThemedColor(Theme.key_actionBarDefaultSubmenuItem));
-                    if (isPeerNoForwards()) {
-                        final CharSequence str;
-                        if (getDialogId() > 0) {
-                            if (userInfo != null && currentUser != null && userInfo.noforwards_peer_enabled) {
-                                final String name = DialogObject.getShortName(currentUser);
-                                str = LocaleController.formatString(R.string.ForwardsRestrictedInfoUserBecauseUser, name);
-                            } else if (userInfo != null && currentUser != null && userInfo.noforwards_my_enabled) {
-                                str = LocaleController.getString(R.string.ForwardsRestrictedInfoUserBecauseYou);
-                            } else {
-                                str = LocaleController.getString(R.string.ForwardsRestrictedInfoUser);
-                            }
-                        } else {
-                            str = LocaleController.getString(isChannel ? R.string.ForwardsRestrictedInfoChannel : R.string.ForwardsRestrictedInfoGroup);
-                        }
-                        tv.setText(AndroidUtilities.replaceTags(str));
+                    if (getMessagesController().isChatNoForwards(currentChat)) {
+                        tv.setText(isChannel ? LocaleController.getString(R.string.ForwardsRestrictedInfoChannel) :
+                                LocaleController.getString(R.string.ForwardsRestrictedInfoGroup));
                     } else {
                         tv.setText(LocaleController.getString(R.string.ForwardsRestrictedInfoBot));
                     }
                     tv.setMaxWidth(popupLayout.getMeasuredWidth() - AndroidUtilities.dp(38));
 
-                    Drawable shadowDrawable2 = ContextCompat.getDrawable(contentView.getContext(), R.drawable.popup_fixed_alert4).mutate();
+                    Drawable shadowDrawable2 = ContextCompat.getDrawable(contentView.getContext(), R.drawable.popup_fixed_alert).mutate();
                     shadowDrawable2.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground), PorterDuff.Mode.MULTIPLY));
 
                     FrameLayout fl = new FrameLayout(contentView.getContext());
@@ -31932,7 +32035,7 @@ public class ChatActivity extends BaseFragment implements
                     tv.setText(text);
                     tv.setMaxWidth(popupLayout.getMeasuredWidth() - AndroidUtilities.dp(38));
 
-                    Drawable shadowDrawable2 = ContextCompat.getDrawable(contentView.getContext(), R.drawable.popup_fixed_alert4).mutate();
+                    Drawable shadowDrawable2 = ContextCompat.getDrawable(contentView.getContext(), R.drawable.popup_fixed_alert).mutate();
                     shadowDrawable2.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground), PorterDuff.Mode.MULTIPLY));
 
                     FrameLayout fl = new FrameLayout(contentView.getContext());
@@ -31979,7 +32082,7 @@ public class ChatActivity extends BaseFragment implements
 
                             View button = new MessageContainsEmojiButton(currentAccount, contentView.getContext(), themeDelegate, stickerSets, MessageContainsEmojiButton.EMOJI_TYPE);
                             button.setOnClickListener(e -> {
-                                final EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, stickerSets) {
+                                EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, stickerSets) {
                                     @Override
                                     public void dismiss() {
                                         super.dismiss();
@@ -32139,31 +32242,31 @@ public class ChatActivity extends BaseFragment implements
         createActionMode();
         final ActionBarMenu actionMode = actionBar.createActionMode();
         actionMode.setItemVisibility(delete, View.VISIBLE);
-        actionsButtonsLayout.bringToFront();
-        bottomViewsVisibilityController.setViewVisible(MESSAGE_ACTION_CONTAINER, true, true);
+        createBottomMessagesActionButtons();
+        bottomMessagesActionContainer.setVisibility(View.VISIBLE);
 
         int translationY = chatActivityEnterView.getMeasuredHeight() - AndroidUtilities.dp(51);
         createActionMode();
         if (chatActivityEnterView.getVisibility() == View.VISIBLE) {
             ArrayList<View> views = new ArrayList<>();
-            //views.add(chatActivityEnterView);
+            views.add(chatActivityEnterView);
             if (mentionContainer != null && mentionContainer.getVisibility() == View.VISIBLE) {
                 views.add(mentionContainer);
             }
             if (suggestEmojiPanel != null && suggestEmojiPanel.getVisibility() == View.VISIBLE) {
                 views.add(suggestEmojiPanel);
             }
-            actionBar.showActionMode(true, null, null, views.toArray(new View[0]), new boolean[]{false, true, true}, null, 0);
+            actionBar.showActionMode(true, bottomMessagesActionContainer, null, views.toArray(new View[0]), new boolean[]{false, true, true}, chatListView, translationY);
             if (getParentActivity() instanceof LaunchActivity) {
                 ((LaunchActivity) getParentActivity()).hideVisibleActionMode();
             }
             if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
                 chatActivityEnterView.getEditField().setAllowDrawCursor(false);
             }
-        } else if (bottomChannelButtonsLayout.getVisibility() == View.VISIBLE) {
-            actionBar.showActionMode(true, null, null, null, new boolean[]{true}, null, 0);
+        } else if (bottomOverlayChat.getVisibility() == View.VISIBLE) {
+            actionBar.showActionMode(true, bottomMessagesActionContainer, null, new View[]{bottomOverlayChat}, new boolean[]{true}, chatListView, translationY);
         } else {
-            actionBar.showActionMode(true, null, null, null, null, null, 0);
+            actionBar.showActionMode(true, bottomMessagesActionContainer, null, null, null, chatListView, translationY);
         }
         closeMenu();
         chatLayoutManager.setCanScrollVertically(true);
@@ -32182,9 +32285,6 @@ public class ChatActivity extends BaseFragment implements
         animatorSet.start();
 
         addToSelectedMessages(message, listView);
-        selectedMessagesIds[0].withTouch.clear();
-        selectedMessagesIds[0].withTouch.add(message.getId());
-        updateMultipleSelection(actionMode);
 
         if (chatActivityEnterView != null) {
             chatActivityEnterView.preventInput = true;
@@ -32410,18 +32510,6 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-    private void updateMultipleSelection(ActionBarMenu actionMode) {
-        if (actionMode == null) {
-            return;
-        }
-        View item = actionMode.getItem(select_between);
-        if (item == null) {
-            return;
-        }
-        final boolean t = selectedMessagesIds[0].withTouch.size() > 1;
-        item.setVisibility(t ? View.VISIBLE : View.GONE);
-    }
-
     private void updateGreetInfo() {
         showGreetInfo(
             getDialogId() != getUserConfig().getClientUserId() &&
@@ -32537,7 +32625,9 @@ public class ChatActivity extends BaseFragment implements
                     return;
                 }
                 StarsController.getInstance(currentAccount).commitPaidReaction();
-                final StarsReactionsSheet sheet = new StarsReactionsSheet(getContext(), currentAccount, dialog_id, ChatActivity.this, primaryMessage, reactors, chatFull == null || chatFull.paid_reactions_available, false, 0, themeDelegate);
+                // forkgram-classic: upstream constructor grew `boolean liveStories`
+                // and `long sendAs` slots before the ResourcesProvider; pass defaults.
+                final StarsReactionsSheet sheet = new StarsReactionsSheet(getContext(), currentAccount, dialog_id, ChatActivity.this, primaryMessage, reactors, chatFull == null || chatFull.paid_reactions_available, false, 0L, themeDelegate);
                 sheet.setMessageCell(ChatActivity.this, primaryMessage.getId(), cell);
                 sheet.show();
                 return;
@@ -32570,11 +32660,6 @@ public class ChatActivity extends BaseFragment implements
 
         if (getDialogId() == getUserConfig().getClientUserId() && !getUserConfig().isPremium() && primaryMessage.messageOwner != null && (primaryMessage.messageOwner.reactions == null || (primaryMessage.messageOwner.reactions.reactions_as_tags || primaryMessage.messageOwner.reactions.results.isEmpty()))) {
             new PremiumFeatureBottomSheet(ChatActivity.this, PremiumPreviewFragment.PREMIUM_FEATURE_SAVED_TAGS, true).show();
-            return;
-        }
-
-        if (!primaryMessage.hasChosenReaction(visibleReaction) && (!(currentChat == null || ChatObject.isChannelAndNotMegaGroup(currentChat) || ChatObject.canUserDoAction(currentChat, ChatObject.ACTION_SEND_REACTIONS)))) {
-            BulletinFactory.of(this).createSimpleBulletin(R.raw.e_hand_2, getString(R.string.SendReactionsIsRestrictedInThisChat)).show();
             return;
         }
 
@@ -32971,25 +33056,6 @@ public class ChatActivity extends BaseFragment implements
         if (TextUtils.isEmpty(path)) {
             return;
         }
-        if (messageObject.isLivePhoto()) {
-            final TLRPC.Document videoDoc = MessageObject.getMedia(messageObject.messageOwner) != null
-                    ? MessageObject.getMedia(messageObject.messageOwner).document
-                    : null;
-            String videoPath = null;
-            if (videoDoc != null) {
-                File videoFile = FileLoader.getInstance(currentAccount).getPathToAttach(videoDoc, false);
-                if (videoFile == null || !videoFile.exists()) {
-                    videoFile = FileLoader.getInstance(currentAccount).getPathToAttach(videoDoc, true);
-                }
-                if (videoFile != null && videoFile.exists()) {
-                    videoPath = videoFile.getPath();
-                }
-            }
-            if (!TextUtils.isEmpty(videoPath)) {
-                MediaController.saveFile(path, videoPath, getParentActivity(), null);
-                return;
-            }
-        }
         MediaController.saveFile(path, getParentActivity(), messageObject.isVideo() ? 1 : 0, null, null);
     }
 
@@ -33035,17 +33101,6 @@ public class ChatActivity extends BaseFragment implements
                 createDeleteMessagesAlert(selectedObject, selectedObjectGroup, true);
                 break;
             }
-            case 202: {
-                ArrayList<MessageObject> messages = new ArrayList<MessageObject>();
-                if (selectedObjectGroup != null) {
-                    messages = selectedObjectGroup.messages;
-                } else {
-                    messages.add(selectedObject);
-                }
-
-                showDialog(createShareAlert(getParentActivity(), messages, "", false, false, null));
-                break;
-            }
             case OPTION_FORWARD: {
                 if (getMessagesController().isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
@@ -33054,7 +33109,6 @@ public class ChatActivity extends BaseFragment implements
                     selectedObjectGroup = null;
                     return;
                 }
-                IS_ANONYMOUS_FORWARD = false;
                 forwardingMessage = selectedObject;
                 forwardingMessageGroup = selectedObjectGroup;
                 Bundle args = new Bundle();
@@ -33119,7 +33173,7 @@ public class ChatActivity extends BaseFragment implements
                 } else {
                     saveMessageToGallery(selectedObject);
                     if (getParentActivity() != null) {
-                        BulletinFactory.of(this).createDownloadBulletin(selectedObject.isLivePhoto() ? BulletinFactory.FileType.LIVEPHOTO : (selectedObject.isVideo() ? BulletinFactory.FileType.VIDEO : BulletinFactory.FileType.PHOTO), themeDelegate).show();
+                        BulletinFactory.of(this).createDownloadBulletin(selectedObject.isVideo() ? BulletinFactory.FileType.VIDEO : BulletinFactory.FileType.PHOTO, themeDelegate).show();
                     }
                 }
                 break;
@@ -33228,12 +33282,6 @@ public class ChatActivity extends BaseFragment implements
                         path = f.getPath();
                     }
                 }
-                if (TextUtils.isEmpty(path)) {
-                    File f = FileLoader.getInstance(currentAccount).getPathToMessage(selectedObject.messageOwner, true, true);
-                    if (f != null && f.exists()) {
-                        path = f.getPath();
-                    }
-                }
                 if (TextUtils.isEmpty(path) && selectedObject.cachedQuality != null && selectedObject.cachedQuality.isCached()) {
                     File f = new File(selectedObject.cachedQuality.uri.getPath());
                     if (f != null && f.exists()) {
@@ -33256,28 +33304,8 @@ public class ChatActivity extends BaseFragment implements
                 if (TextUtils.isEmpty(path)) {
                     return;
                 }
-                if (selectedObject.isLivePhoto()) {
-                    final TLRPC.Document videoDoc = MessageObject.getMedia(selectedObject.messageOwner) != null
-                            ? MessageObject.getMedia(selectedObject.messageOwner).document
-                            : null;
-                    String videoPath = null;
-                    if (videoDoc != null) {
-                        File videoFile = FileLoader.getInstance(currentAccount).getPathToAttach(videoDoc, false);
-                        if (videoFile == null || !videoFile.exists()) {
-                            videoFile = FileLoader.getInstance(currentAccount).getPathToAttach(videoDoc, true);
-                        }
-                        if (videoFile != null && videoFile.exists()) {
-                            videoPath = videoFile.getPath();
-                        }
-                    }
-                    if (!TextUtils.isEmpty(videoPath)) {
-                        MediaController.saveFile(path, videoPath, getParentActivity(), null);
-                        BulletinFactory.createSaveToGalleryBulletin(this, false, true, themeDelegate).show();
-                        break;
-                    }
-                }
                 MediaController.saveFile(path, getParentActivity(), 0, null, null);
-                BulletinFactory.createSaveToGalleryBulletin(this, selectedObject.isVideo() && !selectedObject.isLivePhoto(), selectedObject.isLivePhoto(), themeDelegate).show();
+                BulletinFactory.createSaveToGalleryBulletin(this, selectedObject.isVideo(), themeDelegate).show();
                 break;
             }
             case OPTION_REPLY: {
@@ -33313,7 +33341,7 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_ADD_TO_STICKERS_OR_MASKS: {
-                StickersAlert alert = new StickersAlert(getParentActivity(), this, selectedObject.getInputStickerSet(), null, bottomChannelButtonsLayout.getVisibility() != View.VISIBLE && (currentChat == null || ChatObject.canSendStickers(currentChat)) ? chatActivityEnterView : null, themeDelegate, false);
+                StickersAlert alert = new StickersAlert(getParentActivity(), this, selectedObject.getInputStickerSet(), null, bottomOverlayChat.getVisibility() != View.VISIBLE && (currentChat == null || ChatObject.canSendStickers(currentChat)) ? chatActivityEnterView : null, themeDelegate, false);
                 alert.setCalcMandatoryInsets(isKeyboardVisible());
                 preserveDim = true;
                 alert.setDimBehind(false);
@@ -33331,40 +33359,7 @@ public class ChatActivity extends BaseFragment implements
                 }
                 boolean isMusic = selectedObject.isMusic();
                 boolean isDocument = selectedObject.isDocument();
-
-                if (selectedObject.isPoll()) {
-                    final TLRPC.Message omsg = selectedObject.messageOwner;
-                    TLRPC.TL_messageMediaPoll mediaPoll = (TLRPC.TL_messageMediaPoll) omsg.media;
-
-                    final ArrayList<MessageObject> messageObjects = new ArrayList<>();
-                    final TLRPC.MessageMedia mediaPollDescription = PollAttachedMediaPack.getMedia(mediaPoll, PollAttachedMediaPack.INDEX_DESCRIPTION);
-                    final TLRPC.MessageMedia mediaPollExplanation = PollAttachedMediaPack.getMedia(mediaPoll, PollAttachedMediaPack.INDEX_EXPLANATION);
-
-                    if (mediaPollDescription != null && mediaPollDescription.document != null && !MessageObject.isVideoDocument(mediaPollDescription.document)) {
-                        TLRPC.TL_message msg = copy(omsg);
-                        msg.media = mediaPollDescription;
-                        msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, PollAttachedMediaPack.INDEX_DESCRIPTION);
-                        messageObjects.add(new MessageObject(currentAccount, msg, false, true));
-                        isMusic |= MessageObject.isMusicDocument(mediaPollDescription.document);
-                    }
-                    if (selectedObject.expandedExplanation && mediaPollExplanation != null && mediaPollExplanation.document != null && !MessageObject.isVideoDocument(mediaPollExplanation.document)) {
-                        TLRPC.TL_message msg = copy(omsg);
-                        msg.media = mediaPollExplanation;
-                        msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, PollAttachedMediaPack.INDEX_EXPLANATION);
-                        messageObjects.add(new MessageObject(currentAccount, msg, false, true));
-                        isMusic |= MessageObject.isMusicDocument(mediaPollExplanation.document);
-                    }
-
-                    final boolean isMusicFinal = isMusic;
-                    MediaController.saveFilesFromMessages(getParentActivity(), getAccountInstance(), messageObjects, (count) -> {
-                        if (getParentActivity() == null || fragmentView == null) {
-                            return;
-                        }
-                        if (count > 0) {
-                            BulletinFactory.of(this).createDownloadBulletin(isMusicFinal ? BulletinFactory.FileType.AUDIOS : BulletinFactory.FileType.UNKNOWNS, count, themeDelegate).show();
-                        }
-                    });
-                } else if (isMusic || isDocument) {
+                if (isMusic || isDocument) {
                     ArrayList<MessageObject> messageObjects;
                     if (selectedObjectGroup != null) {
                         messageObjects = new ArrayList<>(selectedObjectGroup.messages);
@@ -33372,24 +33367,12 @@ public class ChatActivity extends BaseFragment implements
                         messageObjects = new ArrayList<>();
                         messageObjects.add(selectedObject);
                     }
-                    final boolean isMusicFinal = isMusic;
                     MediaController.saveFilesFromMessages(getParentActivity(), getAccountInstance(), messageObjects, (count) -> {
                         if (getParentActivity() == null || fragmentView == null) {
                             return;
                         }
                         if (count > 0) {
-                            BulletinFactory.of(this).createDownloadBulletin(isMusicFinal ? BulletinFactory.FileType.AUDIOS : BulletinFactory.FileType.UNKNOWNS, count, themeDelegate).show();
-                        }
-                    });
-                } else if (selectedObject.isLivePhoto()) {
-                    final ArrayList<MessageObject> messageObjects = new ArrayList<>();
-                    messageObjects.add(selectedObject);
-                    MediaController.saveFilesFromMessages(getParentActivity(), getAccountInstance(), messageObjects, (count) -> {
-                        if (getParentActivity() == null || fragmentView == null) {
-                            return;
-                        }
-                        if (count > 0) {
-                            BulletinFactory.of(this).createDownloadBulletin(BulletinFactory.FileType.LIVEPHOTO, count, themeDelegate).show();
+                            BulletinFactory.of(this).createDownloadBulletin(isMusic ? BulletinFactory.FileType.AUDIOS : BulletinFactory.FileType.UNKNOWNS, count, themeDelegate).show();
                         }
                     });
                 } else {
@@ -33622,7 +33605,6 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_COPY_LINK: {
-                if (!copyPrivateLink(selectedObject)) {
                 TLRPC.TL_channels_exportMessageLink req = new TLRPC.TL_channels_exportMessageLink();
                 if (selectedObject == replyingMessageObject && isComments) {
                     req.id = replyOriginalMessageId;
@@ -33648,7 +33630,6 @@ public class ChatActivity extends BaseFragment implements
                     }
 
                 }));
-                }
                 break;
             }
             case OPTION_REPORT_CHAT: {
@@ -33669,36 +33650,6 @@ public class ChatActivity extends BaseFragment implements
                     for (int a = 0; a < selectedObjectGroup.messages.size(); a++) {
                         getSendMessagesHelper().cancelSendingMessage(new ArrayList<>(selectedObjectGroup.messages));
                     }
-                }
-                break;
-            }
-            case OPTION_VIEW_STATISTICS: {
-                final AlertDialog[] progressDialog = new AlertDialog[]{new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate)};
-                final int requestId = PollStatisticsBottomSheet.loadStatistics(currentAccount, selectedObject.getDialogId(), selectedObject.getId(), stats -> {
-                    try {
-                        progressDialog[0].dismiss();
-                    } catch (Throwable ignore) {
-
-                    }
-                    progressDialog[0] = null;
-                    if (stats != null) {
-                        if (stats.votes_graph instanceof TL_stats.TL_statsGraphError) {
-                            BulletinFactory.of(ChatActivity.this)
-                                .createSimpleBulletinWithIconSize(R.raw.timer_toast, getString(R.string.PollStatsWillLater), 24)
-                                .show();
-                            return;
-                        }
-                        new PollStatisticsBottomSheet(getContext(), themeDelegate, stats).show();
-                    }
-                });
-                if (requestId != 0) {
-                    AndroidUtilities.runOnUIThread(() -> {
-                        if (progressDialog[0] == null) {
-                            return;
-                        }
-                        progressDialog[0].setOnCancelListener(dialog -> getConnectionsManager().cancelRequest(requestId, true));
-                        showDialog(progressDialog[0]);
-                    }, 500);
                 }
                 break;
             }
@@ -33905,7 +33856,10 @@ public class ChatActivity extends BaseFragment implements
             case OPTION_EDIT_SCHEDULE_TIME: {
                 MessageObject message = selectedObject;
                 MessageObject.GroupedMessages group = selectedObjectGroup;
-                AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), dialog_id, message.messageOwner.date, message.messageOwner.schedule_repeat_period, (notify, scheduleDate, scheduleRepeatPeriod) -> {
+                // forkgram-classic: upstream sig added `int currentRepeatPeriod`
+                // after currentDate; pass 0 (no repeat).
+                AlertsCreator.createScheduleDatePickerDialog(getParentActivity(), dialog_id, message.messageOwner.date, 0, (notify, scheduleDate, scheduleRepeatPeriod) -> {
+                    // forkgram-classic: editMessage sig grew `int scheduleRepeatPeriod`.
                     if (group != null && !group.messages.isEmpty()) {
                         SendMessagesHelper.getInstance(currentAccount).editMessage(group.messages.get(0), null, false, ChatActivity.this, null, scheduleDate, scheduleRepeatPeriod);
                     } else {
@@ -34106,7 +34060,7 @@ public class ChatActivity extends BaseFragment implements
                     final long did = dids.get(a).dialogId;
                     final Long price = prices == null ? (Long) 0L : prices.get(did);
                     if (message != null) {
-                        final SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message.toString(), did, null, null, null, true, null, null, null, notify, scheduleDate, scheduleRepeatPeriod, null, false);
+                        SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message.toString(), did, null, null, null, true, null, null, null, notify, scheduleDate, 0, null, false);
                         params.quick_reply_shortcut = quickReplyShortcut;
                         params.quick_reply_shortcut_id = getQuickReplyId();
                         params.payStars = price == null ? 0 : price;
@@ -34114,7 +34068,8 @@ public class ChatActivity extends BaseFragment implements
                         params.suggestionParams = messageSuggestionParams;
                         getSendMessagesHelper().sendMessage(params);
                     }
-                    getSendMessagesHelper().sendMessage(fmessages, did, false, false, notify, scheduleDate, scheduleRepeatPeriod, null, -1, price == null ? 0 : price, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                    // forkgram-classic: upstream sig added `int scheduleRepeatPeriod` after scheduleDate.
+                    getSendMessagesHelper().sendMessage(fmessages, did, false, false, notify, scheduleDate, 0, null, -1, price == null ? 0 : price, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                 }
                 fragment.finishFragment();
                 createUndoView();
@@ -34171,7 +34126,7 @@ public class ChatActivity extends BaseFragment implements
                 args.putBoolean("historyPreloaded", false);
                 addToPulledDialogsMyself();
                 ChatActivity chatActivity = new ChatActivity(args);
-                if (topicKey.topicId != 0 || topicsFragment != null) {
+                if (topicKey.topicId != 0) {
                     ForumUtilities.applyTopic(chatActivity, topicKey);
                     if (fragment != null) {
                         fragment.removeSelfFromStack();
@@ -34246,108 +34201,98 @@ public class ChatActivity extends BaseFragment implements
         return true;
     }
 
-    public boolean checkRecordLocked(boolean invoked, boolean forceCloseOnDiscard) {
+    public boolean checkRecordLocked(boolean forceCloseOnDiscard) {
         if (chatActivityEnterView != null && chatActivityEnterView.isRecordLocked()) {
-            if (invoked) {
-                final AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
-                if (chatActivityEnterView.isInVideoMode()) {
-                    builder.setTitle(LocaleController.getString(R.string.DiscardVideoMessageTitle));
-                    builder.setMessage(LocaleController.getString(R.string.DiscardVideoMessageDescription));
-                } else {
-                    builder.setTitle(LocaleController.getString(R.string.DiscardVoiceMessageTitle));
-                    builder.setMessage(LocaleController.getString(R.string.DiscardVoiceMessageDescription));
-                }
-                builder.setPositiveButton(LocaleController.getString(R.string.DiscardVoiceMessageAction), (dialog, which) -> {
-                    if (chatActivityEnterView != null) {
-                        if (forceCloseOnDiscard) {
-                            finishFragment();
-                        } else {
-                            chatActivityEnterView.cancelRecordingAudioVideo();
-                        }
-                    }
-                });
-                builder.setNegativeButton(LocaleController.getString(R.string.Continue), null);
-                showDialog(builder.create());
+            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+            if (chatActivityEnterView.isInVideoMode()) {
+                builder.setTitle(LocaleController.getString(R.string.DiscardVideoMessageTitle));
+                builder.setMessage(LocaleController.getString(R.string.DiscardVideoMessageDescription));
+            } else {
+                builder.setTitle(LocaleController.getString(R.string.DiscardVoiceMessageTitle));
+                builder.setMessage(LocaleController.getString(R.string.DiscardVoiceMessageDescription));
             }
+            builder.setPositiveButton(LocaleController.getString(R.string.DiscardVoiceMessageAction), (dialog, which) -> {
+                if (chatActivityEnterView != null) {
+                    if (forceCloseOnDiscard) {
+                        finishFragment();
+                    } else {
+                        chatActivityEnterView.cancelRecordingAudioVideo();
+                    }
+                }
+            });
+            builder.setNegativeButton(LocaleController.getString(R.string.Continue), null);
+            showDialog(builder.create());
             return true;
         }
         return false;
     }
 
     @Override
-    public boolean onBackPressed(boolean invoked) {
-        final Bulletin bulletin = Bulletin.getVisibleBulletin();
+    public boolean onBackPressed() {
+        Bulletin bulletin = Bulletin.getVisibleBulletin();
         if (bulletin != null && bulletin.getLayout() instanceof Bulletin.LottieLayoutWithReactions) {
-            if (invoked) {
-                ((Bulletin.LottieLayoutWithReactions) bulletin.getLayout()).hideReactionsDialog();
-                bulletin.hide();
-            }
+            ((Bulletin.LottieLayoutWithReactions) bulletin.getLayout()).hideReactionsDialog();
+            bulletin.hide();
             return false;
         }
         if (secretVoicePlayer != null && secretVoicePlayer.isShown()) {
-            if (invoked) secretVoicePlayer.dismiss();
+            secretVoicePlayer.dismiss();
             return false;
-        } else if (hasShownSheet()) {
-            if (invoked) closeSheet();
+        } else if (closeSheet()) {
             return false;
-        } else if (selectionReactionsOverlay != null && !selectionReactionsOverlay.onBackPressed(invoked)) {
+        } else if (selectionReactionsOverlay != null && !selectionReactionsOverlay.onBackPressed(false)) { // forkgram-classic: upstream added `boolean invoked`.
             return false;
         } else if (ContentPreviewViewer.getInstance().isVisible()) {
-            if (invoked) ContentPreviewViewer.getInstance().closeWithMenu();
+            ContentPreviewViewer.getInstance().closeWithMenu();
             return false;
         } else if (forwardingPreviewView != null && forwardingPreviewView.isShowing()) {
-            if (invoked) forwardingPreviewView.dismiss(true);
+            forwardingPreviewView.dismiss(true);
             return false;
         } else if (messagesSearchListContainer.getTag() != null) {
-            if (invoked) showMessagesSearchListView(false);
+            showMessagesSearchListView(false);
             return false;
         } else if (scrimPopupWindow != null) {
-            if (invoked) closeMenu();
+            closeMenu();
             return false;
-        } else if (checkRecordLocked(invoked, false)) {
+        } else if (checkRecordLocked(false)) {
             return false;
         } else if (textSelectionHelper.isInSelectionMode()) {
-            if (invoked) textSelectionHelper.clear();
+            textSelectionHelper.clear();
             return false;
         } else if (actionBar != null && actionBar.isActionModeShowed()) {
-            if (invoked) clearSelectionMode();
+            clearSelectionMode();
             return false;
         } else if (chatActivityEnterView != null && chatActivityEnterView.isPopupShowing()) {
-            if (invoked) chatActivityEnterView.hidePopup(true);
+            return !chatActivityEnterView.hidePopup(true);
+        } else if (chatActivityEnterView != null && chatActivityEnterView.hasBotWebView() && chatActivityEnterView.botCommandsMenuIsShowing() && chatActivityEnterView.onBotWebViewBackPressed()) {
             return false;
-//        } else if (chatActivityEnterView != null && chatActivityEnterView.hasBotWebView() && chatActivityEnterView.botCommandsMenuIsShowing() && chatActivityEnterView.onBotWebViewBackPressed()) {
-//            return false;
         } else if (chatActivityEnterView != null && chatActivityEnterView.botCommandsMenuIsShowing()) {
-            if (invoked) chatActivityEnterView.hideBotCommands();
+            chatActivityEnterView.hideBotCommands();
             return false;
-        } else if (chatActivityEnterView != null && chatActivityEnterView.closeCreationLinkDialog(invoked)) {
+        } else if (chatActivityEnterView != null && chatActivityEnterView.closeCreationLinkDialog()) {
             return false;
-        } else if (chatMode == MODE_EDIT_BUSINESS_LINK && BusinessLinksActivity.closeRenameAlert(invoked)) {
+        } else if (chatMode == MODE_EDIT_BUSINESS_LINK && BusinessLinksActivity.closeRenameAlert(false)) { // forkgram-classic: upstream added `boolean invoked`.
             return false;
         } else if (ChatObject.isMonoForum(currentChat) && !isSubscriberSuggestions && topicsTabs != null && getTopicId() != 0) {
-            if (invoked) topicsTabs.selectTopic(0, topicChangedFromMessage);
-            return false;
-        } else if (chatMode == MODE_QUICK_REPLIES && !(QuickRepliesController.GREETING.equalsIgnoreCase(quickReplyShortcut) || QuickRepliesController.AWAY.equalsIgnoreCase(quickReplyShortcut)) && (messages.isEmpty() || threadMessageId == 0)) {
-            if (invoked) showQuickRepliesRemoveAlert();
-            return false;
-        } else if (chatMode == MODE_EDIT_BUSINESS_LINK && chatActivityEnterView.businessLinkHasChanges()) {
-            if (invoked) showBusinessLinksDiscardAlert(this::finishFragment);
-            return false;
-        } else if (actionBar != null && actionBar.isSearchFieldVisible()) {
-            if (invoked) actionBar.closeSearchField();
-            return false;
-        } else if (isInPollAddOptionMode()) {
-            if (invoked) pollAddOptionModeClose();
+            topicsTabs.selectTopic(0, topicChangedFromMessage);
             return false;
         }
-        if (invoked) {
-            if (backToPreviousFragment != null) {
-                parentLayout.addFragmentToStack(backToPreviousFragment, parentLayout.getFragmentStack().size() - 1);
-                backToPreviousFragment = null;
-            }
-            if (instantCameraView != null) {
-                instantCameraView.cancel(false);
-            }
+        if (backToPreviousFragment != null) {
+            parentLayout.addFragmentToStack(backToPreviousFragment, parentLayout.getFragmentStack().size() - 1);
+            backToPreviousFragment = null;
+        }
+        if (instantCameraView != null) {
+            instantCameraView.cancel(false);
+        }
+        if (chatMode == MODE_QUICK_REPLIES && !(QuickRepliesController.GREETING.equalsIgnoreCase(quickReplyShortcut) || QuickRepliesController.AWAY.equalsIgnoreCase(quickReplyShortcut)) && (messages.isEmpty() || threadMessageId == 0)) {
+            showQuickRepliesRemoveAlert();
+            return false;
+        }
+        if (chatMode == MODE_EDIT_BUSINESS_LINK && chatActivityEnterView.businessLinkHasChanges()) {
+            showBusinessLinksDiscardAlert(() -> {
+                finishFragment();
+            });
+            return false;
         }
         return true;
     }
@@ -34519,7 +34464,6 @@ public class ChatActivity extends BaseFragment implements
                     highlightMessageQuoteFirstTime = 0;
                     highlightMessageQuote = null;
                     highlightTaskId = null;
-                    highlightPollOptionId = null;
                     cell.setCheckBoxVisible(threadMessageObjects == null || messageObject == null || !threadMessageObjects.contains(messageObject), true);
                     int idx = messageObject == null || messageObject.getDialogId() == dialog_id ? 0 : 1;
                     if (messageObject != null && selectedMessagesIds[idx].indexOfKey(messageObject.getId()) >= 0) {
@@ -34561,8 +34505,6 @@ public class ChatActivity extends BaseFragment implements
                     showNoQuoteAlert = false;
                 } else if (cell.isHighlighted() && highlightTaskId != null) {
                     cell.setHighlightedTask(highlightTaskId);
-                } else if (cell.isHighlighted() && highlightPollOptionId != null) {
-                    cell.setHighlightedPoll(highlightPollOptionId);
                 } else if (chatMode == MODE_SEARCH && searchingHashtag != null && searchingQuery != null) {
                     cell.setHighlightedText(searchingQuery);
                 } else if (searchItem != null && searchItemVisible && messageObject != null && getMediaDataController().isMessageFound(messageObject.getId(), messageObject.getDialogId() == mergeDialogId) && getMediaDataController().getLastSearchQuery() != null) {
@@ -34636,7 +34578,6 @@ public class ChatActivity extends BaseFragment implements
         if (currentUser != null && currentUser.self) {
             return;
         }
-        final SimpleTextView replyObjectTextView = replyLayout.current().obj;
         int dt = messageObject.canEditMessageAnytime(currentChat) ? 6 * 60 : getMessagesController().maxEditTime + 5 * 60 - Math.abs(getConnectionsManager().getCurrentTime() - messageObject.messageOwner.date);
         if (dt > 0) {
             if (dt <= 5 * 60) {
@@ -34684,47 +34625,6 @@ public class ChatActivity extends BaseFragment implements
         showDialog(builder.create());
     }
 
-    private void parseMarkdownAsync(MessageObject message) {
-        if (getParentActivity() == null) {
-            return;
-        }
-        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate);
-        progress.setCanceledOnTouchOutside(false);
-        final boolean[] cancelled = { false };
-        progress.setOnCancelListener(d -> cancelled[0] = true);
-        progress.showDelayed(150);
-
-        new Thread(() -> {
-            TLRPC.WebPage parsed = null;
-            Throwable failure = null;
-            try {
-                parsed = MarkdownParser.fromMarkdown(message);
-            } catch (Throwable t) {
-                FileLog.e(t);
-                failure = t;
-            }
-            final TLRPC.WebPage finalParsed = parsed;
-            final boolean ok = failure == null && parsed != null;
-            AndroidUtilities.runOnUIThread(() -> {
-                try { progress.dismiss(); } catch (Throwable ignore) {}
-                if (cancelled[0]) return;
-                if (ok) {
-                    if (message.messageOwner.media != null) {
-                        message.messageOwner.media.webpage = finalParsed;
-                    }
-                    createArticleViewer(false).open(message);
-                } else {
-                    try {
-                        AndroidUtilities.openForView(message, getParentActivity(), themeDelegate, false);
-                    } catch (Exception e) {
-                        FileLog.e(e);
-                        alertUserOpenError(message);
-                    }
-                }
-            });
-        }).start();
-    }
-
     public void openSearchWithText(String text) {
         boolean delay = false;
         if (savedMessagesHint != null && savedMessagesHint.shown()) {
@@ -34747,9 +34647,6 @@ public class ChatActivity extends BaseFragment implements
             if (attachItem != null) {
                 attachItem.setVisibility(View.GONE);
             }
-            if (otherIcon != null) {
-                otherIcon.setIconVisible(false);
-            }
             if (editTextItem != null) {
                 editTextItem.setVisibility(View.GONE);
             }
@@ -34761,9 +34658,6 @@ public class ChatActivity extends BaseFragment implements
             }
             if (audioCallIconItem != null && showAudioCallAsIcon) {
                 audioCallIconItem.setVisibility(View.GONE);
-            }
-            if (topicCreateItem != null) {
-                topicCreateItem.setVisibility(View.GONE);
             }
             searchItemVisible = true;
             updateSearchButtons(0, 0, -1);
@@ -34816,9 +34710,6 @@ public class ChatActivity extends BaseFragment implements
             if (attachItem != null) {
                 attachItem.setVisibility(View.GONE);
             }
-            if (otherIcon != null) {
-                otherIcon.setIconVisible(false);
-            }
             if (editTextItem != null) {
                 editTextItem.setVisibility(View.GONE);
             }
@@ -34830,9 +34721,6 @@ public class ChatActivity extends BaseFragment implements
             }
             if (audioCallIconItem != null && showAudioCallAsIcon) {
                 audioCallIconItem.setVisibility(View.GONE);
-            }
-            if (topicCreateItem != null) {
-                topicCreateItem.setVisibility(View.GONE);
             }
             searchItemVisible = true;
             updateSearchButtons(0, 0, -1);
@@ -34911,9 +34799,6 @@ public class ChatActivity extends BaseFragment implements
             if (attachItem != null) {
                 attachItem.setVisibility(View.GONE);
             }
-            if (otherIcon != null) {
-                otherIcon.setIconVisible(false);
-            }
             if (editTextItem != null) {
                 editTextItem.setVisibility(View.GONE);
             }
@@ -34925,9 +34810,6 @@ public class ChatActivity extends BaseFragment implements
             }
             if (audioCallIconItem != null && showAudioCallAsIcon) {
                 audioCallIconItem.setVisibility(View.GONE);
-            }
-            if (topicCreateItem != null) {
-                topicCreateItem.setVisibility(View.GONE);
             }
             searchItemVisible = true;
             updateSearchButtons(0, 0, -1);
@@ -34970,9 +34852,6 @@ public class ChatActivity extends BaseFragment implements
             if (attachItem != null) {
                 attachItem.setVisibility(View.GONE);
             }
-            if (otherIcon != null) {
-                otherIcon.setIconVisible(false);
-            }
             if (editTextItem != null) {
                 editTextItem.setVisibility(View.GONE);
             }
@@ -34984,9 +34863,6 @@ public class ChatActivity extends BaseFragment implements
             }
             if (audioCallIconItem != null && showAudioCallAsIcon) {
                 audioCallIconItem.setVisibility(View.GONE);
-            }
-            if (topicCreateItem != null) {
-                topicCreateItem.setVisibility(View.GONE);
             }
             searchItemVisible = true;
             updateSearchButtons(0, 0, -1);
@@ -35061,11 +34937,11 @@ public class ChatActivity extends BaseFragment implements
         if (getMessagesController().getSendPaidMessagesStars(getDialogId()) > 0) {
             return false;
         }
-        return currentEncryptedChat == null && (bottomChannelButtonsLayout == null || bottomChannelButtonsLayout.getVisibility() != View.VISIBLE) && (!isThreadChat() || isTopic);
+        return currentEncryptedChat == null && (bottomOverlayChat == null || bottomOverlayChat.getVisibility() != View.VISIBLE) && (!isThreadChat() || isTopic);
     }
 
     public boolean canSendMessage() {
-        return currentEncryptedChat == null && (bottomChannelButtonsLayout == null || bottomChannelButtonsLayout.getVisibility() != View.VISIBLE);
+        return currentEncryptedChat == null && (bottomOverlayChat == null || bottomOverlayChat.getVisibility() != View.VISIBLE);
     }
 
     public boolean isInScheduleMode() {
@@ -35155,10 +35031,11 @@ public class ChatActivity extends BaseFragment implements
         return userInfo;
     }
 
-    public void sendAudio(ArrayList<MessageObject> audios, CharSequence caption, boolean notify, int scheduleDate, int scheduleRepeatPeriod, long effectId, boolean invertMedia, long payStars) {
+    public void sendAudio(ArrayList<MessageObject> audios, CharSequence caption, boolean notify, int scheduleDate, long effectId, boolean invertMedia, long payStars) {
         if (checkSlowModeAlert()) {
             fillEditingMediaWithCaption(caption, null);
-            SendMessagesHelper.prepareSendingAudioDocuments(getAccountInstance(), audios, caption != null ? caption : null, dialog_id, replyingMessageObject, getThreadMessage(), null, notify, scheduleDate, scheduleRepeatPeriod, editingMessageObject, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars);
+            // forkgram-classic: upstream sig added `int scheduledRepeatPeriod` after scheduleDate.
+            SendMessagesHelper.prepareSendingAudioDocuments(getAccountInstance(), audios, caption != null ? caption : null, dialog_id, replyingMessageObject, getThreadMessage(), null, notify, scheduleDate, 0, editingMessageObject, quickReplyShortcut, getQuickReplyId(), effectId, invertMedia, payStars);
             afterMessageSend();
         }
     }
@@ -35208,20 +35085,15 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
-
-    public void sendPoll(TLRPC.TL_messageMediaPoll poll, CharSequence caption, PollAttachedMediaPack media, ArrayList<Integer> correctAnswers, boolean notify, int scheduleDate, long payStars) {
+    public void sendPoll(TLRPC.TL_messageMediaPoll poll, HashMap<String, String> params, boolean notify, int scheduleDate, long payStars) {
         if (checkSlowModeAlert()) {
-            final long groupId = Utilities.random.nextLong();
-            String captionStr = null;
-            ArrayList<TLRPC.MessageEntity> entities = null;
-            if (caption != null) {
-                CharSequence[] message = new CharSequence[]{caption};
-                entities = getMediaDataController().getEntities(message, true);
-                captionStr = message[0].toString();
-            }
-
-            final PollSendParams pollSendParams = new PollSendParams(media, poll, groupId, captionStr, entities, correctAnswers);
-            SendMessagesHelper.prepareSendingPoll(getAccountInstance(), pollSendParams, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, notify, scheduleDate, quickReplyShortcut, getQuickReplyId(), payStars, getSendMonoForumPeerId(), messageSuggestionParams);
+            final SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of(poll, dialog_id, replyingMessageObject, getThreadMessage(), null, params, notify, scheduleDate, 0);
+            params2.quick_reply_shortcut = quickReplyShortcut;
+            params2.quick_reply_shortcut_id = getQuickReplyId();
+            params2.payStars = payStars;
+            params2.monoForumPeer = getSendMonoForumPeerId();
+            params2.suggestionParams = messageSuggestionParams;
+            getSendMessagesHelper().sendMessage(params2);
             afterMessageSend();
         }
     }
@@ -35245,8 +35117,6 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
 
-        animatorRoundMessageCameraVisibility.setValue(false, true);
-
         if (editingMessageObject != null && editingMessageObject.needResendWhenEdit() && !ChatObject.canManageMonoForum(currentAccount, editingMessageObject.getDialogId())) {
             final MessageSuggestionParams params = messageSuggestionParams != null ? messageSuggestionParams :
                 MessageSuggestionParams.of(editingMessageObject.messageOwner.suggested_post);
@@ -35269,22 +35139,22 @@ public class ChatActivity extends BaseFragment implements
                 MessageSuggestionParams params = messageSuggestionParams != null ?
                     messageSuggestionParams : MessageSuggestionParams.of(editingMessageObject.messageOwner.suggested_post);
                 if (photoEntry.isVideo) {
-                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, null, notify, scheduleDate, scheduleRepeatPeriod, forceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
+                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, null, /* forkgram-classic: inserted scheduleRepeatPeriod=0 between scheduleDate and forceDocument */ notify, scheduleDate, 0, forceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
                 } else {
                     if (photoEntry.imagePath != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, /* forkgram-classic: inserted scheduleRepeatPeriod=0 between scheduleDate and mode */ notify, scheduleDate, 0, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
                     } else if (photoEntry.path != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, editingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, null, videoEditedInfo, /* forkgram-classic: inserted scheduleRepeatPeriod=0 between scheduleDate and mode */ notify, scheduleDate, 0, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), params);
                     }
                 }
             } else {
                 if (photoEntry.isVideo) {
-                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, editingMessageObject, notify, scheduleDate, scheduleRepeatPeriod, forceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                    SendMessagesHelper.prepareSendingVideo(getAccountInstance(), photoEntry.path, videoEditedInfo, photoEntry.coverPath, photoEntry.coverPhoto, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.ttl, editingMessageObject, /* forkgram-classic: inserted scheduleRepeatPeriod=0 between scheduleDate and forceDocument */ notify, scheduleDate, 0, forceDocument, photoEntry.hasSpoiler, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                 } else {
                     if (photoEntry.imagePath != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.imagePath, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, /* forkgram-classic: inserted scheduleRepeatPeriod=0 between scheduleDate and mode */ notify, scheduleDate, 0, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                     } else if (photoEntry.path != null) {
-                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, notify, scheduleDate, scheduleRepeatPeriod, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
+                        SendMessagesHelper.prepareSendingPhoto(getAccountInstance(), photoEntry.path, photoEntry.thumbPath, null, dialog_id, replyingMessageObject, getThreadMessage(), null, replyingQuote, photoEntry.entities, photoEntry.stickers, null, photoEntry.ttl, editingMessageObject, videoEditedInfo, /* forkgram-classic: inserted scheduleRepeatPeriod=0 between scheduleDate and mode */ notify, scheduleDate, 0, 0, forceDocument, photoEntry.caption, quickReplyShortcut, getQuickReplyId(), photoEntry.effectId, payStars, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                     }
                 }
             }
@@ -35296,6 +35166,7 @@ public class ChatActivity extends BaseFragment implements
         if (instantCameraView == null) {
             return;
         }
+        instantCameraView.cancelBlur();
 
         final InstantCameraView.InstantViewCameraContainer cameraContainer = instantCameraView.getCameraContainer();
         AnimatorSet allAnimators = new AnimatorSet();
@@ -35303,7 +35174,8 @@ public class ChatActivity extends BaseFragment implements
                 ObjectAnimator.ofFloat(cameraContainer, View.SCALE_X, 0.5f),
                 ObjectAnimator.ofFloat(cameraContainer, View.SCALE_Y, 0.5f),
                 ObjectAnimator.ofFloat(cameraContainer, View.ALPHA, 0.0f),
-                ObjectAnimator.ofFloat(instantCameraView.getButtonsLayout(), View.ALPHA, 0.0f),
+                ObjectAnimator.ofFloat(instantCameraView.getSwitchButtonView(), View.ALPHA, 0.0f),
+                ObjectAnimator.ofFloat(instantCameraView.getFlashButtonView(), View.ALPHA, 0.0f),
                 ObjectAnimator.ofInt(instantCameraView.getPaint(), AnimationProperties.PAINT_ALPHA, 0),
                 ObjectAnimator.ofFloat(instantCameraView.getMuteImageView(), View.ALPHA, 0.0f)
         );
@@ -35362,7 +35234,7 @@ public class ChatActivity extends BaseFragment implements
             showDialog(builder.create());
         } else {
             String username = UserObject.getPublicUsername(user);
-            if (!AndroidUtilities.isTablet() && WebviewActivity.supportWebview()) {
+            if (Build.VERSION.SDK_INT >= 21 && !AndroidUtilities.isTablet() && WebviewActivity.supportWebview()) {
                 if (parentLayout.getFragmentStack().get(parentLayout.getFragmentStack().size() - 1) == this) {
                     presentFragment(new WebviewActivity(urlStr, user != null && !TextUtils.isEmpty(username) ? username : "", game.title, game.short_name, messageObject));
                 }
@@ -35657,17 +35529,7 @@ public class ChatActivity extends BaseFragment implements
         }
         builder.setMessage(stringBuilder);
         builder.setMessageTextViewClickable(false);
-        builder.setNegativeButton(LocaleController.getString(R.string.Copy),
-            (dialogInterface, i) -> {
-                try {
-                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                    android.content.ClipData clip = android.content.ClipData.newPlainText("label", url);
-                    clipboard.setPrimaryClip(clip);
-                    Toast.makeText(getParentActivity(), LocaleController.getString("LinkCopied", R.string.LinkCopied), Toast.LENGTH_SHORT).show();
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
-        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
 
         CheckBoxCell[] cells = new CheckBoxCell[2];
         LinearLayout linearLayout = new LinearLayout(getParentActivity());
@@ -35679,14 +35541,14 @@ public class ChatActivity extends BaseFragment implements
             cells[a].setMultiline(true);
             cells[a].setTag(a);
             if (a == 0) {
-                stringBuilder = AndroidUtilities.replaceTags(LocaleController.formatString(R.string.OpenUrlOption1, request.domain, ContactsController.formatName(selfUser.first_name, selfUser.last_name)));
+                stringBuilder = AndroidUtilities.replaceTags(LocaleController.formatString("OpenUrlOption1", R.string.OpenUrlOption1, request.domain, ContactsController.formatName(selfUser.first_name, selfUser.last_name)));
                 index = TextUtils.indexOf(stringBuilder, request.domain);
                 if (index >= 0) {
                     stringBuilder.setSpan(new URLSpan(""), index, index + request.domain.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                 }
                 cells[a].setText(stringBuilder, "", true, false);
             } else {
-                cells[a].setText(AndroidUtilities.replaceTags(LocaleController.formatString(R.string.OpenUrlOption2, UserObject.getFirstName(request.bot))), "", true, false);
+                cells[a].setText(AndroidUtilities.replaceTags(LocaleController.formatString("OpenUrlOption2", R.string.OpenUrlOption2, UserObject.getFirstName(request.bot))), "", true, false);
             }
             cells[a].setPadding(LocaleController.isRTL ? AndroidUtilities.dp(16) : AndroidUtilities.dp(8), 0, LocaleController.isRTL ? AndroidUtilities.dp(8) : AndroidUtilities.dp(16), 0);
             linearLayout.addView(cells[a], LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
@@ -35712,7 +35574,7 @@ public class ChatActivity extends BaseFragment implements
                 Browser.openUrl(getParentActivity(), url, false);
             } else {
                 final AlertDialog[] progressDialog = new AlertDialog[]{new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER, themeDelegate)};
-                final TLRPC.TL_messages_acceptUrlAuth req = new TLRPC.TL_messages_acceptUrlAuth();
+                TLRPC.TL_messages_acceptUrlAuth req = new TLRPC.TL_messages_acceptUrlAuth();
                 if (buttonReq.url != null) {
                     req.url = buttonReq.url;
                     req.flags |= 4;
@@ -35860,7 +35722,7 @@ public class ChatActivity extends BaseFragment implements
                     builder.setTitleMultipleLines(true);
                 }
                 final int finalTimestamp = timestamp;
-                boolean noforwards = isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
+                boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
                 builder.setItems(noforwards ? new CharSequence[] {LocaleController.getString(R.string.Open)} : new CharSequence[]{LocaleController.getString(R.string.Open), LocaleController.getString(R.string.Copy)}, (dialog, which) -> {
                     if (which == 0) {
                         if (str.startsWith("video?")) {
@@ -36156,7 +36018,7 @@ public class ChatActivity extends BaseFragment implements
         if (url == null || getParentActivity() == null) {
             return;
         }
-        boolean noforwards = isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
+        boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
         if (url instanceof URLSpanMono) {
             if (!noforwards || getDialogId() == UserObject.VERIFY) {
                 ((URLSpanMono) url).copyToClipboard();
@@ -36177,12 +36039,6 @@ public class ChatActivity extends BaseFragment implements
                 cell.resetPressedLink(-1);
             }
             logSponsoredClicked(messageObject, false, false);
-        } else if (url instanceof FormattedDateSpan) {
-            FormattedDateSpan formattedDateSpan = (FormattedDateSpan) url;
-            didLongPressFormattedDate(cell, url, formattedDateSpan.originalText, formattedDateSpan.entity);
-            if (cell != null) {
-                cell.resetPressedLink(-1);
-            }
         } else if (url instanceof URLSpanNoUnderline) {
             String str = ((URLSpanNoUnderline) url).getURL();
             if (str != null && str.startsWith("tel:")) {
@@ -36359,7 +36215,9 @@ public class ChatActivity extends BaseFragment implements
         if (currentEncryptedChat != null) {
             return;
         }
-        chatListView.setImportantForAccessibility(mentionContainer != null && mentionContainer.isOpen() || (scrimPopupWindow != null && scrimPopupWindow.isShowing()) ? View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            chatListView.setImportantForAccessibility(mentionContainer != null && mentionContainer.isOpen() || (scrimPopupWindow != null && scrimPopupWindow.isShowing()) ? View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        }
     }
 
     private void markSponsoredAsRead(MessageObject object) {
@@ -36394,8 +36252,6 @@ public class ChatActivity extends BaseFragment implements
             && (quickShareSelectorOverlay == null || !quickShareSelectorOverlay.isActive());
     }
 
-    private boolean hasSendingMessagesInBotForum;
-
     public class ChatActivityAdapter extends RecyclerAnimationScrollHelper.AnimatableAdapter {
 
         private Context mContext;
@@ -36410,7 +36266,7 @@ public class ChatActivity extends BaseFragment implements
         private int userPhotoTimeRow = -5;
         private int userNameTimeRow = -5;
 
-        private int botForumStartThreadRow = -5;
+        private int freeSpaceRow = -5;
 
         public int messagesStartRow;
         private int messagesEndRow;
@@ -36438,26 +36294,6 @@ public class ChatActivity extends BaseFragment implements
             setHasStableIds(true);
         }
 
-        public void checkRemoveBotForumRowsStartThreadRow(boolean afterSend) {
-            boolean changed = false;
-            if (UserObject.isBotForum(currentUser)) {
-                if (afterSend) {
-                    hasSendingMessagesInBotForum = true;
-                }
-                //if (botInfoRow >= 0) {
-                //    super.notifyItemRemoved(botInfoRow);
-                //    changed = true;
-                //}
-                if (botForumStartThreadRow >= 0 && !needBotForumInfoRow()) {
-                    super.notifyItemRemoved(botForumStartThreadRow);
-                    changed = true;
-                }
-            }
-            if (changed) {
-                updateRowsInternal();
-            }
-        }
-
         public void updateRowsSafe() {
             int prevRowCount = rowCount;
             int prevBotInfoRow = botInfoRow;
@@ -36469,22 +36305,16 @@ public class ChatActivity extends BaseFragment implements
             int prevMessagesEndRow = messagesEndRow;
             int prevUserPhotoTimeRow = userPhotoTimeRow;
             int prevUserNameTimeRow = userNameTimeRow;
-            int prevBotForumStartThreadRow = botForumStartThreadRow;
             updateRowsInternal();
             if (prevRowCount != rowCount || prevBotInfoRow != botInfoRow ||
                 prevLoadingUpRow != loadingUpRow || prevLoadingDownRow != loadingDownRow ||
                 prevMessagesStartRow != messagesStartRow || prevMessagesEndRow != messagesEndRow ||
                 prevHintRow != hintRow || prevUserInfoRow != userInfoRow ||
                 prevUserPhotoTimeRow != userPhotoTimeRow ||
-                prevUserNameTimeRow != userNameTimeRow ||
-                prevBotForumStartThreadRow != botForumStartThreadRow
+                prevUserNameTimeRow != userNameTimeRow
             ) {
                 notifyDataSetChanged(false);
             }
-        }
-
-        private boolean needBotForumInfoRow() {
-            return UserObject.isBotForumWithEditableTopics(currentUser) && getTopicId() == 0 && !hasSendingMessagesInBotForum && chatMode == 0;
         }
 
         private void updateRowsInternal() {
@@ -36506,10 +36336,10 @@ public class ChatActivity extends BaseFragment implements
             userInfoRow = -5;
             userPhotoTimeRow = -5;
             userNameTimeRow = -5;
-            botForumStartThreadRow = -5;
+            freeSpaceRow = -5;
 
-            if (needBotForumInfoRow()) {
-                botForumStartThreadRow = rowCount++;
+            if (UserObject.isBotForum(currentUser)) {
+               // freeSpaceRow = rowCount++;
             }
 
             if (!messages.isEmpty()) {
@@ -36572,7 +36402,7 @@ public class ChatActivity extends BaseFragment implements
         public int getItemCount() {
             botInfoEmptyRow = -5;
             if (isClearingHistory()) {
-                if (currentUser != null && currentUser.bot && chatMode == 0 && (botInfo.size() > 0 && (botInfo.get(currentUser.id).description != null || botInfo.get(currentUser.id).description_photo != null || botInfo.get(currentUser.id).description_document != null) || UserObject.isReplyUser(currentUser) || UserObject.isBotForum(currentUser))) {
+                if (currentUser != null && currentUser.bot && chatMode == 0 && (botInfo.size() > 0 && (botInfo.get(currentUser.id).description != null || botInfo.get(currentUser.id).description_photo != null || botInfo.get(currentUser.id).description_document != null) || UserObject.isReplyUser(currentUser))) {
                     botInfoEmptyRow = 0;
                     return 1;
                 }
@@ -36613,7 +36443,7 @@ public class ChatActivity extends BaseFragment implements
                 return 7;
             } else if (position == userNameTimeRow) {
                 return 8;
-            } else if (position == botForumStartThreadRow) {
+            } else if (position == freeSpaceRow) {
                 return 9;
             }
             return 5;
@@ -36623,13 +36453,13 @@ public class ChatActivity extends BaseFragment implements
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View view = null;
             if (viewType == 0) {
-                //ArrayList<ChatMessageCell> chatMessagesCache = chatMessageCellsCache;
-                //if (chatMessagesCache != null && !chatMessagesCache.isEmpty()) {
-                //    view = chatMessagesCache.get(0);
-                //    chatMessagesCache.remove(0);
-                //} else {
-                view = new ChatMessageCell(mContext, currentAccount, true, sharedResources, themeDelegate);
-                //}
+                ArrayList<ChatMessageCell> chatMessagesCache = chatMessageCellsCache.get(currentAccount);
+                if (chatMessagesCache != null && !chatMessagesCache.isEmpty()) {
+                    view = chatMessagesCache.get(0);
+                    chatMessagesCache.remove(0);
+                } else {
+                    view = new ChatMessageCell(mContext, currentAccount, true, sharedResources, themeDelegate);
+                }
                 ChatMessageCell chatMessageCell = (ChatMessageCell) view;
                 chatMessageCell.setResourcesProvider(themeDelegate);
                 chatMessageCell.shouldCheckVisibleOnScreen = false;
@@ -36910,11 +36740,7 @@ public class ChatActivity extends BaseFragment implements
                         final MessageObject msg = cell.getMessageObject();
                         if (msg == null) return;
                         if (topicsTabs == null) return;
-                        if (ChatObject.isMonoForum(currentChat)) {
-                            topicsTabs.selectTopic(msg.getMonoForumTopicId(), true);
-                        } else {
-                            topicsTabs.selectTopic(msg.getTopicId(), true);
-                        }
+                        topicsTabs.selectTopic(msg.getMonoForumTopicId(), true);
                     }
 
                     @Override
@@ -36952,7 +36778,7 @@ public class ChatActivity extends BaseFragment implements
 
                     @Override
                     public void didPressBotButton(MessageObject messageObject, TLRPC.KeyboardButton button) {
-                        if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
+                        if (getParentActivity() == null || bottomOverlayChat.getVisibility() == View.VISIBLE &&
                             !(button instanceof TLRPC.TL_keyboardButtonSwitchInline) && !(button instanceof TLRPC.TL_keyboardButtonCallback) &&
                             !(button instanceof TLRPC.TL_keyboardButtonGame) && !(button instanceof TLRPC.TL_keyboardButtonUrl) &&
                             !(button instanceof TLRPC.TL_keyboardButtonBuy) && !(button instanceof TLRPC.TL_keyboardButtonUrlAuth) &&
@@ -36971,12 +36797,8 @@ public class ChatActivity extends BaseFragment implements
             } else if (viewType == 2) {
                 view = new ChatUnreadCell(mContext, themeDelegate);
             } else if (viewType == 3) {
-                view = new BotHelpCell(mContext, currentAccount, themeDelegate) {
-                    @Override
-                    public int getSideMenuWidth() {
-                        return ChatActivity.this.getSideMenuWidth();
-                    }
-                };
+                // forkgram-classic: upstream BotHelpCell ctor grew `int currentAccount` slot.
+                view = new BotHelpCell(mContext, currentAccount, themeDelegate);
                 ((BotHelpCell) view).setDelegate(url -> {
                     if (url.startsWith("@")) {
                         getMessagesController().openByUserName(url.substring(1), ChatActivity.this, 0);
@@ -37000,12 +36822,13 @@ public class ChatActivity extends BaseFragment implements
             } else if (viewType == 7) {
                 view = new ChatActionCell(mContext, false, themeDelegate);
             } else if (viewType == 8) {
-                view = new BotAskCell(mContext, currentAccount, themeDelegate) {
+                view = new View(mContext) {
                     @Override
-                    public int getSideMenuWidth() {
-                        return ChatActivity.this.getSideMenuWidth();
+                    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                        super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(dp(50), MeasureSpec.EXACTLY));
                     }
                 };
+                view.setBackgroundColor(0xFF00FF00);
             }
             view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
             return new RecyclerListView.Holder(view);
@@ -37021,20 +36844,12 @@ public class ChatActivity extends BaseFragment implements
                     helpView.setText(false, LocaleController.getString(R.string.VerifyChatInfo));
                 } else {
                     TL_bots.BotInfo mBotInfo = botInfo.size() != 0 ? botInfo.get(currentUser.id) : null;
-                    final boolean setup = (mBotInfo == null || TextUtils.isEmpty(mBotInfo.description) && mBotInfo.description_photo == null && mBotInfo.description_document == null) && UserObject.isBot(currentUser) && userInfo != null && userInfo.bot_manager_id != 0 && currentUser.bot_can_edit;
-                    helpView.setText(
-                        true,
-                        currentUser == null ? 0 : currentUser.id,
-                        mBotInfo != null ? mBotInfo.description : null,
-                        mBotInfo != null ? mBotInfo.description_document != null ? mBotInfo.description_document : mBotInfo.description_photo : null,
-                        mBotInfo,
-                        setup ? DialogObject.getName(currentAccount, userInfo.bot_manager_id) : null
-                    );
+                    // forkgram-classic: upstream sig grew `long botId` (pos 2) and `String managerBotName` (last).
+                    helpView.setText(true, currentUser != null ? currentUser.id : 0L, mBotInfo != null ? mBotInfo.description : null, mBotInfo != null ? mBotInfo.description_document != null ? mBotInfo.description_document : mBotInfo.description_photo : null, mBotInfo, null);
                 }
                 updateBotHelpCellClick(helpView);
-            } else if (position == botForumStartThreadRow) {
-                BotAskCell cell = (BotAskCell) holder.itemView;
-                cell.setDialogId(getDialogId());
+            } else if (position == freeSpaceRow) {
+
             } else if (position == userInfoRow) {
                 UserInfoCell infoView = (UserInfoCell) holder.itemView;
                 final long dialogId = currentEncryptedChat != null ? currentEncryptedChat.user_id : getDialogId();
@@ -37080,7 +36895,6 @@ public class ChatActivity extends BaseFragment implements
                     final ChatMessageCell messageCell = (ChatMessageCell) view;
                     MessageObject.GroupedMessages groupedMessages = getValidGroupedMessage(message);
                     messageCell.isChat = currentChat != null || UserObject.isUserSelf(currentUser) || UserObject.isReplyUser(currentUser) || (chatMode == MODE_SEARCH);
-                    messageCell.setSponsoredMessageVisible(true, false);
                     messageCell.isBotForum = UserObject.isBotForum(currentUser);
                     messageCell.isReportChat = isReport();
                     messageCell.isSavedChat = chatMode == MODE_SAVED;
@@ -37109,12 +36923,6 @@ public class ChatActivity extends BaseFragment implements
                     boolean pinnedBottomByGroup = false;
                     boolean pinnedTop = false;
                     boolean pinnedTopByGroup = false;
-
-                    if (message.isSponsored()) {
-                        AndroidUtilities.doOnPreDraw(messageCell, () -> {
-
-                        });
-                    }
 
                     int prevPosition;
                     int prevPrevPosition = position + 2;;
@@ -37198,9 +37006,6 @@ public class ChatActivity extends BaseFragment implements
                             } else if (chatMode == MODE_SEARCH) {
                                 pinnedBottom = MessageObject.getPeerId(message.messageOwner.peer_id) == MessageObject.getPeerId(nextMessage.messageOwner.peer_id);
                             }
-                            if (DialogObject.getPeerDialogId(nextMessage.messageOwner.guestchat_via_from) != DialogObject.getPeerDialogId(message.messageOwner.guestchat_via_from)) {
-                                pinnedBottom = false;
-                            }
                         }
                     }
                     final boolean firstInChat;
@@ -37261,9 +37066,6 @@ public class ChatActivity extends BaseFragment implements
                             } else if (chatMode == MODE_SEARCH) {
                                 pinnedTop = MessageObject.getPeerId(message.messageOwner.peer_id) == MessageObject.getPeerId(prevMessage.messageOwner.peer_id);
                             }
-                            if (DialogObject.getPeerDialogId(prevMessage.messageOwner.guestchat_via_from) != DialogObject.getPeerDialogId(message.messageOwner.guestchat_via_from)) {
-                                pinnedTop = false;
-                            }
                         }
                     }
                     if (ChatObject.isChannel(currentChat) && currentChat.megagroup && message.getFromChatId() <= 0 && message.messageOwner.fwd_from != null && message.messageOwner.fwd_from.saved_from_peer instanceof TLRPC.TL_peerChannel) {
@@ -37307,8 +37109,6 @@ public class ChatActivity extends BaseFragment implements
                         highlightMessageQuoteFirst = false;
                     } else if (messageCell.isHighlighted() && highlightTaskId != null) {
                         messageCell.setHighlightedTask(highlightTaskId);
-                    } else if (messageCell.isHighlighted() && highlightPollOptionId != null) {
-                        messageCell.setHighlightedPoll(highlightPollOptionId);
                     } else if (chatMode == MODE_SEARCH && searchingHashtag != null && searchingQuery != null) {
                         messageCell.setHighlightedText(searchingQuery);
                     }
@@ -37336,7 +37136,8 @@ public class ChatActivity extends BaseFragment implements
                                     messageCell.getViewTreeObserver().removeOnPreDrawListener(this);
                                     ImageReceiver imageReceiver = messageCell.getPhotoImage();
                                     float w = imageReceiver.getImageWidth();
-                                    RectOld rect = instantCameraView.getCameraRect();
+                                    // forkgram-classic: getCameraRect returns RectOld in pinned InstantCameraView.
+                                    org.telegram.ui.Components.RectOld rect = instantCameraView.getCameraRect();
                                     float scale = w / rect.width;
                                     int[] position = new int[2];
                                     messageCell.getTransitionParams().ignoreAlpha = true;
@@ -37352,12 +37153,15 @@ public class ChatActivity extends BaseFragment implements
 
                                     cameraContainer.setImageReceiver(imageReceiver);
 
+                                    instantCameraView.cancelBlur();
+
                                     AnimatorSet allAnimators = new AnimatorSet();
                                     animatorSet.playTogether(
                                             ObjectAnimator.ofFloat(cameraContainer, View.SCALE_X, scale),
                                             ObjectAnimator.ofFloat(cameraContainer, View.SCALE_Y, scale),
                                             ObjectAnimator.ofFloat(cameraContainer, View.TRANSLATION_Y, position[1] - rect.y),
-                                            ObjectAnimator.ofFloat(instantCameraView.getButtonsLayout(), View.ALPHA, 0.0f),
+                                            ObjectAnimator.ofFloat(instantCameraView.getSwitchButtonView(), View.ALPHA, 0.0f),
+                                            ObjectAnimator.ofFloat(instantCameraView.getFlashButtonView(), View.ALPHA, 0.0f),
                                             ObjectAnimator.ofInt(instantCameraView.getPaint(), AnimationProperties.PAINT_ALPHA, 0),
                                             ObjectAnimator.ofFloat(instantCameraView.getMuteImageView(), View.ALPHA, 0.0f)
                                     );
@@ -37416,7 +37220,7 @@ public class ChatActivity extends BaseFragment implements
                         } else if (message.isAnyKindOfSticker() && !message.isAnimatedEmojiStickers() || message.sendAnimationData != null && message.sendAnimationData.fromPreview) {
                             applyAnimation = true;
                             if (message.sendAnimationData.fromPreview && chatActivityEnterView != null && chatActivityEnterView.messageSendPreview != null) {
-                                final int actionBarBottom = actionBar.getVisibility() == View.VISIBLE ? (int) actionBar.getTranslationY() + actionBar.getMeasuredHeight() + (actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0) + (hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0) + (inPreviewMode ? AndroidUtilities.statusBarHeight : 0) : 0;
+                                final int actionBarBottom = actionBar.getVisibility() == View.VISIBLE ? (int) actionBar.getTranslationY() + actionBar.getMeasuredHeight() + (actionBarSearchTags != null ? actionBarSearchTags.getCurrentHeight() : 0) + (hashtagSearchTabs != null ? hashtagSearchTabs.getCurrentHeight() : 0) + (inPreviewMode && Build.VERSION.SDK_INT >= 21 ? AndroidUtilities.statusBarHeight : 0) : 0;
                                 final float clipTop = actionBarBottom + paddingTopHeight;
                                 final float clipBottom = fragmentView == null ? 0 : fragmentView.getHeight();
                                 chatActivityEnterView.messageSendPreview.dismissInto(messageCell, clipTop, clipBottom);
@@ -37581,7 +37385,6 @@ public class ChatActivity extends BaseFragment implements
                     actionCell.sideMenuWidth = getSideMenuWidth();
                     actionCell.isForum = ChatObject.isForum(currentChat);
                     actionCell.isMonoForum = ChatObject.isMonoForum(currentChat);
-                    actionCell.isBotForum = UserObject.isBotForum(currentUser);
                     final boolean force = actionCell.firstInChat != firstInChat;
                     actionCell.firstInChat = firstInChat;
                     actionCell.setMessageObject(message, force);
@@ -37625,7 +37428,7 @@ public class ChatActivity extends BaseFragment implements
                 return 6;
             } else if (position == userNameTimeRow || position == userPhotoTimeRow) {
                 return 7;
-            } else if (position == botForumStartThreadRow) {
+            } else if (position == freeSpaceRow) {
                 return 8;
             }
             return 4;
@@ -37713,8 +37516,6 @@ public class ChatActivity extends BaseFragment implements
                         highlightMessageQuoteFirst = false;
                     } else if (messageCell.isHighlighted() && highlightTaskId != null) {
                         messageCell.setHighlightedTask(highlightTaskId);
-                    } else if (messageCell.isHighlighted() && highlightPollOptionId != null) {
-                        messageCell.setHighlightedPoll(highlightPollOptionId);
                     }
                     if (highlightMessageId != Integer.MAX_VALUE) {
                         startMessageUnselect();
@@ -37753,7 +37554,7 @@ public class ChatActivity extends BaseFragment implements
                                 hasAllMentionsLocal = true;
                                 showMentionDownButton(false, true);
                             } else {
-                                sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
+                                mentiondownButtonCounter.setText(String.format("%d", newMentionsCount));
                             }
                             getMessagesController().markMentionMessageAsRead(message.getId(), ChatObject.isChannel(currentChat) ? currentChat.id : 0, dialog_id);
                             message.setContentIsRead();
@@ -37892,7 +37693,7 @@ public class ChatActivity extends BaseFragment implements
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("notify item changed " + position);
             }
-            if (!fragmentBeginToShow || ignoreItemAnimation) {
+            if (!fragmentBeginToShow) {
                 chatListView.setItemAnimator(null);
             } else if (chatListView.getItemAnimator() != chatListItemAnimator) {
                 chatListView.setItemAnimator(chatListItemAnimator);
@@ -38109,7 +37910,6 @@ public class ChatActivity extends BaseFragment implements
             }
             mentionContainer.setReversed(false);
             mentionContainer.getAdapter().setSearchingMentions(false);
-            checkUi_botMenuPosition();
             searchingUserMessages = null;
             searchingChatMessages = null;
             searchingHashtag = null;
@@ -38127,17 +37927,11 @@ public class ChatActivity extends BaseFragment implements
                 if (attachItem != null) {
                     attachItem.setVisibility(View.GONE);
                 }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(false);
-                }
                 if (searchIconItem != null && showSearchAsIcon) {
                     searchIconItem.setVisibility(View.GONE);
                 }
                 if (audioCallIconItem != null && showAudioCallAsIcon) {
                     audioCallIconItem.setVisibility(View.GONE);
-                }
-                if (topicCreateItem != null) {
-                    topicCreateItem.setVisibility(View.GONE);
                 }
             } else if (chatActivityEnterView.hasText() && TextUtils.isEmpty(chatActivityEnterView.getSlowModeTimer()) && (currentChat == null || ChatObject.canSendPlain(currentChat))) {
                 if (headerItem != null) {
@@ -38149,17 +37943,11 @@ public class ChatActivity extends BaseFragment implements
                 if (attachItem != null) {
                     attachItem.setVisibility(View.VISIBLE);
                 }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(true);
-                }
                 if (searchIconItem != null && showSearchAsIcon) {
                     searchIconItem.setVisibility(View.GONE);
                 }
                 if (audioCallIconItem != null && showAudioCallAsIcon) {
                     audioCallIconItem.setVisibility(View.GONE);
-                }
-                if (topicCreateItem != null) {
-                    topicCreateItem.setVisibility(View.GONE);
                 }
             } else {
                 if (headerItem != null) {
@@ -38167,9 +37955,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (audioCallIconItem != null && showAudioCallAsIcon) {
                     audioCallIconItem.setVisibility(View.VISIBLE);
-                }
-                if (topicCreateItem != null) {
-                    topicCreateItem.setVisibility(View.VISIBLE);
                 }
                 if (searchIconItem != null && showSearchAsIcon) {
                     searchIconItem.setVisibility(View.VISIBLE);
@@ -38179,9 +37964,6 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (attachItem != null) {
                     attachItem.setVisibility(View.GONE);
-                }
-                if (otherIcon != null) {
-                    otherIcon.setIconVisible(false);
                 }
             }
             if (searchViewPager != null) {
@@ -38440,85 +38222,6 @@ public class ChatActivity extends BaseFragment implements
         }
         return chatMessageCellDelegate;
     }
-
-    private TLRPC.TL_message copy(TLRPC.Message omsg) {
-        TLRPC.TL_message msg = new TLRPC.TL_message();
-        msg.id = omsg.id;
-        msg.from_id = omsg.from_id;
-        msg.from_boosts_applied = omsg.from_boosts_applied;
-        msg.peer_id = omsg.peer_id;
-        msg.saved_peer_id = omsg.saved_peer_id;
-        msg.date = omsg.date;
-        msg.expire_date = omsg.expire_date;
-        msg.action = omsg.action;
-        msg.message = omsg.message;
-        msg.flags = omsg.flags;
-        msg.flags2 = omsg.flags2;
-        msg.mentioned = omsg.mentioned;
-        msg.media_unread = omsg.media_unread;
-        msg.out = omsg.out;
-        msg.unread = omsg.unread;
-        msg.entities = omsg.entities;
-        msg.via_bot_name = omsg.via_bot_name;
-        msg.reply_markup = omsg.reply_markup;
-        msg.views = omsg.views;
-        msg.forwards = omsg.forwards;
-        msg.replies = omsg.replies;
-        msg.edit_date = omsg.edit_date;
-        msg.silent = omsg.silent;
-        msg.post = omsg.post;
-        msg.from_scheduled = omsg.from_scheduled;
-        msg.legacy = omsg.legacy;
-        msg.edit_hide = omsg.edit_hide;
-        msg.pinned = omsg.pinned;
-        msg.fwd_from = omsg.fwd_from;
-        msg.via_bot_id = omsg.via_bot_id;
-        msg.via_business_bot_id = omsg.via_business_bot_id;
-        msg.reply_to = omsg.reply_to;
-        msg.post_author = omsg.post_author;
-        msg.grouped_id = omsg.grouped_id;
-        msg.reactions = omsg.reactions;
-        msg.restriction_reason = omsg.restriction_reason;
-        msg.ttl_period = omsg.ttl_period;
-        msg.quick_reply_shortcut_id = omsg.quick_reply_shortcut_id;
-        msg.effect = omsg.effect;
-        msg.noforwards = omsg.noforwards;
-        msg.invert_media = omsg.invert_media;
-        msg.offline = omsg.offline;
-        msg.factcheck = omsg.factcheck;
-        msg.send_state = omsg.send_state;
-        msg.fwd_msg_id = omsg.fwd_msg_id;
-        msg.params = omsg.params;
-        msg.random_id = omsg.random_id;
-        msg.local_id = omsg.local_id;
-        msg.dialog_id = omsg.dialog_id;
-        msg.ttl = omsg.ttl;
-        msg.destroyTime = omsg.destroyTime;
-        msg.destroyTimeMillis = omsg.destroyTimeMillis;
-        msg.layer = omsg.layer;
-        msg.seq_in = omsg.seq_in;
-        msg.seq_out = omsg.seq_out;
-        msg.with_my_score = omsg.with_my_score;
-        msg.replyMessage = omsg.replyMessage;
-        msg.reqId = omsg.reqId;
-        msg.realId = omsg.realId;
-        msg.stickerVerified = omsg.stickerVerified;
-        msg.isThreadMessage = omsg.isThreadMessage;
-        msg.voiceTranscription = omsg.voiceTranscription;
-        msg.voiceTranscriptionOpen = omsg.voiceTranscriptionOpen;
-        msg.voiceTranscriptionRated = omsg.voiceTranscriptionRated;
-        msg.voiceTranscriptionFinal = omsg.voiceTranscriptionFinal;
-        msg.voiceTranscriptionForce = omsg.voiceTranscriptionForce;
-        msg.voiceTranscriptionId = omsg.voiceTranscriptionId;
-        msg.premiumEffectWasPlayed = omsg.premiumEffectWasPlayed;
-        msg.originalLanguage = omsg.originalLanguage;
-        msg.translatedToLanguage = omsg.translatedToLanguage;
-        msg.translatedText = omsg.translatedText;
-        msg.replyStory = omsg.replyStory;
-        msg.quick_reply_shortcut = omsg.quick_reply_shortcut;
-        return msg;
-    }
-
     private class ChatMessageCellDelegate implements ChatMessageCell.ChatMessageCellDelegate {
         @Override
         public boolean isReplyOrSelf() {
@@ -38527,7 +38230,10 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void didPressHint(ChatMessageCell cell, int type) {
-            if (type == 1) {
+            if (type == 0) {
+                TLRPC.TL_messageMediaPoll media = (TLRPC.TL_messageMediaPoll) cell.getMessageObject().messageOwner.media;
+                showPollSolution(cell.getMessageObject(), media.results);
+            } else if (type == 1) {
                 MessageObject messageObject = cell.getMessageObject();
                 if (messageObject.messageOwner.fwd_from == null || TextUtils.isEmpty(messageObject.messageOwner.fwd_from.psa_type)) {
                     return;
@@ -38597,7 +38303,7 @@ public class ChatActivity extends BaseFragment implements
             if (factCheckHint != null) {
                 factCheckHint.hide();
             }
-            if (cell == null || getContext() == null) return;
+            if (cell == null) return;
             MessageObject messageObject = cell.getMessageObject();
             if (messageObject == null) return;
             TLRPC.TL_factCheck factCheck = messageObject.getFactCheck();
@@ -38676,24 +38382,11 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void forceUpdate(ChatMessageCell cell, boolean anchorScroll) {
-            forceUpdate(cell, anchorScroll, false);
-        }
-
-        @Override
-        public void forceUpdateNoAnimation(ChatMessageCell cell, boolean anchorScroll) {
-            forceUpdate(cell, anchorScroll, true, false);
-        }
-
-        public void forceUpdate(ChatMessageCell cell, boolean anchorScroll, boolean scrollByTop) {
-            forceUpdate(cell, anchorScroll, false, scrollByTop);
-        }
-
-        public void forceUpdate(ChatMessageCell cell, boolean anchorScroll, boolean withoutAnimation, boolean scrollByTop) {
             if (cell == null) return;
             MessageObject messageObject = cell.getPrimaryMessageObject();
             if (messageObject == null) return;
             messageObject.forceUpdate = true;
-            int top = 0, bottom = 0;
+            int top = 0;
             int position = RecyclerListView.NO_POSITION;
             if (chatListView != null && chatLayoutManager != null && !chatLayoutManager.hasPendingScrollPosition()) {
                 for (int i = chatListView.getChildCount() - 1; i >= 0; i--) {
@@ -38706,35 +38399,18 @@ public class ChatActivity extends BaseFragment implements
                         }
                         position = vposition;
                         top = getScrollingOffsetForView(v);
-                        bottom = 0;
                         break;
                     } else if (v instanceof ChatActionCell) {
                         position = vposition;
                         top = getScrollingOffsetForView(v);
-                        bottom = 0;
                         break;
                     }
                 }
             }
+            updateMessageAnimatedInternal(messageObject, false);
             if (anchorScroll && position >= 0 && cell.getCurrentMessagesGroup() == null) {
-                if (scrollByTop) {
-                    chatLayoutManager.scrollToPositionWithOffset(chatListView.getChildAdapterPosition(cell), cell.getTop() - (int) chatListViewPaddingTop, false);
-                } else {
-                    chatLayoutManager.scrollToPositionWithOffset(position, top);
-                }
+                chatLayoutManager.scrollToPositionWithOffset(position, top);
             }
-
-            ignoreItemAnimation = withoutAnimation;
-            updateMessageAnimatedInternal(messageObject, false);
-            ignoreItemAnimation = false;
-        }
-
-        @Override
-        public void didTogglePollPreview(ChatMessageCell cell) {
-            if (cell == null) return;
-            MessageObject messageObject = cell.getPrimaryMessageObject();
-            if (messageObject == null) return;
-            updateMessageAnimatedInternal(messageObject, false);
         }
 
         @Override
@@ -38799,6 +38475,7 @@ public class ChatActivity extends BaseFragment implements
             final boolean isSavedMessages = did == UserConfig.getInstance(UserConfig.selectedAccount).clientUserId;
             final ArrayList<MessageObject> finalArrayList = arrayList;
             Runnable delayedRunnalble = () -> {
+                // forkgram-classic: upstream sig added `int scheduleRepeatPeriod` after scheduleDate.
                 int result = SendMessagesHelper.getInstance(currentAccount).sendMessage(finalArrayList, did, false, false, true, 0, 0, null, -1, 0, getSendMonoForumPeerId(), getSendMessageSuggestionParams());
                 AlertsCreator.showSendMediaAlert(result, ChatActivity.this, null);
             };
@@ -38859,7 +38536,77 @@ public class ChatActivity extends BaseFragment implements
                     arrayList.add(messageObject);
                 }
                 final boolean includeStory = getMessagesController().storiesEnabled() && StoryEntry.canRepostMessage(messageObject);
-                showDialog(createShareAlert(getParentActivity(), arrayList, null, false, includeStory, messageObject));
+                // forkgram-classic: upstream sig added `boolean groupAnyItems` at the end.
+                showDialog(new ShareAlert(getContext(), ChatActivity.this, arrayList, null, null, ChatObject.isChannel(currentChat), null, null, false, false, includeStory, null, themeDelegate, false) {
+                    { includeStoryFromMessage = includeStory; }
+                    @Override
+                    public void dismissInternal() {
+                        AndroidUtilities.requestAdjustResize(getParentActivity(), classGuid);
+                        super.dismissInternal();
+                        if (chatActivityEnterView.getVisibility() == View.VISIBLE) {
+                            fragmentView.requestLayout();
+                        }
+                    }
+
+                    @Override
+                    protected void onShareStory(View cell) {
+                        StoryRecorder.SourceView sourceView = null;
+                        if (cell instanceof ShareDialogCell) {
+                            sourceView = StoryRecorder.SourceView.fromShareCell((ShareDialogCell) cell);
+                        }
+                        final ArrayList<MessageObject> messageObjects = new ArrayList<>();
+                        MessageObject.GroupedMessages groupedMessages = messageObject.getGroupId() != 0 ? groupedMessagesMap.get(messageObject.getGroupId()) : null;
+                        if (groupedMessages != null) {
+                            messageObjects.addAll(groupedMessages.messages);
+                        } else {
+                            messageObjects.add(messageObject);
+                        }
+                        StoryRecorder editor = StoryRecorder.getInstance(getParentActivity(), currentAccount);
+                        editor.setOnPrepareCloseListener((t, close, sent, did) -> {
+                            if (sent) {
+                                AndroidUtilities.runOnUIThread(() -> {
+                                    String chatTitle = "";
+                                    if (did < 0) {
+                                        TLRPC.Chat chat = getMessagesController().getChat(-did);
+                                        if (chat != null) {
+                                            chatTitle = chat.title;
+                                        }
+                                    }
+                                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.contact_check, AndroidUtilities.replaceTags(
+                                        TextUtils.isEmpty(chatTitle) ?
+                                            LocaleController.getString(R.string.RepostedToProfile) :
+                                            LocaleController.formatString(R.string.RepostedToChannelProfile, chatTitle)
+                                    )).show();
+                                });
+                                dismiss();
+                                editor.replaceSourceView(null);
+                            } else {
+                                StoryRecorder.SourceView sourceView2 = null;
+                                if (cell instanceof ShareDialogCell && cell.isAttachedToWindow()) {
+                                    sourceView2 = StoryRecorder.SourceView.fromShareCell((ShareDialogCell) cell);
+                                }
+                                editor.replaceSourceView(sourceView2);
+                            }
+                            AndroidUtilities.runOnUIThread(close);
+                        });
+                        editor.openRepost(sourceView, StoryEntry.repostMessage(messageObjects));
+                    }
+
+                    @Override
+                    protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, boolean showToast) {
+                        createUndoView();
+                        if (undoView == null || !showToast) {
+                            return;
+                        }
+                        if (dids.size() == 1) {
+                            if (dids.valueAt(0).id != getUserConfig().getClientUserId() || !BulletinFactory.of(ChatActivity.this).showForwardedBulletinWithTag(dids.valueAt(0).id, count)) {
+                                undoView.showWithAction(dids.valueAt(0).id, UndoView.ACTION_FWD_MESSAGES, count, topic, null, null);
+                            }
+                        } else {
+                            undoView.showWithAction(0, UndoView.ACTION_FWD_MESSAGES, count, dids.size(), null, null);
+                        }
+                    }
+                });
                 AndroidUtilities.setAdjustResizeToNothing(getParentActivity(), classGuid);
                 fragmentView.requestLayout();
             }
@@ -38996,17 +38743,6 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        public void didPressSummarize(ChatMessageCell cell, boolean byReply) {
-            final MessageObject msg = cell.getMessageObject();
-            msg.messageOwner.summarizedOpen = !msg.messageOwner.summarizedOpen;
-            final boolean opened = msg.messageOwner.summarizedOpen;
-            msg.updateTranslation(true);
-            getMessagesStorage().updateMessageCustomParams(msg.getDialogId(), msg.messageOwner);
-            getMessagesController().getTranslateController().checkTranslation(msg, true);
-            forceUpdate(cell, true, true);
-        }
-
-        @Override
         public void didPressSponsoredInfo(ChatMessageCell cell, float x, float y) {
             createMenu(cell, true, false, x, y, false, false);
         }
@@ -39076,33 +38812,6 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        public void didPressAddPollOptionButton(ChatMessageCell cell) {
-            pollAddOptionModeStart(cell);
-        }
-
-        @Override
-        public boolean allowAddPollOptions() {
-            return chatMode == 0;
-        }
-
-        @Override
-        public int getAddPollOptionInputFieldHeight(ChatMessageCell cell) {
-            return isInPollAddOptionMode() && pollAddOptionFieldLayout != null && pollAddOptionFieldLayout.cellToWatch == cell && pollAddOptionFieldLayout.textView.getWidth() > 0 ? pollAddOptionFieldLayout.textView.getHeight() : 0;
-        }
-
-        @Override
-        public void drawPollMode(Canvas canvas, ChatMessageCell cell) {
-            if (pollAddOptionFieldLayout != null && pollAddOptionFieldLayout.cellToWatch == cell) {
-                pollAddOptionFieldLayout.drawInCell(canvas);
-            }
-        }
-
-        @Override
-        public ChatActivityDraftMessageMeasureController getDraftMessageMeasureController() {
-            return botDraftHeightController;
-        }
-
-        @Override
         public void didPressUserAvatar(ChatMessageCell cell, TLRPC.User user, float touchX, float touchY, boolean asForward) {
             if (actionBar.isActionModeShowed() || isReport()) {
                 processRowSelect(cell, true, touchX, touchY);
@@ -39118,7 +38827,7 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public boolean didLongPressUserAvatar(ChatMessageCell cell, TLRPC.User user, float touchX, float touchY) {
             if (isAvatarPreviewerEnabled()) {
-                final boolean enableMention = currentChat != null && (bottomChannelButtonsLayout == null || bottomChannelButtonsLayout.getVisibility() != View.VISIBLE) && (bottomOverlay == null || bottomOverlay.getVisibility() != View.VISIBLE);
+                final boolean enableMention = currentChat != null && (bottomOverlayChat == null || bottomOverlayChat.getVisibility() != View.VISIBLE) && (bottomOverlay == null || bottomOverlay.getVisibility() != View.VISIBLE);
                 final boolean enableSearchMessages = currentChat != null && (threadMessageId == 0 || isTopic) && (!ChatObject.isChannel(currentChat) || currentChat.megagroup);
                 final AvatarPreviewer.MenuItem[] menuItems = new AvatarPreviewer.MenuItem[2 + (enableMention ? 1 : 0) + (enableSearchMessages ? 1 : 0)];
                 int a = 0;
@@ -39241,7 +38950,7 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public boolean didLongPressChannelAvatar(ChatMessageCell cell, TLRPC.Chat chat, int postId, float touchX, float touchY) {
             if (isAvatarPreviewerEnabled()) {
-                final boolean enableMention = !TextUtils.isEmpty(ChatObject.getPublicUsername(chat)) && currentChat != null && (bottomChannelButtonsLayout == null || bottomChannelButtonsLayout.getVisibility() != View.VISIBLE) && (bottomOverlay == null || bottomOverlay.getVisibility() != View.VISIBLE);
+                final boolean enableMention = !TextUtils.isEmpty(ChatObject.getPublicUsername(chat)) && currentChat != null && (bottomOverlayChat == null || bottomOverlayChat.getVisibility() != View.VISIBLE) && (bottomOverlay == null || bottomOverlay.getVisibility() != View.VISIBLE);
                 final boolean enableSearchMessages = currentChat != null && (threadMessageId == 0 || isTopic) && (!ChatObject.isChannel(currentChat) || currentChat.megagroup);
                 final boolean openChannel = currentChat == null || currentChat.id != chat.id || isThreadChat();
                 final AvatarPreviewer.MenuItem[] menuItems = new AvatarPreviewer.MenuItem[1 + (openChannel ? 1 : 0) + (enableMention ? 1 : 0) + (enableSearchMessages ? 1 : 0)];
@@ -39396,7 +39105,7 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public void didPressBotButton(ChatMessageCell cell, TLRPC.KeyboardButton button) {
             if (chatMode == MODE_QUICK_REPLIES) return;
-            if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
+            if (getParentActivity() == null || bottomOverlayChat.getVisibility() == View.VISIBLE &&
                     !(button instanceof TLRPC.TL_keyboardButtonSwitchInline) && !(button instanceof TLRPC.TL_keyboardButtonCallback) &&
                     !(button instanceof TLRPC.TL_keyboardButtonGame) && !(button instanceof TLRPC.TL_keyboardButtonUrl) &&
                     !(button instanceof TLRPC.TL_keyboardButtonBuy) && !(button instanceof TLRPC.TL_keyboardButtonUrlAuth) &&
@@ -39589,7 +39298,7 @@ public class ChatActivity extends BaseFragment implements
         @Override
         public void didLongPressBotButton(ChatMessageCell cell, TLRPC.KeyboardButton button) {
             if (chatMode == MODE_QUICK_REPLIES) return;
-            if (getParentActivity() == null || bottomChannelButtonsLayout.getVisibility() == View.VISIBLE &&
+            if (getParentActivity() == null || bottomOverlayChat.getVisibility() == View.VISIBLE &&
                     !(button instanceof TLRPC.TL_keyboardButtonSwitchInline) && !(button instanceof TLRPC.TL_keyboardButtonCallback) &&
                     !(button instanceof TLRPC.TL_keyboardButtonGame) && !(button instanceof TLRPC.TL_keyboardButtonUrl) &&
                     !(button instanceof TLRPC.TL_keyboardButtonBuy) && !(button instanceof TLRPC.TL_keyboardButtonUrlAuth) &&
@@ -39633,7 +39342,7 @@ public class ChatActivity extends BaseFragment implements
             if (true) {
                 selectedObject = messageObject;
                 selectedObjectGroup = null;
-
+                
                 TodoItemMenu menu = new TodoItemMenu(getContext(), getResourceProvider());
                 menu.setCell(ChatActivity.this, cell, task.id);
 
@@ -39671,12 +39380,16 @@ public class ChatActivity extends BaseFragment implements
                 private final Path path = new Path();
                 @Override
                 protected void dispatchDraw(Canvas canvas) {
-                    canvas.save();
-                    path.rewind();
-                    path.addRoundRect(dp(8), dp(8), getWidth() - dp(8), getHeight() - dp(8), dp(6), dp(6), Path.Direction.CW);
-                    canvas.clipPath(path);
-                    super.dispatchDraw(canvas);
-                    canvas.restore();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        canvas.save();
+                        path.rewind();
+                        path.addRoundRect(dp(8), dp(8), getWidth() - dp(8), getHeight() - dp(8), dp(6), dp(6), Path.Direction.CW);
+                        canvas.clipPath(path);
+                        super.dispatchDraw(canvas);
+                        canvas.restore();
+                    } else {
+                        super.dispatchDraw(canvas);
+                    }
                 }
             };
             scrimPopupContainerLayout.setLayoutParams(LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
@@ -39696,7 +39409,9 @@ public class ChatActivity extends BaseFragment implements
             if (completion != null) {
                 showCompletion = true;
 
-                final long dialogId = DialogObject.getPeerDialogId(completion.completed_by);
+                // forkgram-classic: upstream changed TodoCompletion.completed_by
+                // from `long` to `Peer`; resolve via DialogObject.getPeerDialogId.
+                final long dialogId = org.telegram.messenger.DialogObject.getPeerDialogId(completion.completed_by);
                 final TLObject obj = getMessagesController().getUserOrChat(dialogId);
 
                 final FrameLayout userButton = new FrameLayout(getContext());
@@ -39779,7 +39494,7 @@ public class ChatActivity extends BaseFragment implements
                 }
 
                 ActionBarMenuSubItem deleteItem = new ActionBarMenuSubItem(getContext(), false, false);
-                deleteItem.setTextAndIcon(getString(R.string.TodoDeleteItem), R.drawable.msg_delete);
+                deleteItem.setTextAndIcon("Delete Item", R.drawable.msg_delete);
                 deleteItem.setMinimumWidth(160);
                 deleteItem.setOnClickListener(view -> {
                     if (scrimPopupWindow != null) {
@@ -39797,9 +39512,6 @@ public class ChatActivity extends BaseFragment implements
                         final TLRPC.TodoCompletion c = media.completions.get(i);
                         if (c.id == task.id) {
                             media.completions.remove(i);
-                            if (media.completions.isEmpty()) {
-                                media.flags &=~ 1;
-                            }
                             i--;
                         }
                     }
@@ -39811,7 +39523,7 @@ public class ChatActivity extends BaseFragment implements
             }
 
             Rect backgroundPaddings = new Rect();
-            Drawable shadowDrawable2 = ContextCompat.getDrawable(getParentActivity(), R.drawable.popup_fixed_alert4).mutate();
+            Drawable shadowDrawable2 = ContextCompat.getDrawable(getParentActivity(), R.drawable.popup_fixed_alert).mutate();
             shadowDrawable2.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground), PorterDuff.Mode.MULTIPLY));
             shadowDrawable2.getPadding(backgroundPaddings);
             scrimPopupContainerLayout.setBackground(shadowDrawable2);
@@ -39918,55 +39630,7 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        public boolean didLongPressPollOption(ChatMessageCell cell, TLRPC.PollAnswer answer) {
-            if (getParentActivity() == null || getContext() == null) {
-                return false;
-            }
-            if (savedMessagesTagHint != null && savedMessagesTagHint.shown()) {
-                savedMessagesTagHint.hide();
-            }
-            if (videoConversionTimeHint != null && videoConversionTimeHint.shown()) {
-                videoConversionTimeHint.hide();
-            }
-            final MessageObject messageObject = cell.getPrimaryMessageObject();
-            final TLRPC.MessageMedia _media = MessageObject.getMedia(messageObject);
-            if (messageObject == null) return false;
-            if (!(_media instanceof TLRPC.TL_messageMediaPoll)) return false;
-            final TLRPC.TL_messageMediaPoll media = (TLRPC.TL_messageMediaPoll) _media;
-
-            selectedObject = messageObject;
-            selectedObjectGroup = null;
-
-            PollItemMenu menu = new PollItemMenu(getContext(), getResourceProvider());
-            menu.setCell(ChatActivity.this, cell, answer.option);
-
-            ArrayList<Integer> icons = new ArrayList<>();
-            ArrayList<CharSequence> items = new ArrayList<>();
-            final ArrayList<Integer> options = new ArrayList<>();
-            fillMessageMenu(messageObject, icons, items, options);
-            menu.setupMessageOptions(ChatActivity.this, icons, items, options, ChatActivity.this::processSelectedOption);
-            menu.setOnDismissListener(() -> {
-                selectedObject = null;
-                selectedObjectGroup = null;
-            });
-            menu.show();
-
-            return true;
-        }
-
-        @Override
         public void didPressVoteButtons(ChatMessageCell cell, ArrayList<TLRPC.PollAnswer> buttons, int showCount, int x, int y) {
-            final MessageObject message = cell.getMessageObject();
-            if (message == null) {
-                return;
-            }
-
-            final int restrictedFlags = PollUtils.getVoteRestrictedFlags(message);
-            if (BitwiseUtils.hasFlag(restrictedFlags, PollUtils.VOTE_RESTRICTED_NOT_SUBSCRIBED_FLAG | PollUtils.VOTE_RESTRICTED_NOT_SUBSCRIBED_24H_FLAG | PollUtils.VOTE_RESTRICTED_BY_COUNTRY_FLAG)) {
-                BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.e_hand_2, PollUtils.getVoteRestrictedToastText(message, restrictedFlags)).show();
-                return;
-            }
-
             if (showCount >= 0 || buttons.isEmpty()) {
                 if (getParentActivity() == null) {
                     return;
@@ -39975,7 +39639,7 @@ public class ChatActivity extends BaseFragment implements
                     pollHintView = new HintView(getParentActivity(), HintView.TYPE_POLL_VOTE, themeDelegate);
                     pollHintView.setAlpha(0.0f);
                     pollHintView.setVisibility(View.INVISIBLE);
-                    int index = contentView.indexOfChild(chatInputViewsContainer);
+                    int index = contentView.indexOfChild(chatActivityEnterView);
                     if (index == -1) {
                         return;
                     }
@@ -40004,8 +39668,7 @@ public class ChatActivity extends BaseFragment implements
                 }
                 pollHintView.showForMessageCell(cell, showCount, x, y, true);
             } else {
-                getSendMessagesHelper().sendVote(message, buttons, null);
-                cell.checkPollVoteSendingStatus(true);
+                getSendMessagesHelper().sendVote(cell.getMessageObject(), buttons, null);
             }
         }
 
@@ -40031,8 +39694,8 @@ public class ChatActivity extends BaseFragment implements
                     .show(true);
                 return false;
             } else {
-                long send_as = ChatObject.getSendAsPeerId(currentChat, chatInfo, true);
-                getSendMessagesHelper().toggleTodo(send_as, cell.getMessageObject(), task, enable, null);
+                // forkgram-classic: upstream added `long send_as` slot at the start.
+                getSendMessagesHelper().toggleTodo(0, cell.getMessageObject(), task, enable, null);
                 return true;
             }
         }
@@ -40112,7 +39775,7 @@ public class ChatActivity extends BaseFragment implements
             if (longPress && peer instanceof TLRPC.Chat) {
                 final TLRPC.Chat chat = (TLRPC.Chat) peer;
 
-                ActionBarPopupWindow.ActionBarPopupWindowLayout previewMenu = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getContext(), R.drawable.popup_fixed_alert4, getResourceProvider(), ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_SHOWN_FROM_BOTTOM);
+                ActionBarPopupWindow.ActionBarPopupWindowLayout previewMenu = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getContext(), R.drawable.popup_fixed_alert, getResourceProvider(), ActionBarPopupWindow.ActionBarPopupWindowLayout.FLAG_SHOWN_FROM_BOTTOM);
                 previewMenu.setBackgroundColor(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground));
 
                 ActionBarMenuSubItem openChannel = new ActionBarMenuSubItem(getParentActivity(), false, false);
@@ -40323,11 +39986,8 @@ public class ChatActivity extends BaseFragment implements
                 String quote = null;
                 int quoteOffset = -1;
                 Integer task_id = null;
-                byte[] option_id = null;
                 if (messageObject.messageOwner != null && messageObject.messageOwner.reply_to != null && (messageObject.messageOwner.reply_to.flags & 2048) != 0) {
                     task_id = messageObject.messageOwner.reply_to.todo_item_id;
-                } else if (messageObject.messageOwner != null && messageObject.messageOwner.reply_to != null && messageObject.messageOwner.reply_to.poll_option != null) {
-                    option_id = messageObject.messageOwner.reply_to.poll_option;
                 } else if (messageObject.messageOwner != null && messageObject.messageOwner.reply_to != null && messageObject.messageOwner.reply_to.quote) {
                     quote = messageObject.messageOwner.reply_to.quote_text;
                     if ((messageObject.messageOwner.reply_to.flags & 1024) != 0) {
@@ -40407,15 +40067,13 @@ public class ChatActivity extends BaseFragment implements
                                     AndroidUtilities.runOnUIThread(ChatActivity.this::resetProgressDialogLoading, 250);
                                 }
                             }
-                        }, messageObject.getId(), quoteOffset, task_id, option_id);
+                        }, messageObject.getId(), quoteOffset, task_id, null); // forkgram-classic: upstream added `byte[] pollOption` last.
                     }
                 } else if (chatMode == MODE_PINNED || chatMode == MODE_SCHEDULED) {
                     chatActivityDelegate.openReplyMessage(id);
                     finishFragment();
                 } else {
-                    if (option_id != null) {
-                        highlightPollOptionId = option_id;
-                    } else if (task_id != null) {
+                    if (task_id != null) {
                         highlightTaskId = task_id;
                     } else if (messageObject.messageOwner != null && messageObject.messageOwner.reply_to != null && messageObject.messageOwner.reply_to.quote) {
                         highlightMessageQuoteFirst = true;
@@ -40424,9 +40082,8 @@ public class ChatActivity extends BaseFragment implements
                         showNoQuoteAlert = true;
                     }
                     final Integer finalTaskId = task_id;
-                    final byte[] finalPollOptionId = option_id;
                     Runnable scroll = () -> {
-                        scrollToMessageId(id, messageObject.getId(), true, messageObject.getDialogId() == mergeDialogId ? 1 : 0, true, 0, finalTaskId, finalPollOptionId, () -> {
+                        scrollToMessageId(id, messageObject.getId(), true, messageObject.getDialogId() == mergeDialogId ? 1 : 0, true, 0, finalTaskId, () -> {
                             progressDialogAtMessageId = messageObject.getId();
                             progressDialogAtMessageType = PROGRESS_REPLY;
                         });
@@ -40474,7 +40131,7 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void didPressViaBot(ChatMessageCell cell, String username) {
-            if (bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE || bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE) {
+            if (bottomOverlayChat != null && bottomOverlayChat.getVisibility() == View.VISIBLE || bottomOverlay != null && bottomOverlay.getVisibility() == View.VISIBLE) {
                 return;
             }
             if (chatActivityEnterView != null && username != null && username.length() > 0) {
@@ -40524,13 +40181,86 @@ public class ChatActivity extends BaseFragment implements
                     if (emedia == media) {
                         index = messages.size();
                     }
-                    TLRPC.TL_message msg = copy(omsg);
+                    TLRPC.TL_message msg = new TLRPC.TL_message();
+                    msg.id = omsg.id;
+                    msg.from_id = omsg.from_id;
+                    msg.from_boosts_applied = omsg.from_boosts_applied;
+                    msg.peer_id = omsg.peer_id;
+                    msg.saved_peer_id = omsg.saved_peer_id;
+                    msg.date = omsg.date;
+                    msg.expire_date = omsg.expire_date;
+                    msg.action = omsg.action;
+                    msg.message = omsg.message;
+                    msg.flags = omsg.flags;
+                    msg.flags2 = omsg.flags2;
+                    msg.mentioned = omsg.mentioned;
+                    msg.media_unread = omsg.media_unread;
+                    msg.out = omsg.out;
+                    msg.unread = omsg.unread;
+                    msg.entities = omsg.entities;
+                    msg.via_bot_name = omsg.via_bot_name;
+                    msg.reply_markup = omsg.reply_markup;
+                    msg.views = omsg.views;
+                    msg.forwards = omsg.forwards;
+                    msg.replies = omsg.replies;
+                    msg.edit_date = omsg.edit_date;
+                    msg.silent = omsg.silent;
+                    msg.post = omsg.post;
+                    msg.from_scheduled = omsg.from_scheduled;
+                    msg.legacy = omsg.legacy;
+                    msg.edit_hide = omsg.edit_hide;
+                    msg.pinned = omsg.pinned;
+                    msg.fwd_from = omsg.fwd_from;
+                    msg.via_bot_id = omsg.via_bot_id;
+                    msg.via_business_bot_id = omsg.via_business_bot_id;
+                    msg.reply_to = omsg.reply_to;
+                    msg.post_author = omsg.post_author;
+                    msg.grouped_id = omsg.grouped_id;
+                    msg.reactions = omsg.reactions;
+                    msg.restriction_reason = omsg.restriction_reason;
+                    msg.ttl_period = omsg.ttl_period;
+                    msg.quick_reply_shortcut_id = omsg.quick_reply_shortcut_id;
+                    msg.effect = omsg.effect;
+                    msg.noforwards = omsg.noforwards;
+                    msg.invert_media = omsg.invert_media;
+                    msg.offline = omsg.offline;
+                    msg.factcheck = omsg.factcheck;
+                    msg.send_state = omsg.send_state;
+                    msg.fwd_msg_id = omsg.fwd_msg_id;
                     if (!TextUtils.isEmpty(emedia.attachPath)) {
                         msg.attachPath = emedia.attachPath;
                     } else if (paidMedia.extended_media.size() == 1) {
                         msg.attachPath = omsg.attachPath;
                     }
+                    msg.params = omsg.params;
+                    msg.random_id = omsg.random_id;
+                    msg.local_id = omsg.local_id;
+                    msg.dialog_id = omsg.dialog_id;
+                    msg.ttl = omsg.ttl;
+                    msg.destroyTime = omsg.destroyTime;
+                    msg.destroyTimeMillis = omsg.destroyTimeMillis;
+                    msg.layer = omsg.layer;
+                    msg.seq_in = omsg.seq_in;
+                    msg.seq_out = omsg.seq_out;
+                    msg.with_my_score = omsg.with_my_score;
+                    msg.replyMessage = omsg.replyMessage;
+                    msg.reqId = omsg.reqId;
+                    msg.realId = omsg.realId;
+                    msg.stickerVerified = omsg.stickerVerified;
+                    msg.isThreadMessage = omsg.isThreadMessage;
+                    msg.voiceTranscription = omsg.voiceTranscription;
+                    msg.voiceTranscriptionOpen = omsg.voiceTranscriptionOpen;
+                    msg.voiceTranscriptionRated = omsg.voiceTranscriptionRated;
+                    msg.voiceTranscriptionFinal = omsg.voiceTranscriptionFinal;
+                    msg.voiceTranscriptionForce = omsg.voiceTranscriptionForce;
+                    msg.voiceTranscriptionId = omsg.voiceTranscriptionId;
+                    msg.premiumEffectWasPlayed = omsg.premiumEffectWasPlayed;
+                    msg.originalLanguage = omsg.originalLanguage;
+                    msg.translatedToLanguage = omsg.translatedToLanguage;
+                    msg.translatedText = omsg.translatedText;
+                    msg.replyStory = omsg.replyStory;
                     msg.media = emedia.media;
+                    msg.quick_reply_shortcut = omsg.quick_reply_shortcut;
                     msg.noforwards = true;
                     MessageObject msgObj = new MessageObject(message.currentAccount, msg, false, true);
                     messages.add(msgObj);
@@ -40540,256 +40270,6 @@ public class ChatActivity extends BaseFragment implements
 
             PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
             PhotoViewer.getInstance().openPhoto(messages, index, getDialogId(), 0, 0, photoViewerPaidMediaProvider);
-        }
-
-        @Override
-        public void didPressPollMedia(ChatMessageCell cell, ImageReceiver imageReceiver, TLRPC.PollAnswer answer, TLRPC.MessageMedia media, float x, float y, int unshuffledIndex) {
-            final MessageObject messageObject = cell.getMessageObject();
-            final TLRPC.MessageMedia messageMedia = MessageObject.getMedia(messageObject);
-            if (media == null || messageObject == null || !(messageMedia instanceof TLRPC.TL_messageMediaPoll)) {
-                return;
-            }
-            final TLRPC.TL_messageMediaPoll messageMediaPoll = (TLRPC.TL_messageMediaPoll) messageMedia;
-
-            if (media.geo != null) {
-                if (!AndroidUtilities.isMapsInstalled(ChatActivity.this)) {
-                    return;
-                }
-
-                LocationActivity fragment = new LocationActivity(3) {
-                    @Override
-                    protected boolean disablePermissionCheck() {
-                        return true;
-                    }
-                };
-                fragment.setResourceProvider(resourceProvider);
-                TLRPC.TL_message message = new TLRPC.TL_message();
-                message.local_id = -1;
-                message.peer_id = getMessagesController().getPeer(getDialogId());
-                TLRPC.TL_messageMediaGeo media1 = new TLRPC.TL_messageMediaGeo();
-                media1.geo = media.geo;
-                media1.address = media.address != null ? media.address : (answer != null && answer.text != null ? answer.text.text : "");
-                message.media = media1;
-                fragment.setSharingAllowed(false);
-                fragment.setMessageObject(new MessageObject(UserConfig.selectedAccount, message, false, false));
-                presentFragment(fragment);
-            } else if (MessageObject.isAnyKindOfStickerOrEmoji(media.document)) {
-                ContentPreviewViewer.getInstance().setParentActivity(getParentActivity());
-                ContentPreviewViewer.getInstance().setDelegate(new ContentPreviewViewer.ContentPreviewViewerDelegate() {
-                    @Override
-                    public void sendSticker(TLRPC.Document sticker, String query, Object parent, boolean notify, int scheduleDate, int scheduleRepeatPeriod) {
-
-                    }
-
-                    @Override
-                    public boolean needSend(int contentType) {
-                        return false;
-                    }
-
-                    @Override
-                    public boolean canSchedule() {
-                        return false;
-                    }
-
-                    @Override
-                    public boolean isInScheduleMode() {
-                        return chatMode == MODE_SCHEDULED;
-                    }
-
-                    @Override
-                    public void openSet(TLRPC.InputStickerSet set, boolean clearsInputField) {
-                        if (set == null || getParentActivity() == null) {
-                            return;
-                        }
-                        TLRPC.TL_inputStickerSetID inputStickerSet = new TLRPC.TL_inputStickerSetID();
-                        inputStickerSet.access_hash = set.access_hash;
-                        inputStickerSet.id = set.id;
-                        StickersAlert alert = new StickersAlert(getParentActivity(), ChatActivity.this, inputStickerSet, null, chatActivityEnterView, themeDelegate, false);
-                        alert.setCalcMandatoryInsets(isKeyboardVisible());
-                        alert.setClearsInputField(clearsInputField);
-                        showDialog(alert);
-                    }
-
-                    @Override
-                    public long getDialogId() {
-                        return dialog_id;
-                    }
-
-                    @Nullable
-                    @Override
-                    public TLRPC.TL_messageMediaPoll getPoll() {
-                        return messageMediaPoll;
-                    }
-
-                    @Nullable
-                    @Override
-                    public TLRPC.PollAnswer getPollAnswer() {
-                        return answer;
-                    }
-
-                    @Override
-                    public MessageObject getPollMessageObject() {
-                        return cell.getMessageObject();
-                    }
-
-                    @Override
-                    public void retractVote() {
-                        getSendMessagesHelper().sendVote(cell.getMessageObject(), null, null);
-                        cell.checkPollVoteSendingStatus(true);
-                    }
-
-                    @Override
-                    public void sendVote() {
-                        ArrayList<TLRPC.PollAnswer> buttons = new ArrayList<>(1);
-                        buttons.add(answer);
-                        getSendMessagesHelper().sendVote(cell.getMessageObject(), buttons, null);
-                        cell.checkPollVoteSendingStatus(true);
-                    }
-                });
-                ContentPreviewViewer.getInstance().open(media.document, null, "", null, null,
-                    MessageObject.isAnimatedEmoji(media.document) ? ContentPreviewViewer.CONTENT_TYPE_EMOJI : ContentPreviewViewer.CONTENT_TYPE_STICKER,
-                    false, cell.getMessageObject(), resourceProvider, 200);
-            } else if (MessageObject.isMusicDocument(media.document)) {
-                final MessageObject currentPlayingMessageObject = MediaController.getInstance().getPlayingMessageObject();
-                if (MediaController.getInstance().isPlayingMessage(messageObject) && currentPlayingMessageObject != null && (currentPlayingMessageObject.isPlayingExplanationObject == (unshuffledIndex == PollAttachedMediaPack.INDEX_EXPLANATION))) {
-                    if (MediaController.getInstance().isMessagePaused()) {
-                        MediaController.getInstance().playMessage(currentPlayingMessageObject);
-                    } else {
-                        MediaController.getInstance().pauseMessage(currentPlayingMessageObject);
-                    }
-                } else {
-                    final TLRPC.Message omsg = messageObject.messageOwner;
-                    TLRPC.TL_message msg = copy(omsg);
-                    msg.media = media;
-                    msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, unshuffledIndex);
-                    ArrayList<MessageObject> messages = new ArrayList<>();
-                    MessageObject tmpMessageObject = new MessageObject(currentAccount, msg, false, true);
-                    tmpMessageObject.isPlayingExplanationObject = unshuffledIndex == PollAttachedMediaPack.INDEX_EXPLANATION;
-                    messages.add(tmpMessageObject);
-
-                    if (MediaController.getInstance().isPlayingMessage(messageObject)) {
-                        MediaController.getInstance().cleanupPlayer(false, true);
-                    }
-                    MediaController.getInstance().setPlaylist(messages, tmpMessageObject, 0);
-                }
-            } else if (media.document != null && !MessageObject.isVideoDocument(media.document)) {
-
-                final FileState fileState = new FileState(currentAccount, messageObject, media.document, PollAttachedMediaPack.getAttachPath(messageObject.messageOwner, unshuffledIndex));
-                if (fileState.isLoading()) {
-                    fileState.downloadCancel();
-                    cell.checkPollFileState();
-                } else if (!fileState.isExists()) {
-                    fileState.downloadStart();
-                    cell.checkPollFileState();
-                } else {
-                    final TLRPC.Message omsg = messageObject.messageOwner;
-                    TLRPC.TL_message msg = copy(omsg);
-                    msg.media = media;
-                    msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, unshuffledIndex);
-                    MessageObject message = new MessageObject(currentAccount, msg, false, true) {
-                        @Override
-                        public boolean canDeleteMessage(boolean inScheduleMode, TLRPC.Chat chat) {
-                            return false;
-                        }
-                    };
-
-                    boolean handled = false;
-                    if (MessageObject.canPreviewDocument(media.document)) {
-                        PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
-                        PhotoViewer.getInstance().openPhoto(message, ChatActivity.this, message.type != 0 ? dialog_id : 0, message.type != 0 ? mergeDialogId : 0, message.type != 0 ? getTopicId() : 0, photoViewerProvider);
-                        handled = true;
-                    }
-                    if (!handled) {
-                        try {
-                            AndroidUtilities.openForView(message, getParentActivity(), themeDelegate, false);
-                        } catch (Exception e) {
-                            FileLog.e(e);
-                            alertUserOpenError(message);
-                        }
-                    }
-                }
-
-            } else {
-                final TLRPC.Message omsg = messageObject.messageOwner;
-                final ArrayList<Integer> indexes = new ArrayList<>();
-                ArrayList<MessageObject> messages = new ArrayList<>();
-                int index = -1;
-
-                if (messageMediaPoll.attached_media != null) {
-                    TLRPC.MessageMedia emedia = messageMediaPoll.attached_media;
-                    if (emedia.geo == null && (emedia.document == null || MessageObject.isVideoDocument(emedia.document))) {
-                        if (emedia == media) {
-                            index = messages.size();
-                        }
-                        TLRPC.TL_message msg = copy(omsg);
-                        msg.media = emedia;
-                        msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, PollAttachedMediaPack.INDEX_DESCRIPTION);
-                        MessageObject msgObj = new MessageObject(currentAccount, msg, false, true) {
-                            @Override
-                            public boolean canDeleteMessage(boolean inScheduleMode, TLRPC.Chat chat) {
-                                return false;
-                            }
-                        };
-                        messages.add(msgObj);
-                        indexes.add(PollAttachedMediaPack.INDEX_DESCRIPTION);
-                    }
-                }
-                if (messageObject.expandedExplanation && messageMediaPoll.results != null && messageMediaPoll.results.solution_media != null) {
-                    TLRPC.MessageMedia emedia = messageMediaPoll.results.solution_media;
-                    if (emedia.geo == null && (emedia.document == null || MessageObject.isVideoDocument(emedia.document))) {
-                        if (emedia == media) {
-                            index = messages.size();
-                        }
-                        TLRPC.TL_message msg = copy(omsg);
-                        msg.media = emedia;
-                        msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, PollAttachedMediaPack.INDEX_EXPLANATION);
-                        msg.message = messageMediaPoll.results.solution;
-                        msg.entities = messageMediaPoll.results.solution_entities;
-                        MessageObject msgObj = new MessageObject(currentAccount, msg, false, true) {
-                            @Override
-                            public boolean canDeleteMessage(boolean inScheduleMode, TLRPC.Chat chat) {
-                                return false;
-                            }
-                        };
-                        messages.add(msgObj);
-                        indexes.add(PollAttachedMediaPack.INDEX_EXPLANATION);
-                    }
-                }
-
-                TlUtils.calculateAnswerShuffleHash(messageMediaPoll.poll, getUserConfig().getClientUserId());
-                final ArrayList<TLRPC.PollAnswer> answers = messageMediaPoll.poll.shuffled_answers != null ?
-                    messageMediaPoll.poll.shuffled_answers : messageMediaPoll.poll.answers;
-
-                for (int i = 0; i < answers.size(); ++i) {
-                    TLRPC.PollAnswer pollAnswer = answers.get(i);
-                    TLRPC.MessageMedia emedia = pollAnswer.media;
-                    if (emedia == null || emedia.geo != null || !(emedia.document == null || MessageObject.isVideoDocument(emedia.document))) {
-                        continue;
-                    }
-
-                    if (pollAnswer.unshuffled_index == unshuffledIndex) {
-                        index = messages.size();
-                    }
-                    TLRPC.TL_message msg = copy(omsg);
-                    msg.media = emedia;
-                    msg.message = pollAnswer.text.text;
-                    msg.entities = pollAnswer.text.entities;
-                    msg.attachPath = PollAttachedMediaPack.getAttachPath(omsg, pollAnswer.unshuffled_index);
-                    MessageObject msgObj = new MessageObject(currentAccount, msg, false, true) {
-                        @Override
-                        public boolean canDeleteMessage(boolean inScheduleMode, TLRPC.Chat chat) {
-                            return false;
-                        }
-                    };
-                    messages.add(msgObj);
-                    indexes.add(pollAnswer.unshuffled_index);
-                }
-                if (index <= -1 || messages.isEmpty()) return;
-
-                messageObject.pollMediaMapping = indexes;
-                PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
-                PhotoViewer.getInstance().openPhoto(messages, index, getDialogId(), 0, 0, photoViewerPaidMediaProvider);
-            }
         }
 
         @Override
@@ -40846,28 +40326,16 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             if (message.isDice()) {
-                getMessagesController().loadStakeDiceInfo(available -> {
-                    if (available) {
-                        StakedDiceSheet.showStakeToast(ChatActivity.this, message.getDiceValue(), message.getStakedDiceAmount(), stake -> {
-                            if (checkSlowModeAlert()) {
-                                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message.getDiceEmoji(), dialog_id, replyingMessageObject, getThreadMessage(), null, false, null, null, null, true, 0, 0, null, false);
-                                params.quick_reply_shortcut_id = getQuickReplyId();
-                                params.quick_reply_shortcut = quickReplyShortcut;
-                                params.dice_stake = stake;
-                                getSendMessagesHelper().sendMessage(params);
-                            }
-                        });
-                    } else {
-                        createUndoView();
-                        if (undoView == null) return;
-                        undoView.showWithAction(0, chatActivityEnterView.getVisibility() == View.VISIBLE && bottomOverlay.getVisibility() != View.VISIBLE ? UndoView.ACTION_DICE_INFO : UndoView.ACTION_DICE_NO_SEND_INFO, message.getDiceEmoji(), null, () -> {
-                            if (checkSlowModeAlert()) {
-                                SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message.getDiceEmoji(), dialog_id, replyingMessageObject, getThreadMessage(), null, false, null, null, null, true, 0, 0, null, false);
-                                params.quick_reply_shortcut_id = getQuickReplyId();
-                                params.quick_reply_shortcut = quickReplyShortcut;
-                                getSendMessagesHelper().sendMessage(params);
-                            }
-                        });
+                createUndoView();
+                if (undoView == null) {
+                    return;
+                }
+                undoView.showWithAction(0, chatActivityEnterView.getVisibility() == View.VISIBLE && bottomOverlay.getVisibility() != View.VISIBLE ? UndoView.ACTION_DICE_INFO : UndoView.ACTION_DICE_NO_SEND_INFO, message.getDiceEmoji(), null, () -> {
+                    if (checkSlowModeAlert()) {
+                        SendMessagesHelper.SendMessageParams params = SendMessagesHelper.SendMessageParams.of(message.getDiceEmoji(), dialog_id, replyingMessageObject, getThreadMessage(), null, false, null, null, null, true, 0, 0, null, false);
+                        params.quick_reply_shortcut_id = getQuickReplyId();
+                        params.quick_reply_shortcut = quickReplyShortcut;
+                        getSendMessagesHelper().sendMessage(params);
                     }
                 });
             } else if (message.isAnimatedEmoji() && (!message.isAnimatedAnimatedEmoji() || emojiAnimationsOverlay.supports(MessageObject.findAnimatedEmojiEmoticon(message.getDocument())) && currentUser != null) || message.isPremiumSticker()) {
@@ -40881,13 +40349,13 @@ public class ChatActivity extends BaseFragment implements
                 SecretMediaViewer.getInstance().setParentActivity(getParentActivity());
                 SecretMediaViewer.getInstance().openMedia(message, photoViewerProvider, openAction, closeAction);
             } else if (MessageObject.isAnimatedEmoji(message.getDocument()) && MessageObject.getInputStickerSet(message.getDocument()) != null) {
-                final ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);
+                ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);
                 inputSets.add(MessageObject.getInputStickerSet(message.getDocument()));
-                final EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, inputSets);
+                EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, inputSets);
                 alert.setCalcMandatoryInsets(isKeyboardVisible());
                 showDialog(alert);
             } else if (message.getInputStickerSet() != null) {
-                StickersAlert alert = new StickersAlert(getParentActivity(), ChatActivity.this, message.getInputStickerSet(), null, bottomChannelButtonsLayout.getVisibility() != View.VISIBLE && (currentChat == null || ChatObject.canSendStickers(currentChat)) ? chatActivityEnterView : null, themeDelegate, false);
+                StickersAlert alert = new StickersAlert(getParentActivity(), ChatActivity.this, message.getInputStickerSet(), null, bottomOverlayChat.getVisibility() != View.VISIBLE && (currentChat == null || ChatObject.canSendStickers(currentChat)) ? chatActivityEnterView : null, themeDelegate, false);
                 alert.setCalcMandatoryInsets(isKeyboardVisible());
                 showDialog(alert);
             } else if (message.isVideo() || message.type == MessageObject.TYPE_PHOTO || message.type == MessageObject.TYPE_TEXT && !message.isWebpageDocument() || message.isGif()) {
@@ -40992,10 +40460,6 @@ public class ChatActivity extends BaseFragment implements
                     PhotoViewer.getInstance().openPhoto(message, ChatActivity.this, message.type != 0 ? dialog_id : 0, message.type != 0 ? mergeDialogId : 0, message.type != 0 ? getTopicId() : 0, photoViewerProvider);
                     handled = true;
                 }
-                if (MarkdownParser.isMarkdown(message)) {
-                    parseMarkdownAsync(message);
-                    handled = true;
-                }
                 if (!handled) {
                     try {
                         AndroidUtilities.openForView(message, getParentActivity(), themeDelegate, false);
@@ -41056,12 +40520,11 @@ public class ChatActivity extends BaseFragment implements
                         LaunchActivity.instance.checkAppUpdate(true, progressDialogCurrent);
                     }
                 } else if (BuildVars.isHuaweiStoreApp()) {
+                    Browser.openUrl(getContext(), BuildVars.HUAWEI_STORE_URL);
                 } else {
                     Browser.openUrl(getContext(), BuildVars.PLAYSTORE_APP_URL);
                 }
-            } else if (type == ChatMessageCell.INSTANT_BUTTON_TYPE_ADD_OPTION) {
-                pollAddOptionModeComplete(cell);
-            } else if (type == ChatMessageCell.INSTANT_BUTTON_TYPE_VIEW_VOTES_PUBLIC_LIST) {
+            } else if (type == 8) {
                 PollVotesAlert.showForPoll(ChatActivity.this, messageObject);
             } else if (type == 0) {
                 if (messageObject.messageOwner.media != null && messageObject.messageOwner.media.webpage != null && messageObject.messageOwner.media.webpage.cached_page != null) {
@@ -41154,19 +40617,18 @@ public class ChatActivity extends BaseFragment implements
                             progressDialogCurrent.end();
                             if (res instanceof TLRPC.TL_messages_stickerSet) {
                                 MediaDataController.getInstance(currentAccount).putStickerSet((TLRPC.TL_messages_stickerSet) res, false);
-                                if (getParentActivity() == null || getContext() == null) return;
 
-                                final TLRPC.TL_inputStickerSetID inputStickerSet = new TLRPC.TL_inputStickerSetID();
+                                TLRPC.TL_inputStickerSetID inputStickerSet = new TLRPC.TL_inputStickerSetID();
                                 inputStickerSet.access_hash = ((TLRPC.TL_messages_stickerSet) res).set.access_hash;
                                 inputStickerSet.id = ((TLRPC.TL_messages_stickerSet) res).set.id;
                                 if (emoji) {
-                                    final ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);
+                                    ArrayList<TLRPC.InputStickerSet> inputSets = new ArrayList<>(1);
                                     inputSets.add(inputStickerSet);
-                                    final EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, inputSets);
+                                    EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, inputSets);
                                     alert.setCalcMandatoryInsets(isKeyboardVisible());
                                     showDialog(alert);
                                 } else {
-                                    final StickersAlert alert = new StickersAlert(getParentActivity(), ChatActivity.this, inputStickerSet, null, chatActivityEnterView, themeDelegate, false);
+                                    StickersAlert alert = new StickersAlert(getParentActivity(), ChatActivity.this, inputStickerSet, null, chatActivityEnterView, themeDelegate, false);
                                     alert.setCalcMandatoryInsets(isKeyboardVisible());
                                     showDialog(alert);
                                 }
@@ -41292,28 +40754,12 @@ public class ChatActivity extends BaseFragment implements
         }
 
         @Override
-        public boolean isAdmin(long uid) {
-            if (currentChat != null && !ChatObject.isChannelAndNotMegaGroup(currentChat)) {
-                return getMessagesController().isAdmin(currentChat.id, uid);
-            }
-            return false;
-        }
-
-        @Override
-        public boolean isOwner(long uid) {
-            if (currentChat != null && !ChatObject.isChannelAndNotMegaGroup(currentChat)) {
-                return getMessagesController().isOwner(currentChat.id, uid);
-            }
-            return false;
-        }
-
-        @Override
         public String getAdminRank(long uid) {
             if (UserObject.isBotForum(currentUser)) {
                 return null;
             }
 
-            if (currentChat != null && !ChatObject.isChannelAndNotMegaGroup(currentChat)) {
+            if (ChatObject.isChannel(currentChat) && currentChat.megagroup) {
                 String rank = getMessagesController().getAdminRank(currentChat.id, uid);
                 if (rank != null) {
                     return rank;
@@ -41323,93 +40769,6 @@ public class ChatActivity extends BaseFragment implements
                 return LocaleController.getString(R.string.TopicCreator);
             }
             return null;
-        }
-
-        private void didPressAdmin(ChatMessageCell cell, TLObject participant) {
-            final TLRPC.User user = cell.getCurrentUser();
-            final TLRPC.User self = getUserConfig().getCurrentUser();
-            if (!AndroidUtilities.isContextSafe(getContext())) return;
-            if (currentChat == null || user == null) return;
-            if (ChatObject.isChannelAndNotMegaGroup(currentChat)) return;
-
-            final boolean canEdit;
-            final String rank;
-            final boolean isAdmin, isOwner, canEditAdmin;
-            if (participant instanceof TLRPC.ChannelParticipant) {
-                final TLRPC.ChannelParticipant p = (TLRPC.ChannelParticipant) participant;
-                if (p instanceof TLRPC.TL_channelParticipantCreator) {
-                    isAdmin = true;
-                    isOwner = true;
-                    canEditAdmin = false;
-                } else if (p instanceof TLRPC.TL_channelParticipantAdmin) {
-                    isAdmin = true;
-                    isOwner = false;
-                    canEditAdmin = p.promoted_by == getUserConfig().getClientUserId();
-                } else {
-                    isAdmin = false;
-                    isOwner = false;
-                    canEditAdmin = false;
-                }
-                rank = p.rank;
-            } else if (participant instanceof TLRPC.TL_chatChannelParticipant) {
-                final TLRPC.ChannelParticipant p = ((TLRPC.TL_chatChannelParticipant) participant).channelParticipant;
-                if (p instanceof TLRPC.TL_channelParticipantCreator) {
-                    isAdmin = true;
-                    isOwner = true;
-                    canEditAdmin = false;
-                } else if (p instanceof TLRPC.TL_channelParticipantAdmin) {
-                    isAdmin = true;
-                    isOwner = false;
-                    canEditAdmin = p.promoted_by == getUserConfig().getClientUserId();
-                } else {
-                    isAdmin = false;
-                    isOwner = false;
-                    canEditAdmin = false;
-                }
-                rank = p.rank;
-            } else if (participant instanceof TLRPC.ChatParticipant) {
-                if (participant instanceof TLRPC.TL_chatParticipantCreator) {
-                    isAdmin = true;
-                    isOwner = true;
-                    canEditAdmin = false;
-                } else if (participant instanceof TLRPC.TL_chatParticipantAdmin) {
-                    isAdmin = true;
-                    isOwner = false;
-                    canEditAdmin = ((TLRPC.TL_chatParticipantAdmin) participant).inviter_id == getUserConfig().getClientUserId();
-                } else {
-                    isAdmin = false;
-                    isOwner = false;
-                    canEditAdmin = false;
-                }
-                rank = ((TLRPC.ChatParticipant) participant).rank;
-            } else {
-                if (ChatObject.isChannel(currentChat)) {
-                    final TLRPC.TL_channels_getParticipant req = new TLRPC.TL_channels_getParticipant();
-                    req.channel = getMessagesController().getInputChannel(currentChat);
-                    req.participant = getMessagesController().getInputPeer(user.id);
-                    getConnectionsManager().sendRequestTyped(req, AndroidUtilities::runOnUIThread, (res, err) -> {
-                        if (res != null) {
-                            getMessagesController().putUsers(res.users, false);
-                            getMessagesController().putChats(res.chats, false);
-                            if (res.participant != null) {
-                                didPressAdmin(cell, res.participant);
-                            }
-                        }
-                    });
-                }
-                return;
-            }
-            TagEditCell.showInfoSheet(getContext(), currentAccount, -currentChat.id, user, rank, isAdmin, isOwner, canEditAdmin, resourceProvider);
-        }
-
-        @Override
-        public void didPressAdmin(ChatMessageCell cell) {
-            final TLRPC.User user = cell.getCurrentUser();
-            if (!AndroidUtilities.isContextSafe(getContext())) return;
-            if (currentChat == null || user == null) return;
-            if (ChatObject.isChannelAndNotMegaGroup(currentChat)) return;
-
-            didPressAdmin(cell, getMessagesController().getParticipant(currentChat.id, user.id));
         }
 
         @Override
@@ -41434,7 +40793,13 @@ public class ChatActivity extends BaseFragment implements
 
         @Override
         public void onDiceFinished() {
-            startFireworks();
+            if (fireworksOverlay.isStarted()) {
+                return;
+            }
+            fireworksOverlay.start();
+            try {
+                fireworksOverlay.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+            } catch (Exception ignored) {};
         }
 
         @Override
@@ -41655,12 +41020,7 @@ public class ChatActivity extends BaseFragment implements
                     Uri data = Uri.parse(urlFinal);
                     int threadId = Utilities.parseInt(data.getQueryParameter("thread"));
                     int commentId = Utilities.parseInt(data.getQueryParameter("comment"));
-                    String taskIdStr = data.getQueryParameter("task");
-                    Integer taskId = null;
-                    if (taskIdStr != null) {
-                        taskId = Utilities.parseInt(taskIdStr);
-                    }
-                    byte[] optionId = PollAttachedMediaPack.getOptionIdQueryParameter(data, "option");
+                    Integer taskId = data.getQueryParameter("task") != null ? Utilities.parseInt(data.getQueryParameter("task")) : null;
                     if (threadId != 0 || commentId != 0) {
                         return false;
                     } else {
@@ -41684,7 +41044,7 @@ public class ChatActivity extends BaseFragment implements
                             if (startFromVideoTimestamp >= 0) {
                                 startFromVideoMessageId = messageId;
                             }
-                            scrollToMessageId(messageId, fromMessageId, true, 0, false, 0, taskId, optionId, setupProgressLoading);
+                            scrollToMessageId(messageId, fromMessageId, true, 0, false, 0, taskId, setupProgressLoading);
                         }
                     }
                     return true;
@@ -41741,12 +41101,7 @@ public class ChatActivity extends BaseFragment implements
                         int threadId = Utilities.parseInt(data.getQueryParameter("thread"));
                         int topicId = Utilities.parseInt(data.getQueryParameter("topic"));
                         int commentId = Utilities.parseInt(data.getQueryParameter("comment"));
-                        String taskIdStr = data.getQueryParameter("task");
-                        Integer taskId = null;
-                        if (taskIdStr != null) {
-                            taskId = Utilities.parseInt(taskIdStr);
-                        }
-                        byte[] optionId = PollAttachedMediaPack.getOptionIdQueryParameter(data, "option");
+                        int taskId = Utilities.parseInt(data.getQueryParameter("task"));
                         if (threadId != 0 || topicId != 0 || commentId != 0) {
                             return false;
                         } else {
@@ -41761,7 +41116,7 @@ public class ChatActivity extends BaseFragment implements
                                 chatActivityDelegate.openReplyMessage(messageId);
                                 finishFragment();
                             } else {
-                                scrollToMessageId(messageId, fromMessageId, true, 0, false, 0, taskId, optionId, setupProgressLoading);
+                                scrollToMessageId(messageId, fromMessageId, true, 0, false, 0, taskId, setupProgressLoading);
                             }
                             return true;
                         }
@@ -41836,13 +41191,12 @@ public class ChatActivity extends BaseFragment implements
             if (view instanceof ChatMessageCell) {
                 final ChatMessageCell cell = (ChatMessageCell) view;
                 cell.setDelegate(null);
-                cell.setResourcesProvider(null);
 
-                //ArrayList<ChatMessageCell> chatMessagesCache = chatMessageCellsCache.get(currentAccount);
-                //if (chatMessagesCache == null) {
-                //    chatMessageCellsCache.put(currentAccount, chatMessagesCache = new ArrayList<>());
-                //}
-                //chatMessagesCache.add(cell);
+                ArrayList<ChatMessageCell> chatMessagesCache = chatMessageCellsCache.get(currentAccount);
+                if (chatMessagesCache == null) {
+                    chatMessageCellsCache.put(currentAccount, chatMessagesCache = new ArrayList<>());
+                }
+                chatMessagesCache.add(cell);
             }
         }
     }
@@ -41852,11 +41206,11 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public SimpleTextView getReplyNameTextView() {
-        return replyLayout.current().name;
+        return replyNameTextView;
     }
 
     public SimpleTextView getReplyObjectTextView() {
-        return replyLayout.current().obj;
+        return replyObjectTextView;
     }
 
     @Override
@@ -41869,16 +41223,11 @@ public class ChatActivity extends BaseFragment implements
             return null;
         }
         ThemeDescription.ThemeDescriptionDelegate selectedBackgroundDelegate = () -> {
-            if (blurredBackgroundColorProvider != null) {
-                blurredBackgroundColorProvider.updateColors();
-            }
-            if (blurredBackgroundColorProviderWhite != null) {
-                blurredBackgroundColorProviderWhite.updateColors();
-            }
-
             if (chatActivityEnterView != null) {
                 chatActivityEnterView.updateColors();
             }
+            // forkgram-classic: Theme.refreshAttachButtonsColors() was removed
+            // upstream (attach-button tints are derived on the fly now). No-op.
             if (chatAttachAlert != null) {
                 chatAttachAlert.checkColors();
             }
@@ -41913,6 +41262,11 @@ public class ChatActivity extends BaseFragment implements
                 contentView.setBackgroundColor(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground));
                 contentView.invalidate();
             }
+
+            if (instantCameraView != null) {
+                instantCameraView.invalidateBlur();
+            }
+
             if (pinnedLineView != null) {
                 pinnedLineView.updateColors();
             }
@@ -41922,11 +41276,21 @@ public class ChatActivity extends BaseFragment implements
             if (headerItem != null) {
                 headerItem.updateColor();
             }
+            setNavigationBarColor(getThemedColor(Theme.key_windowBackgroundGray));
             if (fragmentContextView != null) {
                 fragmentContextView.updateColors();
             }
             if (avatarContainer != null) {
                 avatarContainer.updateColors();
+            }
+            if (pinnedMessageView != null) {
+                pinnedMessageView.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
+            }
+            if (topChatPanelView != null) {
+                topChatPanelView.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
+            }
+            if (topChatPanelView2 != null) {
+                topChatPanelView2.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
             }
             if (contentView != null) {
                 contentView.invalidateBlurredViews();
@@ -41935,25 +41299,19 @@ public class ChatActivity extends BaseFragment implements
             if (parentLayout != null && parentLayout.getDrawerLayoutContainer() != null) {
                 parentLayout.getDrawerLayoutContainer().setBehindKeyboardColor(getThemedColor(Theme.key_windowBackgroundWhite));
             }
-            if (topPanelLayout != null) {
-                topPanelLayout.updateColors();
-            }
             if (suggestEmojiPanel != null) {
                 suggestEmojiPanel.updateColors();
             }
             if (avatarContainer != null && avatarContainer.getTimeItem() != null) {
                 avatarContainer.getTimeItem().invalidate();
             }
-            if (chatInputViewsContainer != null) {
-                chatInputViewsContainer.updateColors();
+            if (translateButton != null) {
+                translateButton.updateColors();
             }
-            if (sideControlsButtonsLayout != null) {
-                sideControlsButtonsLayout.updateColors();
+            if (bottomGiftButton != null) {
+                bottomGiftButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_featuredStickers_addButton), PorterDuff.Mode.SRC_IN));
+                bottomGiftButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_featuredStickers_addButton), .10f), Theme.RIPPLE_MASK_CIRCLE_20DP));
             }
-            if (bottomChannelButtonsLayout != null) {
-                bottomChannelButtonsLayout.updateColors();
-            }
-            invalidateAllGlassAttachedViews();
         };
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
@@ -42233,26 +41591,30 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(searchContainer, 0, null, null, new Drawable[]{Theme.chat_composeShadowDrawable}, null, Theme.key_chat_messagePanelShadow));
         themeDescriptions.add(new ThemeDescription(bottomOverlay, 0, null, getThemedPaint(Theme.key_paint_chatComposeBackground), null, null, Theme.key_chat_messagePanelBackground));
         themeDescriptions.add(new ThemeDescription(bottomOverlay, 0, null, null, new Drawable[]{Theme.chat_composeShadowDrawable}, null, Theme.key_chat_messagePanelShadow));
+        themeDescriptions.add(new ThemeDescription(bottomOverlayChat, 0, null, getThemedPaint(Theme.key_paint_chatComposeBackground), null, null, Theme.key_chat_messagePanelBackground));
+        themeDescriptions.add(new ThemeDescription(bottomOverlayChat, 0, null, null, new Drawable[]{Theme.chat_composeShadowDrawable}, null, Theme.key_chat_messagePanelShadow));
+        themeDescriptions.add(new ThemeDescription(bottomMessagesActionContainer, 0, null, getThemedPaint(Theme.key_paint_chatComposeBackground), null, null, Theme.key_chat_messagePanelBackground));
+        themeDescriptions.add(new ThemeDescription(bottomMessagesActionContainer, 0, null, null, new Drawable[]{Theme.chat_composeShadowDrawable}, null, Theme.key_chat_messagePanelShadow));
 
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, null, getThemedPaint(Theme.key_paint_chatComposeBackground), null, null, Theme.key_chat_messagePanelBackground));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, null, null, new Drawable[]{Theme.chat_composeShadowDrawable}, null, Theme.key_chat_messagePanelShadow));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"messageEditText"}, null, null, null, Theme.key_chat_messagePanelText));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_CURSORCOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"messageEditText"}, null, null, null, Theme.key_chat_messagePanelCursor));
-        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_HINTTEXTCOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"messageEditText"}, null, null, null, Theme.key_glass_defaultText));
+        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_HINTTEXTCOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"messageEditText"}, null, null, null, Theme.key_chat_messagePanelHint));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"sendButton"}, null, null, null, Theme.key_chat_messagePanelSend));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{ChatActivityEnterView.class}, new String[]{"sendButton"}, null, null, 24, null, Theme.key_chat_messagePanelSend));
-        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"botButton"}, null, null, null, Theme.key_glass_defaultIcon));
+        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"botButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{ChatActivityEnterView.class}, new String[]{"botButton"}, null, null, null, Theme.key_listSelector));
-        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"notifyButton"}, null, null, null, Theme.key_glass_defaultIcon));
-        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_IMAGECOLOR | ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ChatActivityEnterView.class}, new String[]{"scheduledButton"}, null, null, null, Theme.key_glass_defaultIcon));
+        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"notifyButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
+        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_IMAGECOLOR | ThemeDescription.FLAG_BACKGROUNDFILTER, new Class[]{ChatActivityEnterView.class}, new String[]{"scheduledButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"scheduledButton"}, null, null, null, Theme.key_chat_recordedVoiceDot));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{ChatActivityEnterView.class}, new String[]{"scheduledButton"}, null, null, null, Theme.key_listSelector));
-        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"attachButton"}, null, null, null, Theme.key_glass_defaultIcon));
+        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"attachButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{ChatActivityEnterView.class}, new String[]{"attachButton"}, null, null, null, Theme.key_listSelector));
-        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"suggestButton"}, null, null, null, Theme.key_glass_defaultIcon));
+        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"suggestButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{ChatActivityEnterView.class}, new String[]{"suggestButton"}, null, null, null, Theme.key_listSelector));
-//        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"audioSendButton"}, null, null, null, Theme.key_glass_defaultIcon));
-//        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"videoSendButton"}, null, null, null, Theme.key_glass_defaultIcon));
+//        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"audioSendButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
+//        themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"videoSendButton"}, null, null, null, Theme.key_chat_messagePanelIcons));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_USEBACKGROUNDDRAWABLE | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, new Class[]{ChatActivityEnterView.class}, new String[]{"notifyButton"}, null, null, null, Theme.key_listSelector));
         themeDescriptions.add(new ThemeDescription(chatActivityEnterView, 0, new Class[]{ChatActivityEnterView.class}, new String[]{"videoTimelineView"}, null, null, null, Theme.key_chat_messagePanelSend));
         //themeDescriptions.add(new ThemeDescription(chatActivityEnterView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{ChatActivityEnterView.class}, new String[]{"doneButtonImage"}, null, null, null, Theme.key_chat_messagePanelBackground));
@@ -42294,7 +41656,7 @@ public class ChatActivity extends BaseFragment implements
             if (trendingStickersAlert != null) {
                 themeDescriptions.addAll(trendingStickersAlert.getThemeDescriptions());
             }
-            themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, new Drawable[]{chatActivityEnterView.getStickersArrowDrawable()}, null, Theme.key_glass_defaultIcon));
+            themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, new Drawable[]{chatActivityEnterView.getStickersArrowDrawable()}, null, Theme.key_chat_messagePanelIcons));
         }
 
         for (int a = 0; a < 2; a++) {
@@ -42318,10 +41680,11 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{FragmentContextView.class}, new String[]{"playButton"}, null, null, null, Theme.key_inappPlayerPlayPause));
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, new Class[]{FragmentContextView.class}, new String[]{"titleTextView"}, null, null, null, Theme.key_inappPlayerTitle));
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, new Class[]{FragmentContextView.class}, new String[]{"titleTextView"}, null, null, null, Theme.key_inappPlayerPerformer));
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, new Class[]{FragmentContextView.class}, new String[]{"titleTextView"}, null, null, null, Theme.key_returnToCallText));
+        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_FASTSCROLL, new Class[]{FragmentContextView.class}, new String[]{"subtitleTextView"}, null, null, null, Theme.key_inappPlayerClose));
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_IMAGECOLOR, new Class[]{FragmentContextView.class}, new String[]{"closeButton"}, null, null, null, Theme.key_inappPlayerClose));
 
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND | ThemeDescription.FLAG_CHECKTAG, new Class[]{FragmentContextView.class}, new String[]{"frameLayout"}, null, null, null, Theme.key_returnToCallBackground));
+        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, new Class[]{FragmentContextView.class}, new String[]{"titleTextView"}, null, null, null, Theme.key_returnToCallText));
 
         themeDescriptions.add(new ThemeDescription(pinnedLineView, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_topPanelLine));
         themeDescriptions.add(new ThemeDescription(pinnedLineView, 0, null, null, null, selectedBackgroundDelegate, Theme.key_windowBackgroundWhite));
@@ -42335,11 +41698,20 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(closePinned, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_topPanelClose));
         themeDescriptions.add(new ThemeDescription(pinnedListButton, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_topPanelClose));
         themeDescriptions.add(new ThemeDescription(closeReportSpam, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_topPanelClose));
+        themeDescriptions.add(new ThemeDescription(topChatPanelView, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_topPanelBackground));
+        themeDescriptions.add(new ThemeDescription(topChatPanelView2, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_topPanelBackground));
+        themeDescriptions.add(new ThemeDescription(alertView, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_topPanelBackground));
+        themeDescriptions.add(new ThemeDescription(pinnedMessageView, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_topPanelBackground));
         themeDescriptions.add(new ThemeDescription(addToContactsButton, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_addContact));
         themeDescriptions.add(new ThemeDescription(reportSpamButton, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, null, null, null, null, Theme.key_text_RedBold));
         themeDescriptions.add(new ThemeDescription(reportSpamButton, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_CHECKTAG, null, null, null, null, Theme.key_chat_addContact));
 
-        themeDescriptions.add(new ThemeDescription(replyCloseImageView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_glass_defaultIcon));
+        themeDescriptions.add(new ThemeDescription(replyLineView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_chat_replyPanelLine));
+        themeDescriptions.add(new ThemeDescription(replyNameTextView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_replyPanelName));
+        themeDescriptions.add(new ThemeDescription(replyObjectTextView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_windowBackgroundWhiteGrayText));
+        themeDescriptions.add(new ThemeDescription(replyObjectHintTextView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_windowBackgroundWhiteGrayText));
+        themeDescriptions.add(new ThemeDescription(replyIconImageView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_replyPanelIcons));
+        themeDescriptions.add(new ThemeDescription(replyCloseImageView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_replyPanelClose));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_replyPanelName));
 
         themeDescriptions.add(new ThemeDescription(searchCalendarButton, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_searchPanelIcons));
@@ -42347,11 +41719,17 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(searchUserButton, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_searchPanelIcons));
         themeDescriptions.add(new ThemeDescription(searchUserButton, ThemeDescription.FLAG_BACKGROUNDFILTER | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, null, null, null, null, Theme.key_actionBarActionModeDefaultSelector));
 
+        themeDescriptions.add(new ThemeDescription(replyButton, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarActionModeDefaultIcon));
+        themeDescriptions.add(new ThemeDescription(replyButton, ThemeDescription.FLAG_BACKGROUNDFILTER | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, null, null, null, null, Theme.key_actionBarActionModeDefaultSelector));
+        themeDescriptions.add(new ThemeDescription(forwardButton, ThemeDescription.FLAG_TEXTCOLOR | ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_actionBarActionModeDefaultIcon));
+        themeDescriptions.add(new ThemeDescription(forwardButton, ThemeDescription.FLAG_BACKGROUNDFILTER | ThemeDescription.FLAG_DRAWABLESELECTEDSTATE, null, null, null, null, Theme.key_actionBarActionModeDefaultSelector));
+
         themeDescriptions.add(new ThemeDescription(bottomOverlayText, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_secretChatStatusText));
-        themeDescriptions.add(new ThemeDescription(bottomOverlayChatText, 0, null, null, null, null, Theme.key_glass_defaultText));
+        themeDescriptions.add(new ThemeDescription(bottomOverlayChatText, 0, null, null, null, null, Theme.key_chat_fieldOverlayText));
         themeDescriptions.add(new ThemeDescription(bottomOverlayChatText, 0, null, null, null, null, Theme.key_chat_goDownButtonCounterBackground));
         themeDescriptions.add(new ThemeDescription(bottomOverlayChatText, 0, null, null, null, null, Theme.key_chat_messagePanelBackground));
-        themeDescriptions.add(new ThemeDescription(bottomOverlayProgress, 0, null, null, null, null, Theme.key_glass_defaultIcon));
+        themeDescriptions.add(new ThemeDescription(bottomOverlayProgress, 0, null, null, null, null, Theme.key_chat_fieldOverlayText));
+        themeDescriptions.add(new ThemeDescription(bottomOverlayImage, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_fieldOverlayText));
 
         themeDescriptions.add(new ThemeDescription(bigEmptyView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_serviceText));
         themeDescriptions.add(new ThemeDescription(emptyView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_serviceText));
@@ -42389,6 +41767,16 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(forwardHintView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{HintView.class}, new String[]{"textView"}, null, null, null, Theme.key_chat_gifSaveHintText));
         themeDescriptions.add(new ThemeDescription(forwardHintView, ThemeDescription.FLAG_TEXTCOLOR, new Class[]{HintView.class}, new String[]{"arrowImageView"}, null, null, null, Theme.key_chat_gifSaveHintBackground));
 
+        themeDescriptions.add(new ThemeDescription(pagedownButtonCounter, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_goDownButtonCounterBackground));
+        themeDescriptions.add(new ThemeDescription(pagedownButtonCounter, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_goDownButtonCounter));
+        themeDescriptions.add(new ThemeDescription(pagedownButtonImage, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_goDownButton));
+        themeDescriptions.add(new ThemeDescription(pagedownButtonImage, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_goDownButton));
+
+        themeDescriptions.add(new ThemeDescription(mentiondownButtonCounter, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_goDownButtonCounterBackground));
+        themeDescriptions.add(new ThemeDescription(mentiondownButtonCounter, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_goDownButtonCounter));
+        themeDescriptions.add(new ThemeDescription(mentiondownButtonImage, ThemeDescription.FLAG_BACKGROUNDFILTER, null, null, null, null, Theme.key_chat_goDownButton));
+        themeDescriptions.add(new ThemeDescription(mentiondownButtonImage, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_goDownButton));
+
         themeDescriptions.add(new ThemeDescription(floatingDateView, 0, null, null, null, null, Theme.key_chat_serviceText));
         themeDescriptions.add(new ThemeDescription(floatingDateView, 0, null, null, null, null, Theme.key_chat_serviceBackground));
         themeDescriptions.add(new ThemeDescription(infoTopView, 0, null, null, null, null, Theme.key_chat_serviceText));
@@ -42396,16 +41784,22 @@ public class ChatActivity extends BaseFragment implements
 
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachIcon));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachGalleryBackground));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachGalleryText));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachIcon));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachAudioBackground));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachAudioText));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachIcon));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachFileBackground));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachFileText));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachIcon));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachContactBackground));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachContactText));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachIcon));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachLocationBackground));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachLocationText));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachIcon));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachPollBackground));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachPollText));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, new Drawable[]{Theme.chat_attachEmptyDrawable}, null, Theme.key_chat_attachEmptyImage));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_chat_attachPhotoBackground));
 
@@ -42414,6 +41808,8 @@ public class ChatActivity extends BaseFragment implements
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_dialogTextGray2));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_dialogScrollGlow));
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_dialogGrayLine));
+        // forkgram-classic: Theme.key_dialogCameraIcon was removed upstream;
+        // skip the description (was only used by the redesigned camera icon).
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, selectedBackgroundDelegate, Theme.key_dialogButtonSelector));
 
         themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, null, Theme.key_windowBackgroundWhiteLinkSelection));
@@ -42510,6 +41906,7 @@ public class ChatActivity extends BaseFragment implements
 
                 pullingBottomOffset = -(prevBottom - currentBottom);
 
+                boolean useAlphaForContextView = previousChat.fragmentContextView.getMeasuredHeight() != fragmentContextView.getMeasuredHeight();
                 valueAnimator.addUpdateListener(valueAnimator1 -> {
                     float progress = (float) valueAnimator1.getAnimatedValue();
                     previousChat.setTransitionToChatProgress(progress);
@@ -42526,14 +41923,23 @@ public class ChatActivity extends BaseFragment implements
                     previousChat.avatarContainer.getAvatarImageView().setScaleY(0.8f + 0.2f * (1f - progress));
                     previousChat.avatarContainer.getAvatarImageView().setAlpha(1f - progress);
                     if (previousChat.chatActivityEnterView != null) {
-                        // previousChat.chatActivityEnterView.setTranslationY(-pullingBottomOffset * progress);
+                        previousChat.chatActivityEnterView.setTranslationY(-pullingBottomOffset * progress);
                     }
                     if (previousChat.bottomOverlay != null) {
-                        // previousChat.bottomOverlay.setTranslationY(-pullingBottomOffset * progress);
+                        previousChat.bottomOverlay.setTranslationY(-pullingBottomOffset * progress);
                     }
 
-                    if (previousChat.topPanelLayout != null) {
-                        previousChat.topPanelLayout.setAlpha(1f - progress);
+                    if (useAlphaForContextView) {
+                        previousChat.fragmentContextView.setAlpha(1f - progress);
+                    }
+                    if (previousChat.pinnedMessageView != null) {
+                        previousChat.pinnedMessageView.setAlpha(1f - progress);
+                    }
+                    if (previousChat.topChatPanelView != null) {
+                        previousChat.topChatPanelView.setAlpha(1f - progress);
+                    }
+                    if (previousChat.topChatPanelView2 != null) {
+                        previousChat.topChatPanelView2.setAlpha(1f - progress);
                     }
                 });
 
@@ -42576,8 +41982,14 @@ public class ChatActivity extends BaseFragment implements
                         previousChat.avatarContainer.getAvatarImageView().setScaleY(1f);
                         previousChat.avatarContainer.getAvatarImageView().setAlpha(1f);
 
-                        if (previousChat.topPanelLayout != null) {
-                            previousChat.topPanelLayout.setAlpha(1f);
+                        if (previousChat.pinnedMessageView != null) {
+                            previousChat.pinnedMessageView.setAlpha(1f);
+                        }
+                        if (previousChat.topChatPanelView != null) {
+                            previousChat.topChatPanelView.setAlpha(1f);
+                        }
+                        if (previousChat.topChatPanelView2 != null) {
+                            previousChat.topChatPanelView2.setAlpha(1f);
                         }
                     }
                 });
@@ -43039,7 +42451,7 @@ public class ChatActivity extends BaseFragment implements
 
             Drawable prevDrawable = null;
             if (fragmentView != null) {
-                prevDrawable = (contentView).getBackgroundImage();
+                prevDrawable = ((SizeNotifierFrameLayout) fragmentView).getBackgroundImage();
             }
             final MotionBackgroundDrawable prevMotionDrawable = (prevDrawable instanceof MotionBackgroundDrawable) ? (MotionBackgroundDrawable) prevDrawable : null;
             final int prevPhase = prevMotionDrawable != null ? prevMotionDrawable.getPhase() : 0;
@@ -43563,21 +42975,21 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         if (contentView.getBackgroundImage() == null || AndroidUtilities.isTablet()) {
-            final Drawable drawable = Theme.getCachedWallpaper();
-            contentView.setBackgroundImage(drawable, Theme.isWallpaperMotion());
+            contentView.setBackgroundImage(Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
         }
     }
 
     private void updateBotHelpCellClick(BotHelpCell cell) {
         final boolean translateButtonEnabled = MessagesController.getInstance(currentAccount).getTranslateController().isContextTranslateEnabled();
-        if (translateButtonEnabled && false) {
+        if (translateButtonEnabled && LanguageDetector.hasSupport()) {
             final CharSequence text = cell.getText();
-                String lang ="";
+            LanguageDetector.detectLanguage(text == null ? "" : text.toString(), lang -> {
                 String toLang = LocaleController.getInstance().getCurrentLocale().getLanguage();
+                if (lang != null && (!lang.equals(toLang) || lang.equals("und")) && !RestrictedLanguagesSelectActivity.getRestrictedLanguages().contains(lang)) {
                     cell.setOnClickListener(e -> {
 
                         ActionBarPopupWindow.ActionBarPopupWindowLayout layout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getContext());
-                        Drawable shadowDrawable2 = ContextCompat.getDrawable(getContext(), R.drawable.popup_fixed_alert4).mutate();
+                        Drawable shadowDrawable2 = ContextCompat.getDrawable(getContext(), R.drawable.popup_fixed_alert).mutate();
                         shadowDrawable2.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground), PorterDuff.Mode.MULTIPLY));
                         layout.setBackground(shadowDrawable2);
 
@@ -43602,6 +43014,12 @@ public class ChatActivity extends BaseFragment implements
                         window.setFocusable(true);
                         window.showAsDropDown(cell, cell.getWidth() / 2 - AndroidUtilities.dp(90), AndroidUtilities.dp(-16), Gravity.BOTTOM | Gravity.LEFT);
                     });
+                } else {
+                    cell.setClickable(false);
+                }
+            }, err -> {
+                cell.setClickable(false);
+            });
         } else {
             cell.setClickable(false);
         }
@@ -43858,8 +43276,7 @@ public class ChatActivity extends BaseFragment implements
         final ScrimOptions dialog = new ScrimOptions(getContext(), themeDelegate);
         options.setOnDismiss(dialog::dismissFast);
 
-        final boolean allowCustomTabs = !str.startsWith("video?") && !Browser.isInternalUri(Uri.parse(str), null);
-        final boolean customTabs = SharedConfig.inappBrowser && allowCustomTabs;
+        final boolean customTabs = SharedConfig.inappBrowser && !str.startsWith("video?") && !Browser.isInternalUri(Uri.parse(str), null);
         final boolean isHashtag = str.startsWith("#") || str.startsWith("$");
         final boolean isMail = str.startsWith("mailto:");
 
@@ -43879,10 +43296,6 @@ public class ChatActivity extends BaseFragment implements
         if (customTabs && !isHashtag || isMail) {
             options.add(R.drawable.msg_language, getString(R.string.OpenInSystemBrowser), () -> {
                 Browser.openInExternalBrowser(getParentActivity(), str, false);
-            });
-        } else if (!isMail && !isHashtag && !customTabs && allowCustomTabs && !SharedConfig.inappBrowser) {
-            options.add(R.drawable.msg_language, getString(R.string.OpenInTelegramBrowser), () -> {
-                Browser.openInTelegramBrowser(getParentActivity(), str, null);
             });
         }
 
@@ -43957,10 +43370,6 @@ public class ChatActivity extends BaseFragment implements
             }
         });
 
-        options.add(R.drawable.msg_copy, getString(R.string.CopyWithoutProtocol), () -> {
-            AndroidUtilities.addToClipboard(str.replace("http://", "").replace("https://", ""));
-        });
-
         dialog.setItemOptions(options);
         if (str != null && str.startsWith("mailto:")) {
             SpannableString s = new SpannableString(str.substring(7));
@@ -43990,87 +43399,6 @@ public class ChatActivity extends BaseFragment implements
         }
         showDialog(dialog);
     }
-
-    public void didLongPressFormattedDate(ChatMessageCell cell, CharacterStyle span, String originalText, TLRPC.TL_messageEntityFormattedDate entity) {
-        if (entity == null) {
-            return;
-        }
-
-        final MessageObject messageObject = cell.getMessageObject();
-        if (messageObject == null) {
-            return;
-        }
-
-        ArrayList<MessageObject> arrayList = null;
-        if (messageObject.getGroupId() != 0) {
-            MessageObject.GroupedMessages groupedMessages = groupedMessagesMap.get(messageObject.getGroupId());
-            if (groupedMessages != null) {
-                arrayList = groupedMessages.messages;
-            }
-        }
-        if (arrayList == null) {
-            arrayList = new ArrayList<>();
-            arrayList.add(messageObject);
-        }
-        final ArrayList<MessageObject> finalArrayList = arrayList;
-
-        final long selfDialogId = getUserConfig().getClientUserId();
-        final String formattedDate = LocaleController.formatEntityFormattedDate(entity, true);
-
-        final ItemOptions options = ItemOptions.makeOptions(ChatActivity.this, cell, true);
-        final ScrimOptions dialog = new ScrimOptions(getContext(), themeDelegate);
-        options.setOnDismiss(dialog::dismissFast);
-        options.add(R.drawable.msg_copy, getString(R.string.RelativeDateMenuCopy), () -> {
-            dialog.dismiss();
-            AndroidUtilities.addToClipboard(formattedDate);
-            BulletinFactory.of(ChatActivity.this).createCopyBulletin(getString(R.string.RelativeDateCopied)).show();
-        });
-        options.add(R.drawable.msg_calendar2, getString(R.string.RelativeDateMenuAddToACalendar), () -> {
-            options.dontDismiss();
-
-            final String description;
-            if (!TextUtils.isEmpty(messageObject.caption)) {
-                description = cell.getMessageObject().caption.toString();
-            } else if (!TextUtils.isEmpty(messageObject.messageText)) {
-                description = cell.getMessageObject().messageText.toString();
-            } else {
-                description = formattedDate;
-            }
-
-            final String title = (description.length() > 21) ?
-                (description.substring(0, 21) + "...") : description;
-
-            AndroidUtilities.createCalendarEvent(getParentActivity(), entity.date * 1000L, title, description, !entity.long_time && !entity.short_time);
-            dialog.dismiss();
-        });
-        options.add(R.drawable.msg_notifications, getString(R.string.RelativeDateMenuSetAReminder), () -> {
-            options.dontDismiss();
-
-            AlertsCreator.createScheduleDatePickerDialog(getContext(), null, selfDialogId, entity.date, true, (notify, scheduleDate, scheduleRepeatPeriod) -> {
-                if (notify) {
-                    SendMessagesHelper.getInstance(currentAccount).sendMessage(finalArrayList, selfDialogId, false, false, true, scheduleDate, 0, null, -1, 0, 0, null);
-                    AndroidUtilities.runOnUIThread(() -> {
-                        final Bulletin bulletin = BulletinFactory.createForwardedBulletin(getContext(),
-                                ChatActivity.this, null, 1, selfDialogId, 1,
-                                getThemedColor(Theme.key_undo_background),
-                                getThemedColor(Theme.key_undo_infoColor),
-                                Bulletin.DURATION_PROLONG, true, null, null
-                        );
-                        bulletin.allowBlur().show(true);
-                    }, 400);
-                    dialog.dismiss();
-                }
-            }, dialog::dismiss);
-        });
-
-        SpannableString s = new SpannableString(formattedDate);
-        s.setSpan(span, 0, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-
-        dialog.setItemOptions(options);
-        dialog.setScrim(cell, span, s);
-        showDialog(dialog);
-    }
-
 
     public void didLongPressCard(ChatMessageCell cell, CharacterStyle link, String card) {
         final Browser.Progress progress = makeProgressForLink(cell, link);
@@ -44420,14 +43748,18 @@ public class ChatActivity extends BaseFragment implements
 
         private void updateViews() {
             views.clear();
+
+            views.add(pagedownButton);
+            views.add(searchUpButton);
+            views.add(searchDownButton);
+            views.add(searchContainer);
             views.add(topChatPanelView);
+            views.add(topChatPanelView2);
             views.add(chatListView);
             views.add(messagesSearchListContainer);
             views.add(mentionContainer);
             views.add(floatingDateView);
             views.add(chatActivityEnterView);
-            views.add(sideControlsButtonsLayout);
-            views.add(chatInputViewsContainer);
 
             views.removeAll(Collections.singleton(null));
         }
@@ -44498,10 +43830,10 @@ public class ChatActivity extends BaseFragment implements
 
         if (chatInfo != null) {
             final boolean giftUpdate = (chatInfo.stargifts_available)
-                != (bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.isButtonVisible(ChatActivityChannelButtonsLayout.BUTTON_GIFT));
+                != (bottomGiftButton != null && bottomGiftButton.getVisibility() == View.VISIBLE);
 
             final boolean suggestUpdate = (currentChat != null && currentChat.broadcast_messages_allowed && currentChat.linked_monoforum_id != 0)
-                != (bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.isButtonVisible(ChatActivityChannelButtonsLayout.BUTTON_DIRECT));
+                != (bottomSuggestButton != null && bottomSuggestButton.getVisibility() == View.VISIBLE);
 
             if (giftUpdate || suggestUpdate) {
                 updateBottomOverlay(true);
@@ -44521,7 +43853,7 @@ public class ChatActivity extends BaseFragment implements
     }
 
     public void didPressReaction(View cell, TLRPC.ReactionCount reaction, boolean longpress, float x, float y) {
-        if (getParentActivity() == null || getContext() == null) {
+        if (getParentActivity() == null) {
             return;
         }
         if (savedMessagesTagHint != null && savedMessagesTagHint.shown()) {
@@ -44552,7 +43884,9 @@ public class ChatActivity extends BaseFragment implements
             }
             StarsController.getInstance(currentAccount).commitPaidReaction();
             TLRPC.ChatFull chatFull = getMessagesController().getChatFull(-StarsController.MessageId.from(messageObject).did);
-            final StarsReactionsSheet sheet = new StarsReactionsSheet(getContext(), currentAccount, dialog_id, ChatActivity.this, messageObject, reactors, chatFull == null || chatFull.paid_reactions_available, false, 0, themeDelegate);
+            // forkgram-classic: upstream constructor grew `boolean liveStories`
+            // and `long sendAs` slots before the ResourcesProvider; pass defaults.
+            final StarsReactionsSheet sheet = new StarsReactionsSheet(getContext(), currentAccount, dialog_id, ChatActivity.this, messageObject, reactors, chatFull == null || chatFull.paid_reactions_available, false, 0L, themeDelegate);
             sheet.setMessageCell(ChatActivity.this, messageObject.getId(), findMessageCell(messageObject.getId(), true));
             sheet.show();
             return;
@@ -44576,6 +43910,21 @@ public class ChatActivity extends BaseFragment implements
                     }
                     super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(h, MeasureSpec.AT_MOST));
                 }
+
+                Path path = new Path();
+                @Override
+                protected void dispatchDraw(Canvas canvas) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        canvas.save();
+                        path.rewind();
+                        path.addRoundRect(AndroidUtilities.dp(8), AndroidUtilities.dp(8), getWidth() - AndroidUtilities.dp(8), getHeight() - AndroidUtilities.dp(8), AndroidUtilities.dp(6), AndroidUtilities.dp(6), Path.Direction.CW);
+                        canvas.clipPath(path);
+                        super.dispatchDraw(canvas);
+                        canvas.restore();
+                    } else {
+                        super.dispatchDraw(canvas);
+                    }
+                }
             };
             scrimPopupContainerLayout.setLayoutParams(LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
 
@@ -44593,13 +43942,11 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
 
-            scrimPopupContainerLayout.setClipToOutline(true);
-            scrimPopupContainerLayout.setOutlineProvider(ViewOutlineProviderImpl.boundsWithPaddingRoundRect(dp(8), dp(12)));
-            scrimPopupContainerLayout.setBackground(scrimBlur3Factory.create(scrimPopupContainerLayout, true)
-                .setColorProvider(BlurredBackgroundProviderImpl.scrimMenuBackground(resourceProvider))
-                .setRadius(dp(12))
-                .setPadding(dp(8))
-                .setHasPadding(true));
+            Rect backgroundPaddings = new Rect();
+            Drawable shadowDrawable2 = ContextCompat.getDrawable(getParentActivity(), R.drawable.popup_fixed_alert).mutate();
+            shadowDrawable2.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_actionBarDefaultSubmenuBackground), PorterDuff.Mode.MULTIPLY));
+            shadowDrawable2.getPadding(backgroundPaddings);
+            scrimPopupContainerLayout.setBackground(shadowDrawable2);
 
             float bottom = reactionsLayoutInBubble.y + button.y + AndroidUtilities.dp(28);
             float left = reactionsLayoutInBubble.x + button.x;
@@ -44644,18 +43991,11 @@ public class ChatActivity extends BaseFragment implements
                 popupLayout.addView(removeTag);
                 scrimPopupContainerLayout.addView(popupLayout);
             } else if (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.reactions != null && messageObject.messageOwner.reactions.can_see_list || dialog_id >= 0) {
-                final boolean canDeleteReactions = ChatObject.canUserDoAdminAction(currentChat, ChatObject.ACTION_DELETE_MESSAGES)
-                    && (reaction.count > 1 || !reaction.chosen);
-
                 if (reaction.reaction instanceof TLRPC.TL_reactionCustomEmoji) {
                     button.stopAnimation();
                 }
-
-                final LinearLayout linearLayout = new LinearLayout(getContext());
-                linearLayout.setOrientation(LinearLayout.VERTICAL);
-                linearLayout.addView(new ReactedUsersListView(getParentActivity(), themeDelegate, currentAccount, messageObject, reaction, false, false)
+                scrimPopupContainerLayout.addView(new ReactedUsersListView(getParentActivity(), themeDelegate, currentAccount, messageObject, reaction, false, false)
                     .setOnCustomEmojiSelectedListener((reactedUsersListView1, customEmojiStickerSets) -> {
-                        if (getParentActivity() == null || getContext() == null) return;
                         EmojiPacksAlert alert = new EmojiPacksAlert(ChatActivity.this, getParentActivity(), themeDelegate, customEmojiStickerSets) {
                             @Override
                             public void dismiss() {
@@ -44675,55 +44015,12 @@ public class ChatActivity extends BaseFragment implements
                         } else {
                             args.putLong("chat_id", -userId);
                         }
-                        if (!(messagePeerReaction == null || messagePeerReaction.reaction == null)) {
-                            args.putInt("report_reaction_message_id", messageObject.getId());
-                            args.putLong("report_reaction_from_dialog_id", dialog_id);
-                        }
+                        args.putInt("report_reaction_message_id", messageObject.getId());
+                        args.putLong("report_reaction_from_dialog_id", dialog_id);
                         ProfileActivity fragment = new ProfileActivity(args);
                         presentFragment(fragment);
                         closeMenu();
-                    }).setOnProfileLongSelectedListener((view, userId, messagePeerReaction) -> {
-                        if (messagePeerReaction == null || messagePeerReaction.reaction == null || userId == getUserConfig().getClientUserId() || !canDeleteReactions) {
-                            return;
-                        }
-
-                        final ArrayList<MessageObject> arrMessages = new ArrayList<>(1);
-                        arrMessages.add(messageObject);
-
-                        final TLObject userOrChat = getMessagesController().getUserOrChat(userId);
-                        final ArrayList<TLObject> actionParticipants = new ArrayList<>(1);
-                        actionParticipants.add(userOrChat);
-
-                        final TLRPC.ChannelParticipant[] participants = new TLRPC.ChannelParticipant[1];
-                        final TLRPC.TL_channels_getParticipant req = new TLRPC.TL_channels_getParticipant();
-                        req.channel = MessagesController.getInputChannel(currentChat);
-                        req.participant = MessagesController.getInputPeer(userOrChat);
-                        getConnectionsManager().sendRequestTyped(req, AndroidUtilities::runOnUIThread, (res, err) -> {
-                            if (res != null) {
-                                getMessagesController().putUsers(res.users, false);
-                                getMessagesController().putChats(res.chats, false);
-                                participants[0] = res.participant;
-                            }
-                            new DeleteMessagesBottomSheet(this, currentChat,
-                                arrMessages, actionParticipants, participants,
-                                mergeDialogId, (int) getTopicId(),
-                                chatMode, true, () -> {}).show();
-                        });
-                        closeMenu();
-                    }), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-
-                if (canDeleteReactions) {
-                    final int bgColor = Theme.multAlpha(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem, themeDelegate), 0.06f);
-                    final ActionBarPopupWindow.GapView gapView = new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate);
-                    gapView.setColor(bgColor);
-
-                    linearLayout.addView(gapView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
-                    View tapAndHoldView = createMenuTextOption(getContext(), themeDelegate, getString(R.string.TapAndHoldToDeleteReaction));
-                    tapAndHoldView.setMinimumHeight(dp(32));
-                    linearLayout.addView(tapAndHoldView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
-                }
-
-                scrimPopupContainerLayout.addView(linearLayout, LayoutHelper.createFrame(240, LayoutHelper.WRAP_CONTENT));
+                    }), LayoutHelper.createFrame(240, LayoutHelper.WRAP_CONTENT));
             } else if (reaction.reaction instanceof TLRPC.TL_reactionCustomEmoji) {
                 TLRPC.TL_reactionCustomEmoji customEmoji = (TLRPC.TL_reactionCustomEmoji) reaction.reaction;
                 TLRPC.InputStickerSet inputStickerSet = AnimatedEmojiDrawable.getDocumentFetcher(currentAccount).findStickerSet(customEmoji.document_id);
@@ -44733,8 +44030,22 @@ public class ChatActivity extends BaseFragment implements
                     arr.add(inputStickerSet);
                     MessageContainsEmojiButton setButton = new MessageContainsEmojiButton(currentAccount, getContext(), themeDelegate, arr, MessageContainsEmojiButton.SINGLE_REACTION_TYPE);
                     setButton.setOnClickListener(v -> {
-                        if (getParentActivity() == null || getContext() == null) return;
-                        new EmojiPacksAlert(ChatActivity.this, getContext(), themeDelegate, arr).show();
+                        new EmojiPacksAlert(new BaseFragment() {
+                            @Override
+                            public int getCurrentAccount() {
+                                return currentAccount;
+                            }
+
+                            @Override
+                            public Context getContext() {
+                                return ChatActivity.this.getContext();
+                            }
+
+                            @Override
+                            public Theme.ResourcesProvider getResourceProvider() {
+                                return themeDelegate;
+                            }
+                        }, getContext(), themeDelegate, arr).show();
                         closeMenu();
                     });
                     scrimPopupContainerLayout.addView(setButton, LayoutHelper.createFrame(240, LayoutHelper.WRAP_CONTENT));
@@ -44821,7 +44132,7 @@ public class ChatActivity extends BaseFragment implements
             scrimViewTask = null;
             scrimViewReaction = reaction.reaction.hashCode();
             scrimViewReactionAnimated = reaction.reaction instanceof TLRPC.TL_reactionCustomEmoji && LiteMode.isEnabled(LiteMode.FLAG_ANIMATED_EMOJI_KEYBOARD);
-            dimBehindView(cell, true, true);
+            dimBehindView(cell, !tags, true);
             hideHints(false);
             if (topUndoView != null) {
                 topUndoView.hide(true, 1);
@@ -45026,7 +44337,7 @@ public class ChatActivity extends BaseFragment implements
             allowPin = false;
         }
         allowPin = allowPin && message.getId() > 0 && (message.messageOwner.action == null || message.messageOwner.action instanceof TLRPC.TL_messageActionEmpty) && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION;
-        boolean noforwards = isPeerNoForwards() || message.messageOwner.noforwards || getDialogId() == UserObject.VERIFY;
+        boolean noforwards = getMessagesController().isChatNoForwards(currentChat) || message.messageOwner.noforwards || getDialogId() == UserObject.VERIFY;
         boolean noforwardsOrPaidMedia = noforwards || message.type == MessageObject.TYPE_PAID_MEDIA;
         boolean allowUnpin = message.getDialogId() != mergeDialogId && allowPin && (pinnedMessageObjects.containsKey(message.getId()) || groupedMessages != null && !groupedMessages.messages.isEmpty() && pinnedMessageObjects.containsKey(groupedMessages.messages.get(0).getId())) && !message.isExpiredStory();
         boolean allowEdit = message.canEditMessage(currentChat) && !chatActivityEnterView.hasAudioToSend() && message.getDialogId() != mergeDialogId && message.type != MessageObject.TYPE_STORY && message.type != MessageObject.TYPE_POLL;
@@ -45047,7 +44358,7 @@ public class ChatActivity extends BaseFragment implements
             message.isSponsored() || type == 1 && message.getDialogId() == mergeDialogId ||
             message.messageOwner.action instanceof TLRPC.TL_messageActionSecureValuesSent ||
             currentEncryptedChat == null && message.getId() < 0 ||
-            bottomChannelButtonsLayout != null && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && selectedObject != null && (MessageObject.getTopicId(currentAccount, selectedObject.messageOwner, ChatObject.isForum(currentChat)) != 0 || selectedObject.wasJustSent))) {
+            bottomOverlayChat != null && bottomOverlayChat.getVisibility() == View.VISIBLE && !(bottomOverlayChatWaitsReply && selectedObject != null && (MessageObject.getTopicId(currentAccount, selectedObject.messageOwner, ChatObject.isForum(currentChat)) != 0 || selectedObject.wasJustSent))) {
             allowChatActions = false;
         }
 
@@ -45062,7 +44373,7 @@ public class ChatActivity extends BaseFragment implements
         if (currentChat != null && (!ChatObject.canSendMessages(currentChat))) {
             allowChatActions = false;
         }
-
+        
         if (message.isSponsored() && !getUserConfig().isPremium() && !getMessagesController().premiumFeaturesBlocked() && !message.sponsoredCanReport) {
             items.add(LocaleController.getString(R.string.HideAd));
             options.add(OPTION_HIDE_SPONSORED_MESSAGE);
@@ -45228,8 +44539,7 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_VIEW_REPLIES_OR_THREAD);
                     icons.add(R.drawable.msg_viewreplies);
                 }
-                if ((!selectedObject.isSponsored() && chatMode != MODE_SCHEDULED && ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && selectedObject.getDialogId() != mergeDialogId)
-                    || canCopyPrivateLink(selectedObject)) {
+                if (!selectedObject.isSponsored() && chatMode != MODE_SCHEDULED && ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && selectedObject.getDialogId() != mergeDialogId) {
                     items.add(LocaleController.getString(R.string.CopyLink));
                     options.add(OPTION_COPY_LINK);
                     icons.add(R.drawable.msg_link);
@@ -45241,35 +44551,9 @@ public class ChatActivity extends BaseFragment implements
                 }
                 if (type == 2) {
                     if (chatMode != MODE_SCHEDULED) {
-
-                        if (selectedObject.type == MessageObject.TYPE_POLL && !noforwardsOrPaidMedia) {
-                            TLRPC.MessageMedia media = MessageObject.getMedia(selectedObject);
-                            if (media instanceof TLRPC.TL_messageMediaPoll) {
-                                TLRPC.TL_messageMediaPoll mediaPoll = (TLRPC.TL_messageMediaPoll) media;
-                                TLRPC.MessageMedia pollMediaInDescription = PollAttachedMediaPack.getMedia(mediaPoll, PollAttachedMediaPack.INDEX_DESCRIPTION);
-                                TLRPC.MessageMedia pollMediaInExplanation = PollAttachedMediaPack.getMedia(mediaPoll, PollAttachedMediaPack.INDEX_EXPLANATION);
-
-                                final boolean canDownloadFiles = pollMediaInDescription != null && pollMediaInDescription.document != null && !MessageObject.isVideoDocument(pollMediaInDescription.document)
-                                    || selectedObject.expandedExplanation && pollMediaInExplanation != null && pollMediaInExplanation.document != null && !MessageObject.isVideoDocument(pollMediaInExplanation.document);
-
-                                if (canDownloadFiles) {
-                                    items.add(LocaleController.getString(pollMediaInDescription != null && MessageObject.isMusicDocument(pollMediaInDescription.document) ? R.string.SaveToMusic : R.string.SaveToDownloads));
-                                    options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
-                                    icons.add(R.drawable.msg_download);
-                                }
-                            }
-                        }
-
                         if (selectedObject.type == MessageObject.TYPE_POLL && !message.isPollClosed()) {
                             TLRPC.MessageMedia media = MessageObject.getMedia(selectedObject);
                             if (media instanceof TLRPC.TL_messageMediaPoll) {
-                                TLRPC.TL_messageMediaPoll mediaPoll = (TLRPC.TL_messageMediaPoll) media;
-                                if (mediaPoll.results != null && mediaPoll.results.can_view_stats && !selectedObject.isForwarded()) {
-                                    items.add(LocaleController.getString(R.string.PollV2MenuViewStats));
-                                    options.add(OPTION_VIEW_STATISTICS);
-                                    icons.add(R.drawable.msg_stats);
-                                }
-
                                 if (message.canUnvote()) {
                                     items.add(LocaleController.getString(R.string.Unvote));
                                     options.add(OPTION_UNVOTE);
@@ -45446,15 +44730,12 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 if (!selectedObject.isSponsored() && chatMode != MODE_QUICK_REPLIES && chatMode != MODE_SCHEDULED && (!selectedObject.needDrawBluredPreview() || selectedObject.hasExtendedMediaPreview()) &&
-                    !selectedObject.isLiveLocation() && selectedObject.type != MessageObject.TYPE_PHONE_CALL && !noforwards && selectedObject.type != MessageObject.TYPE_SHARING_OFFER &&
-                    selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM && selectedObject.type != MessageObject.TYPE_GIFT_OFFER && selectedObject.type != MessageObject.TYPE_GIFT_OFFER_REJECTED && selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM_CHANNEL && selectedObject.type != MessageObject.TYPE_SUGGEST_PHOTO && !selectedObject.isWallpaperAction()
+                    !selectedObject.isLiveLocation() && selectedObject.type != MessageObject.TYPE_PHONE_CALL && !noforwards &&
+                    selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM && selectedObject.type != MessageObject.TYPE_GIFT_PREMIUM_CHANNEL && selectedObject.type != MessageObject.TYPE_SUGGEST_PHOTO && !selectedObject.isWallpaperAction()
                     && !message.isExpiredStory() && message.type != MessageObject.TYPE_STORY_MENTION && message.type != MessageObject.TYPE_GIFT_STARS) {
                     items.add(LocaleController.getString(R.string.Forward));
                     options.add(OPTION_FORWARD);
                     icons.add(R.drawable.msg_forward);
-                    items.add(LocaleController.getString("FastForward", R.string.FastForward));
-                    options.add(202);
-                    icons.add(R.drawable.ic_ab_forward_anonym);
                 }
                 if (allowUnpin) {
                     items.add(LocaleController.getString(R.string.UnpinMessage));
@@ -45598,853 +44879,5 @@ public class ChatActivity extends BaseFragment implements
                 icons.add(deleteIconRes);
             }
         }
-    }
-
-    private void updateBotforumTabsBottomMargin() {
-        if (topicsTabs == null) {
-            return;
-        }
-
-        final float margin = windowInsetsStateHolder.getAnimatedMaxBottomInset() +
-                (chatInputViewsContainer.getInputBubbleHeight() + dp(9));
-
-        topicsTabs.setSideMenuBackgroundMarginBottom(margin);
-    }
-
-    private void checkUi_botMenuPosition() {
-        final float margin = windowInsetsStateHolder.getAnimatedMaxBottomInset()
-            + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM)
-            + (chatInputViewsContainer.getInputBubbleHeight() + dp(9 + 6));
-
-        if (chatActivityEnterView != null && chatActivityEnterView.botCommandsMenuContainer != null) {
-            chatActivityEnterView.botCommandsMenuContainer.setTranslationY(-margin);
-        }
-        if (mentionContainer != null) {
-            mentionContainer.setTranslationY(mentionContainer.isReversed() ? dp(5) : -margin);
-        }
-    }
-
-    @Override
-    public boolean isSupportEdgeToEdge() {
-        return true;
-    }
-    @Override
-    public boolean drawEdgeNavigationBar() {
-        return false;
-    }
-
-
-    /* */
-
-    private float calculateInputIslandHeight(boolean target) {
-        final float enterViewIslandHeight = Math.max(
-            chatActivityEnterView != null ? chatActivityEnterView.getIslandTotalHeight(target): 0, dp(44));
-
-        final float defaultIslandHeight = dp(44);
-        final float enterViewFactor;
-        float visibility;
-        float pollAddVisibility;
-
-        if (target) {
-            enterViewFactor = bottomViewsVisibilityController.getCurrentPriorityContainerId() == MESSAGE_INPUT_CONTAINER ? 1 : 0;
-            visibility = bottomViewsVisibilityController.getCurrentPriorityContainerId() == 0 ? 0 : 1;
-            pollAddVisibility = animatorPollAddAnswerVisibility.getValue() ? 1 : 0;
-        } else {
-            enterViewFactor = bottomViewsVisibilityController.getVisibility(MESSAGE_INPUT_CONTAINER);
-            visibility = 1f - bottomViewsVisibilityController.getVisibility(0);
-            pollAddVisibility = animatorPollAddAnswerVisibility.getFloatValue();
-        }
-
-        if (!isInsideContainer && !isInPreviewMode()) {
-            return lerp(Math.max(lerp(defaultIslandHeight, enterViewIslandHeight, enterViewFactor) * visibility, dp(44)), -dp(7), pollAddVisibility);
-        } else {
-            return lerp(defaultIslandHeight, enterViewIslandHeight, enterViewFactor) * visibility;
-        }
-    }
-
-    private float inputIslandHeightCurrent;
-    private float inputIslandHeightTarget;
-
-    public float getInputIslandHeightTarget() {
-        return inputIslandHeightCurrent;
-    }
-
-    private void checkUi_inputIslandHeight() {
-        if (contentView == null) {
-            return;
-        }
-
-        inputIslandHeightCurrent = calculateInputIslandHeight(false);
-        inputIslandHeightTarget = calculateInputIslandHeight(true);
-
-        chatInputViewsContainer.setInputBubbleHeight(inputIslandHeightCurrent);
-        updatePagedownButtonsPosition();
-        updateBotforumTabsBottomMargin();
-        checkUi_botMenuPosition();
-        checkUi_BlurHeight();
-        checkUi_emptyContainerPosition();
-        checkUi_chatListViewPaddings();
-    }
-
-    private static final Rect clipBoundsRect = new Rect();
-    private void checkUi_BlurHeight() {
-        final float inputHeight = windowInsetsStateHolder.getAnimatedMaxBottomInset()
-            + dp(9) + chatInputViewsContainer.getInputBubbleHeight() + dp(7)
-            + getTopicTabsSideSize(TopicsTabsView.Position.BOTTOM);
-
-        chatInputViewsContainer.setBlurredBottomHeight(inputHeight);
-
-        int clipBound = contentView.getMeasuredHeight() - (int) inputHeight + dp(36);
-        clipBound = androidx.core.math.MathUtils.clamp(clipBound, 0, contentView.getMeasuredHeight());
-
-        clipBoundsRect.set(0, 0, contentView.getMeasuredWidth(), clipBound);
-        clipBoundsRect.set(0,
-            blurredViewTopOffset,
-            chatListView.getMeasuredWidth(),
-            chatListView.getMeasuredHeight() - blurredViewBottomOffset - (int) inputHeight + dp(36)
-        );
-    }
-
-    private void checkUi_emptyContainerPosition() {
-        if (emptyViewContainer != null) {
-            emptyViewContainer.setTranslationY(-0.5f * (dp(9)
-                + windowInsetsStateHolder.getAnimatedImeBottomInset()
-                + chatInputViewsContainer.getInputBubbleHeight()
-            ));
-        }
-    }
-
-    private void checkUi_topFade() {
-        if (topPanelLayoutFade == null) {
-            return;
-        }
-
-        float fadeHeight = 0;
-        float fadeAlphaInv = 1;
-        if (topPanelLayout != null) {
-            fadeHeight += dp(48 + 7 + 3) * topPanelLayout.getMetadata().getTotalVisibility();
-            fadeAlphaInv *= (1f - topPanelLayout.getMetadata().getTotalVisibility());
-        }
-        if (topicsTabs != null) {
-            fadeHeight += getTopicTabsSideSize(TopicsTabsView.Position.TOP);
-            fadeAlphaInv *= getSideMenuAlpha();
-        }
-
-        final float alpha = 1f - fadeAlphaInv;
-        topPanelLayoutFade.setFadeHeight((int) fadeHeight);
-        topPanelLayoutFade.setAlpha(alpha);
-        topPanelLayoutFade.setVisibility(alpha > 0 ? View.VISIBLE : View.INVISIBLE);
-    }
-
-    private void checkUi_topPanelLayoutVisibility() {
-        final float factor = 1f - animatorHideTopPanelByEmojiKeyboardExpanded.getFloatValue();
-        topPanelLayout.setAlpha(factor);
-        topPanelLayout.setVisibility(factor > 0 ? View.VISIBLE : View.GONE);
-    }
-
-    private void checkUi_topicTabsVisibility() {
-        final float factor = 1f - animatorHideTopPanelByEmojiKeyboardExpanded.getFloatValue();
-        if (topicsTabs != null) {
-            topicsTabs.setAlpha(factor);
-            topicsTabs.setVisibility(factor > 0 ? View.VISIBLE : View.GONE);
-        }
-    }
-
-    private void checkUi_sideControlsLayoutPosition() {
-        final float factor = 1f - animatorPollAddAnswerVisibility.getFloatValue();
-
-        sideControlsButtonsLayout.setTranslationX(dp(80) * (1f - factor));
-        sideControlsButtonsLayout.setAlpha(factor);
-        sideControlsButtonsLayout.setVisibility(factor > 0 ? View.VISIBLE : View.GONE);
-    }
-
-
-    @Override
-    public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {
-        if (id == ANIMATOR_ID_PULLING_DOWN_CONTAINER_VISIBILITY) {
-            onBottomItemsVisibilityChanged();
-        } else if (id == ANIMATOR_ID_ROUND_MESSAGE_CAMERA_VISIBILITY) {
-            if (roundVideoRecordBackground != null) {
-                roundVideoRecordBackground.setAlpha(factor);
-                roundVideoRecordBackground.setVisibility(factor > 0 ? View.VISIBLE : View.INVISIBLE);
-            }
-            // checkUi_BlurHeight();
-        } else if (id == ANIMATOR_ID_POLL_ADD_ANSWER_VISIBILITY) {
-            onBottomItemsVisibilityChanged();
-            checkUi_sideControlsLayoutPosition();
-            if (pollAddOptionFieldLayout != null) {
-                pollAddOptionFieldLayout.setAnimatedVisibility(animatorPollAddAnswerVisibility.getFloatValue());
-            }
-        } else if (id == ANIMATOR_ID_HIDE_TOP_PANEL_BY_EMOJI_KEYBOARD_EXPANDED) {
-            checkUi_topPanelLayoutVisibility();
-            checkUi_topicTabsVisibility();
-        }
-    }
-
-    @Override
-    public void onFactorChangeFinished(int id, float finalFactor, FactorAnimator callee) {
-        if (id == ANIMATOR_ID_POLL_ADD_ANSWER_VISIBILITY) {
-            if (finalFactor == 0) {
-                pollAddOptionModeDestroy();
-            }
-        }
-    }
-
-    private static final int ANIMATOR_ID_PULLING_DOWN_CONTAINER_VISIBILITY = 0;
-    private static final int ANIMATOR_ID_ROUND_MESSAGE_CAMERA_VISIBILITY = 1;
-    private static final int ANIMATOR_ID_POLL_ADD_ANSWER_VISIBILITY = 2;
-    private static final int ANIMATOR_ID_HIDE_TOP_PANEL_BY_EMOJI_KEYBOARD_EXPANDED = 3;
-
-    private final BoolAnimator animatorPullingDownContainerVisibility = new BoolAnimator(ANIMATOR_ID_PULLING_DOWN_CONTAINER_VISIBILITY, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320);
-    private final BoolAnimator animatorRoundMessageCameraVisibility = new BoolAnimator(ANIMATOR_ID_ROUND_MESSAGE_CAMERA_VISIBILITY, this, CubicBezierInterpolator.EASE_OUT_QUINT, 520);
-    private final BoolAnimator animatorPollAddAnswerVisibility = new BoolAnimator(ANIMATOR_ID_POLL_ADD_ANSWER_VISIBILITY, this, CubicBezierInterpolator.EASE_OUT_QUINT, 520);
-    private final BoolAnimator animatorHideTopPanelByEmojiKeyboardExpanded = new BoolAnimator(ANIMATOR_ID_HIDE_TOP_PANEL_BY_EMOJI_KEYBOARD_EXPANDED, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320);
-
-    public static final int MESSAGE_INPUT_CONTAINER = 1;
-    public static final int BOTTOM_OVERLAY_TEXT_CONTAINER = 2;
-    public static final int BOTTOM_OVERLAY_CHAT_CONTAINER = 3;
-    public static final int MESSAGE_ACTION_CONTAINER = 5;
-    public static final int MESSAGE_SEARCH_CONTAINER = 4;
-
-    private final ChatActivityBottomViewsVisibilityController bottomViewsVisibilityController =
-            new ChatActivityBottomViewsVisibilityController(this::onBottomItemsVisibilityChanged);
-
-    private void checkBottomViewVisibility(View view, int containerId, boolean allowVisibilityChange) {
-        if (view != null) {
-            final float alpha = bottomViewsVisibilityController.getVisibility(containerId)
-                * (1f - animatorPullingDownContainerVisibility.getFloatValue())
-                * (1f - animatorPollAddAnswerVisibility.getFloatValue());
-
-            view.setAlpha(alpha);
-            if (allowVisibilityChange) {
-                final int visibility = alpha > 0 ? View.VISIBLE : View.GONE;
-                if (view.getVisibility() != visibility) {
-                    view.setVisibility(visibility);
-                }
-            }
-        }
-    }
-
-    private void onBottomItemsVisibilityChanged() {
-        checkBottomViewVisibility(actionsButtonsLayout, MESSAGE_ACTION_CONTAINER, true);
-        checkBottomViewVisibility(chatActivityEnterView, MESSAGE_INPUT_CONTAINER, false);
-        checkBottomViewVisibility(searchContainer, MESSAGE_SEARCH_CONTAINER, true);
-        checkBottomViewVisibility(bottomChannelButtonsLayout, BOTTOM_OVERLAY_CHAT_CONTAINER, false);
-        checkBottomViewVisibility(bottomOverlay, BOTTOM_OVERLAY_TEXT_CONTAINER, false);
-
-        final float pollAddOptionVisibility = animatorPollAddAnswerVisibility.getFloatValue();
-        final float actionFactor = bottomViewsVisibilityController.getVisibility(MESSAGE_ACTION_CONTAINER);
-
-        final float hideFactor = 1f - ((1f - actionFactor) * (1f - pollAddOptionVisibility));
-
-        if (actionsButtonsLayout != null) {
-            actionsButtonsLayout.setTotalVisibilityFactor(hideFactor);
-        }
-        if (chatActivityEnterView != null) {
-            chatActivityEnterView.setTranslationY(dp(54) * hideFactor);
-        }
-        if (searchContainer != null) {
-            searchContainer.setTranslationY(dp(54) * hideFactor);
-        }
-        if (bottomChannelButtonsLayout != null) {
-            bottomChannelButtonsLayout.setTranslationY(dp(54) * hideFactor);
-        }
-        if (bottomOverlay != null) {
-            bottomOverlay.setTranslationY(dp(54) * hideFactor);
-        }
-        if (chatInputViewsContainer != null) {
-            chatInputViewsContainer.setInputBubbleAlpha((int) (255 * (1f - hideFactor)));
-            chatInputViewsContainer.setInputBubbleTranslationY(dp(54) * hideFactor);
-        }
-
-
-        if (bottomChannelButtonsLayout != null) {
-            bottomChannelButtonsLayout.setTotalVisibilityFactor(
-                bottomViewsVisibilityController.getVisibility(BOTTOM_OVERLAY_CHAT_CONTAINER) *
-                (1f - animatorPullingDownContainerVisibility.getFloatValue())
-            );
-        }
-
-        if (pullingDownDrawable != null) {
-            final float factor = animatorPullingDownContainerVisibility.getFloatValue();
-            if (pullingDownDrawable.progressToBottomPanel != factor) {
-                pullingDownDrawable.progressToBottomPanel = factor;
-                fragmentView.invalidate();
-            }
-        }
-
-        checkUi_inputIslandHeight();
-    }
-
-    private void invalidateAllGlassAttachedViews() {
-        contentView.invalidate();
-        for (View v: glassAttachedViews) {
-            v.invalidate();
-        }
-    }
-
-    private void onSideControlButtonOnClick(int buttonId, View v) {
-        if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_PAGE_DOWN) {
-            onPageDownClicked();
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_MENTION) {
-            loadLastUnreadMention();
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_REACTIONS) {
-            wasManualScroll = true;
-            getMessagesController().getNextReactionMention(dialog_id, getTopicId(), reactionsMentionCount, (messageId) -> {
-                if (messageId == 0) {
-                    reactionsMentionCount = 0;
-                    updateReactionsMentionButton(true);
-                    getMessagesController().markReactionsAsRead(dialog_id, getTopicId());
-                } else {
-                    updateReactionsMentionButton(true);
-                    scrollToMessageId(messageId, 0, false, 0, true, 0);
-                }
-            });
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_POLL_VOTES) {
-            wasManualScroll = true;
-            getMessagesController().getNextPollVotesMention(dialog_id, getTopicId(), pollVotesMentionCount, (messageId) -> {
-                if (messageId == 0) {
-                    pollVotesMentionCount = 0;
-                    updatePollVotesMentionButton(true);
-                    getMessagesController().markPollVotesAsRead(dialog_id, getTopicId());
-                } else {
-                    pollVotesMentionCount--;
-                    if (pollVotesMentionCount <= 0) {
-                        getMessagesController().markPollVotesAsRead(dialog_id, getTopicId());
-                    }
-                    updatePollVotesMentionButton(true);
-                    scrollToMessageId(messageId, 0, false, 0, true, 0);
-                }
-            });
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_UP) {
-            goToNextOrPrevSearchMessage(true);
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_SEARCH_DOWN) {
-            goToNextOrPrevSearchMessage(false);
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_ATTACH) {
-            if (chatAttachAlert != null) {
-                chatAttachAlert.setEditingMessageObject(0, null);
-            }
-            openAttachMenu();
-        }
-    }
-
-    private void goToNextOrPrevSearchMessage(boolean searchUp) {
-        if (chatMode == MODE_SEARCH) {
-            HashtagSearchController.getInstance(currentAccount).jumpToMessage(classGuid, hashtagSearchSelectedIndex + (searchUp ? 1 : -1), searchType);
-        } else {
-            getMediaDataController().searchMessagesInChat(null, dialog_id, mergeDialogId, classGuid, searchUp ? (reversed ? 2 : 1) : (reversed ? 1 : 2), threadMessageId, searchingUserMessages, searchingChatMessages, searchingReaction);
-            showMessagesSearchListView(false);
-        }
-    }
-
-    private void loadLastUnreadMention() {
-        wasManualScroll = true;
-        if (hasAllMentionsLocal) {
-            getMessagesStorage().getUnreadMention(dialog_id, getTopicId(), param -> {
-                if (param == 0) {
-                    hasAllMentionsLocal = false;
-                    loadLastUnreadMention();
-                } else {
-                    scrollToMessageId(param, 0, false, 0, true, 0);
-                }
-            });
-        } else {
-            final MessagesStorage messagesStorage = getMessagesStorage();
-            TLRPC.TL_messages_getUnreadMentions req = new TLRPC.TL_messages_getUnreadMentions();
-            req.peer = getMessagesController().getInputPeer(dialog_id);
-            req.limit = 1;
-            if (isTopic) {
-                req.top_msg_id = (int) threadMessageId;
-                req.flags |= 1;
-            }
-            req.add_offset = newMentionsCount - 1;
-            getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-                TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
-                if (error != null || res.messages.isEmpty()) {
-                    if (res != null) {
-                        newMentionsCount = res.count;
-                    } else {
-                        newMentionsCount = 0;
-                    }
-                    messagesStorage.resetMentionsCount(dialog_id, getTopicId(), newMentionsCount);
-                    if (newMentionsCount == 0) {
-                        hasAllMentionsLocal = true;
-                        showMentionDownButton(false, true);
-                    } else {
-                        sideControlsButtonsLayout.setButtonCount(ChatActivitySideControlsButtonsLayout.BUTTON_MENTION, newMentionsCount, true);
-                        loadLastUnreadMention();
-                    }
-                } else {
-                    int id = res.messages.get(0).id;
-                    MessageObject object = messagesDict[0].get(id);
-                    messagesStorage.markMessageAsMention(dialog_id, id);
-                    if (object != null) {
-                        object.messageOwner.media_unread = true;
-                        object.messageOwner.mentioned = true;
-                    }
-                    scrollToMessageId(id, 0, false, 0, true, 0);
-                }
-            }));
-        }
-    }
-
-    private boolean onSideControlButtonOnLongClick(int buttonId, View view) {
-        final Runnable onRead;
-        final int type;
-        if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_MENTION) {
-            type = ReadAllMentionsMenu.TYPE_MENTIONS;
-            onRead = () -> {
-                for (int a = 0; a < messages.size(); a++) {
-                    MessageObject messageObject = messages.get(a);
-                    if (messageObject.messageOwner.mentioned && !messageObject.isContentUnread()) {
-                        messageObject.setContentIsRead();
-                    }
-                }
-                newMentionsCount = 0;
-                getMessagesController().markMentionsAsRead(dialog_id, getTopicId());
-                hasAllMentionsLocal = true;
-                showMentionDownButton(false, true);
-                if (scrimPopupWindow != null) {
-                    scrimPopupWindow.dismiss();
-                }
-            };
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_REACTIONS) {
-            type = ReadAllMentionsMenu.TYPE_REACTIONS;
-            onRead = () -> {
-                for (int i = 0; i < messages.size(); i++) {
-                    messages.get(i).markReactionsAsRead();
-                }
-                reactionsMentionCount = 0;
-                updateReactionsMentionButton(true);
-                getMessagesController().markReactionsAsRead(dialog_id, getTopicId());
-                if (scrimPopupWindow != null) {
-                    scrimPopupWindow.dismiss();
-                }
-            };
-        } else if (buttonId == ChatActivitySideControlsButtonsLayout.BUTTON_POLL_VOTES) {
-            type = ReadAllMentionsMenu.TYPE_POLL_VOTES;
-            onRead = () -> {
-                for (int i = 0; i < messages.size(); i++) {
-                    messages.get(i).markPollVotesAsRead();
-                }
-                pollVotesMentionCount = 0;
-                updatePollVotesMentionButton(true);
-                getMessagesController().markPollVotesAsRead(dialog_id, getTopicId());
-                if (scrimPopupWindow != null) {
-                    scrimPopupWindow.dismiss();
-                }
-            };
-        } else {
-            return false;
-        }
-
-        scrimPopupWindow = ReadAllMentionsMenu.show(type,
-            getParentActivity(), getParentLayout(),
-            contentView, view, getResourceProvider(), onRead);
-
-        dimBehindView(sideControlsButtonsLayout, true);
-        scrimPopupWindow.setOnDismissListener(() -> {
-            scrimPopupWindow = null;
-            menuDeleteItem = null;
-            scrimPopupWindowItems = null;
-            chatLayoutManager.setCanScrollVertically(true);
-            dimBehindView(false);
-            if (chatActivityEnterView != null && chatActivityEnterView.getEditField() != null) {
-                chatActivityEnterView.getEditField().setAllowDrawCursor(true);
-            }
-        });
-        try {
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-        } catch (Exception ignored) {}
-        return true;
-    }
-
-    private static View createMenuTextOption(Context context, Theme.ResourcesProvider resourcesProvider, CharSequence text) {
-        FrameLayout sponsoredAbout = new FrameLayout(context);
-        sponsoredAbout.setMinimumHeight(dp(48));
-        sponsoredAbout.setPadding(dp(14), dp(4), dp(14), dp(4));
-
-        TextView infoText = new TextView(context) {
-            @Override
-            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-                if (MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.AT_MOST && getLayout() != null) {
-                    Layout layout = getLayout();
-                    int width = 0;
-                    for (int i = 0; i < layout.getLineCount(); ++i) {
-                        width = Math.max(width, (int) Math.ceil(layout.getLineWidth(i)));
-                    }
-                    widthMeasureSpec = MeasureSpec.makeMeasureSpec(getPaddingLeft() + width + getPaddingRight(), MeasureSpec.EXACTLY);
-                }
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            }
-        };
-        infoText.setMaxLines(3);
-        infoText.setGravity(Gravity.LEFT);
-        infoText.setEllipsize(TextUtils.TruncateAt.END);
-        infoText.setTextColor(Theme.getColor(Theme.key_actionBarDefaultSubmenuItem, resourcesProvider));
-        infoText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        infoText.setMaxWidth(AndroidUtilities.dp(170));
-        infoText.setText(text);
-        sponsoredAbout.addView(infoText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL));
-
-        return sponsoredAbout;
-    }
-
-    public boolean isPeerNoForwards() {
-        return currentChat != null ?
-            getMessagesController().isChatNoForwards(currentChat) :
-            getMessagesController().isUserNoForwards(userInfo);
-    }
-
-    private PollAddOptionFieldLayout pollAddOptionFieldLayout;
-
-    private void pollAddOptionModeStart(ChatMessageCell cell) {
-        if (cell == null || chatActivityEnterView == null || isInPollAddOptionMode() || cell.getMessageObject() == null) {
-            return;
-        }
-
-        ViewPositionWatcher.computeRectInParent(cell, contentView, AndroidUtilities.rectTmp);
-        if (!cell.getPollAddButtonBounds(AndroidUtilities.rectTmp2)) {
-            return;
-        }
-        float cellBottom = AndroidUtilities.rectTmp.bottom;
-        float cellBottomTarget = contentView.getMeasuredHeight() - chatListView.getPaddingBottom() + inputIslandHeightCurrent - dp(2);
-        final int scrollBy = (int) (cellBottom - cellBottomTarget);
-
-
-
-
-
-
-        final MessageObject messageObject = cell.getMessageObject();
-
-        if (pollAddOptionFieldLayout == null) {
-            pollAddOptionFieldLayout = new PollAddOptionFieldLayout(this, getContext(), resourceProvider);
-
-            int index = contentView.indexOfChild(chatListView);
-            if (index >= 0) {
-                contentView.addView(pollAddOptionFieldLayout, index + 1, LayoutHelper.createFrameMatchParent());
-            } else {
-                contentView.addView(pollAddOptionFieldLayout, LayoutHelper.createFrameMatchParent());
-            }
-        }
-
-        int color2;
-        if (messageObject.isOutOwner()) {
-            color2 = getThemedColor(cell.isDrawSelectionBackground() ? Theme.key_chat_outTimeSelectedText : Theme.key_chat_outTimeText);
-        } else {
-            color2 = getThemedColor(cell.isDrawSelectionBackground() ? Theme.key_chat_inTimeSelectedText : Theme.key_chat_inTimeText);
-        }
-        pollAddOptionFieldLayout.setColor(color2);
-        pollAddOptionFieldLayout.setCellToWatch(cell);
-        pollAddOptionFieldLayout.setEmojiKeyboardVisible(false, false);
-        pollAddOptionFieldLayout.setAnimatedVisibility(animatorPollAddAnswerVisibility.getFloatValue());
-        pollAddOptionFieldLayout.doOnEmojiClick(this::pollAddOptionModeToggleEmoji);
-        pollAddOptionFieldLayout.doOnCancel(this::pollAddOptionModeClose);
-
-        final EditTextBoldCursor textView = pollAddOptionFieldLayout.textView;
-        textView.setOnKeyListener((v, keyCode, event) -> {
-            EditTextBoldCursor field = (EditTextBoldCursor) v;
-            if (keyCode == KeyEvent.KEYCODE_DEL && event.getAction() == KeyEvent.ACTION_DOWN && field.length() == 0) {
-                pollAddOptionModeClose();
-                return true;
-            }
-            return false;
-        });
-        textView.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                if (pollAddOptionFieldLayout != null && pollAddOptionFieldLayout.cellToWatch != null) {
-                    pollAddOptionModeComplete(pollAddOptionFieldLayout.cellToWatch);
-                    return true;
-                }
-            }
-            return false;
-        });
-
-        chatActivityEnterView.overrideEditTextView(textView);
-        AndroidUtilities.runOnUIThread(() -> {
-            chatListView.smoothScrollBy(0, scrollBy);
-            if (!AndroidUtilities.showKeyboard(textView)) {
-                textView.clearFocus();
-                textView.requestFocus();
-            }
-            AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(textView), 100);
-        }, 100);
-
-        animatorPollAddAnswerVisibility.setValue(true, true);
-    }
-
-    private void pollAddOptionModeToggleEmoji() {
-        if (chatActivityEnterView == null || pollAddOptionFieldLayout == null) {
-            return;
-        }
-
-        if (chatActivityEnterView.isPopupShowing()) {
-            chatActivityEnterView.hidePopup(false);
-            AndroidUtilities.showKeyboard(pollAddOptionFieldLayout.textView);
-            pollAddOptionFieldLayout.setEmojiKeyboardVisible(false, true);
-        } else {
-            chatActivityEnterView.setAllowStickersAndGifs(true, false, false);
-            chatActivityEnterView.showEmojiView();
-            pollAddOptionFieldLayout.setEmojiKeyboardVisible(true, true);
-        }
-    }
-
-    private void pollAddOptionModeComplete(ChatMessageCell cell) {
-        if (!isInPollAddOptionMode() || pollAddOptionFieldLayout == null || pollAddOptionFieldLayout.cellToWatch != cell) {
-            return;
-        }
-
-        final CharSequence pollOptionText = pollAddOptionFieldLayout.textView.getText();
-        final int pollOptionLength = pollOptionText.length();
-        if (pollOptionLength == 0 || pollOptionLength > getMessagesController().config.pollAnswerLengthMax.get()) {
-            AndroidUtilities.shakeView(pollAddOptionFieldLayout.textView);
-            return;
-        }
-
-        SendMessagesHelper.getInstance(currentAccount).addPollOption(
-            cell.getMessageObject(), pollOptionText,
-            pollAddOptionFieldLayout.getAttachedMedia());
-        pollAddOptionModeClose();
-    }
-
-    private void pollAddOptionModeClose() {
-        animatorPollAddAnswerVisibility.setValue(false, true);
-        if (pollAddOptionFieldLayout != null) {
-            pollAddOptionFieldLayout.updateCell();
-        }
-        if (chatActivityEnterView != null) {
-            chatActivityEnterView.setAllowStickersAndGifs(true, true, true, false);
-            chatActivityEnterView.overrideEditTextView(null);
-        }
-    }
-
-    private void pollAddOptionModeDestroy() {
-        if (pollAddOptionFieldLayout != null) {
-            contentView.removeView(pollAddOptionFieldLayout);
-            pollAddOptionFieldLayout = null;
-        }
-        if (chatActivityEnterView != null) {
-            chatActivityEnterView.openKeyboard();
-        }
-    }
-
-    private boolean isInPollAddOptionMode() {
-        return animatorPollAddAnswerVisibility.getValue();
-    }
-
-
-    public void startFireworks() {
-        if (fireworksOverlay == null || fireworksOverlay.isStarted()) {
-            return;
-        }
-        fireworksOverlay.start();
-        try {
-            fireworksOverlay.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
-        } catch (Exception ignored) {};
-    }
-
-    private float getTopicTabsSideSize(TopicsTabsView.Position position) {
-        return topicsTabs != null ? topicsTabs.getTabsVisibleSpaceWithPadding(position, dp(7)) : 0;
-    }
-
-    private OnPostDrawView invalidateBlurredSourcesView;
-
-    private static final int BLUR_INVALIDATE_FLAG_SCROLL = 1;
-    private static final int BLUR_INVALIDATE_FLAG_POSITIONS = 1 << 1;
-    private static final int BLUR_INVALIDATE_FLAG_CLIP = 1 << 2;
-
-    private void invalidateMergedVisibleBlurredPositionsAndSourcesPositions() {
-        invalidateMergedVisibleBlurredPositionsAndSources(BLUR_INVALIDATE_FLAG_POSITIONS);
-    }
-
-    private void invalidateMergedVisibleBlurredPositionsAndSources(int flags) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || scrollableViewNoiseSuppressor == null) {
-            return;
-        }
-
-        invalidateBlurredSourcesView.invalidate(flags);
-    }
-
-    private final ArrayList<RectF> glassDrawablesPositions = new ArrayList<>();
-    private final ArrayList<RectF> glassDrawablesPositionsMerged = new ArrayList<>();
-    private int glassDrawablesPositionsCount;
-
-    private void invalidateMergedVisibleBlurredPositionsAndSourcesImpl(int flags) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || scrollableViewNoiseSuppressor == null) {
-            return;
-        }
-
-        if (BitwiseUtils.hasFlag(flags, BLUR_INVALIDATE_FLAG_CLIP)) {
-            invalidateClipRectForBackgroundAndChatList();
-        }
-
-        if (BitwiseUtils.hasFlag(flags, BLUR_INVALIDATE_FLAG_POSITIONS)) {
-            glassDrawablesPositionsCount = getMergedVisibleBlurredPositions(glassDrawablesPositionsMerged);
-            scrollableViewNoiseSuppressor.setupRenderNodes(glassDrawablesPositionsMerged, glassDrawablesPositionsCount);
-        }
-
-        //if (BitwiseUtils.hasFlag(flags, BLUR_INVALIDATE_FLAG_POSITIONS | BLUR_INVALIDATE_FLAG_SCROLL)) {
-        final boolean hasChanges = scrollableViewNoiseSuppressor.invalidateResultRenderNodes(contentView::drawList, contentView.getWidth(), contentView.getHeight());
-        if (hasChanges) {
-            if (glassBackgroundSourceRenderNode != null) {
-                glassBackgroundSourceRenderNode.invalidateDisplayListForDrawables();
-            }
-            if (glassBackgroundSourceFrostedRenderNode != null) {
-                glassBackgroundSourceFrostedRenderNode.invalidateDisplayListForDrawables();
-            }
-            if (actionBar != null) {
-                actionBar.invalidate();
-            }
-            invalidateAllGlassAttachedViews();
-        }
-
-        //}
-    }
-
-    private int getMergedVisibleBlurredPositions(List<RectF> positions) {
-        final int positionsCount = getVisibleBlurredPositions(glassDrawablesPositions);
-        final int mergedPositionsCount = RectFMergeBounding.mergeOverlapping(glassDrawablesPositions, positionsCount, positions);
-        final int maxX = contentView.getMeasuredWidth();
-        for (int a = 0; a < mergedPositionsCount; a++) {
-            final RectF position = positions.get(a);
-            position.left = androidx.core.math.MathUtils.clamp(position.left, 0, maxX);
-            position.top = Math.max(chatListView.getY(), position.top);
-            position.right = androidx.core.math.MathUtils.clamp(position.right, 0, maxX);
-            position.bottom = Math.min(chatListView.getY() + chatListView.getMeasuredHeight(), position.bottom);
-            /*if (drawDebug) {
-                ((Canvas) null).drawRect(position, Theme.DEBUG_GREEN_STROKE);
-            }*/
-        }
-
-        return mergedPositionsCount;
-    }
-
-    private int getVisibleBlurredPositions(List<RectF> positions) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int count = 0;
-
-            if (glassBackgroundSourceFrostedRenderNode != null) {
-                final int blurAlpha = ACTION_BAR_BLUR_ALPHA;
-                if (blurAlpha < 255) {
-                    final RectF rectf;
-                    if (positions.isEmpty()) {
-                        positions.add(rectf = new RectF());
-                    } else {
-                        rectf = positions.get(0);
-                    }
-
-                    rectf.set(0, 0, contentView.getMeasuredWidth(), chatListView.getPaddingTop() + chatListView.getY());
-                    rectf.inset(0, -dp(45));
-                    count += 1;
-                }
-
-                count += glassBackgroundSourceFrostedRenderNode.getVisiblePositions(positions, count, dp(48));
-            }
-
-            if (glassBackgroundSourceRenderNode != null) {
-                count += glassBackgroundSourceRenderNode.getVisiblePositions(positions, count, dp(8));
-            }
-
-            return count;
-        } else {
-            return 0;
-        }
-    }
-
-
-
-    private final Rect clipBoundsTmp = new Rect();
-    private void invalidateClipRectForBackgroundAndChatList() {
-        if (contentView == null) {
-            return;
-        }
-
-        final int topClip = isInsideContainer ? 0 : ActionBar.getCurrentActionBarHeight() + windowInsetsStateHolder.getInsets(WindowInsetsCompat.Type.statusBars()).top;
-        final int bottomClip = (int) Math.max(0,
-            windowInsetsStateHolder.getAnimatedImeBottomInset() * windowInsetsStateHolder.getAnimatedKeyboardVisibility() - dp(29));
-
-        if (contentView.backgroundView != null) {
-            clipBoundsTmp.set(0, topClip, contentView.getMeasuredWidth(), contentView.getMeasuredHeight() - bottomClip);
-            contentView.backgroundView.setClipBounds(clipBoundsTmp);
-        }
-        if (chatListView != null) {
-            clipBoundsTmp.set(0, topClip, contentView.getMeasuredWidth(), contentView.getMeasuredHeight() - bottomClip);
-            clipBoundsTmp.offset(0, -chatListView.getTop());
-            chatListView.setClipBounds(chatListView.hasActiveEdgeEffects() ? null : clipBoundsTmp);
-        }
-        if (chatInputViewsContainer != null && chatInputViewsContainer.getFadeView() != null) {
-            clipBoundsTmp.set(0, 0, contentView.getMeasuredWidth(), contentView.getMeasuredHeight() - bottomClip);
-            // chatInputViewsContainer.getFadeView().setClipBounds(clipBoundsTmp);
-        }
-    }
-
-    private abstract class ChatListRecyclerView extends RecyclerListViewInternal {
-
-        public ChatListRecyclerView(Context context, ThemeDelegate themeDelegate) {
-            super(context, themeDelegate);
-        }
-
-        void drawChatBackgroundElements(Canvas canvas) {
-            drawChatBackgroundElements(canvas, null);
-        }
-
-        void drawChatForegroundElements(Canvas canvas) {
-            drawChatForegroundElements(canvas, null);
-        }
-
-        abstract void drawChatBackgroundElements(Canvas canvas, @Nullable RectF position);
-        abstract void drawChatForegroundElements(Canvas canvas, @Nullable RectF position);
-    }
-
-    private boolean canCopyPrivateLink(MessageObject message) {
-        return message != null
-            && !message.isSponsored()
-            && chatMode != MODE_SCHEDULED
-            && currentEncryptedChat == null
-            && !ChatObject.isChannel(currentChat)
-            && !ChatObject.isMonoForum(currentChat)
-            && message.getDialogId() != mergeDialogId
-            && (currentChat != null || currentUser != null);
-    }
-
-    private boolean copyPrivateLink(MessageObject message) {
-        if (message == null || ChatObject.isChannel(currentChat) || ChatObject.isMonoForum(currentChat)) {
-            return false;
-        }
-        String linkPrefix = getMessagesController().linkPrefix;
-        String link = null;
-        if (currentChat != null) {
-            String username = ChatObject.getPublicUsername(currentChat);
-            if (!TextUtils.isEmpty(username)) {
-                link = "https://" + linkPrefix + "/" + username;
-            } else {
-                link = "https://" + linkPrefix + "/c/" + currentChat.id;
-            }
-            long topicId = getTopicId();
-            if (topicId != 0) {
-                link += "/" + topicId;
-            }
-            link += "/" + message.getId();
-        } else if (currentUser != null) {
-            String username = UserObject.getPublicUsername(currentUser);
-            if (!TextUtils.isEmpty(username)) {
-                link = "https://" + linkPrefix + "/" + username + "/" + message.getId();
-            } else {
-                link = "tg://openmessage?user_id=" + currentUser.id + "&message_id=" + message.getId();
-            }
-        }
-        if (TextUtils.isEmpty(link)) {
-            return false;
-        }
-        try {
-            AndroidUtilities.addToClipboard(link);
-            if (BulletinFactory.canShowBulletin(ChatActivity.this)) {
-                BulletinFactory.of(ChatActivity.this).createCopyLinkBulletin(link.contains("/c/") || link.startsWith("tg://openmessage")).show();
-            }
-        } catch (Exception e) {
-            FileLog.e(e);
-        }
-        return true;
     }
 }

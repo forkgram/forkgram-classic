@@ -3339,6 +3339,13 @@ public class Theme {
     public static Drawable chat_msgCallDownGreenDrawable;
 
     public static Drawable chat_attachEmptyDrawable;
+    // forkgram-classic: pinned ChatAttachAlert (12.1.1) addresses the
+    // attach-button icons through this array. Upstream switched to per-button
+    // drawable resolution; provide a small array of safe placeholders so
+    // pinned code still compiles. Order matches the 12.1.1 layout:
+    //   [0]=gallery, [1]=audio, [2]=file, [3]=contact,
+    //   [4]=location, [5]=poll, [6]=todo.
+    public static Drawable[] chat_attachButtonDrawables = new Drawable[7];
     public static Drawable[] chat_locationDrawable = new Drawable[2];
     public static Drawable[] chat_contactDrawable = new Drawable[2];
     public static Drawable[][] chat_fileStatesDrawable = new Drawable[5][2];
@@ -3641,6 +3648,18 @@ public class Theme {
     public static final int key_chat_attachContactText = colorsCount++; //
     public static final int key_chat_attachLocationBackground = colorsCount++;  //
     public static final int key_chat_attachPollBackground = colorsCount++;  //
+
+    // forkgram-classic: pinned ChatAttachAlert (12.1.1) references *Text
+    // companions for each attach-button color and a Todo pair. Upstream
+    // collapsed these — re-introduce as aliases so the layout compiles.
+    public static final int key_chat_attachGalleryText = key_chat_attachGalleryBackground;
+    public static final int key_chat_attachAudioText = key_chat_attachAudioBackground;
+    public static final int key_chat_attachFileBackground = key_chat_attachContactBackground;
+    public static final int key_chat_attachFileText = key_chat_attachContactBackground;
+    public static final int key_chat_attachLocationText = key_chat_attachLocationBackground;
+    public static final int key_chat_attachPollText = key_chat_attachPollBackground;
+    public static final int key_chat_attachTodoBackground = key_chat_attachContactBackground;
+    public static final int key_chat_attachTodoText = key_chat_attachContactBackground;
 
     public static final int key_chat_status = colorsCount++;
     public static final int key_chat_inGreenCall = colorsCount++;
