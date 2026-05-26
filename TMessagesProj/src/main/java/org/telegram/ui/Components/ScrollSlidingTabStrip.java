@@ -152,6 +152,12 @@ public class ScrollSlidingTabStrip extends HorizontalScrollView {
         }
     };
 
+    // forkgram-classic: pinned EmojiView's nested tab strip calls
+    // super(context, resourcesProvider) without the glass flag.
+    public ScrollSlidingTabStrip(Context context, Theme.ResourcesProvider resourcesProvider) {
+        this(context, resourcesProvider, false);
+    }
+
     public ScrollSlidingTabStrip(Context context, Theme.ResourcesProvider resourcesProvider, boolean isGlassDesign) {
         super(context);
         this.resourcesProvider = resourcesProvider;

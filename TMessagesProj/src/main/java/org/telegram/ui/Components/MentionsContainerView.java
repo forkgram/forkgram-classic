@@ -71,6 +71,12 @@ public class MentionsContainerView extends FrameLayout implements NotificationCe
     private RecyclerListView.OnItemClickListener mentionsOnItemClickListener;
     private Delegate delegate;
 
+    // forkgram-classic: pinned 12.1.1 ChatActivity passes the chat content
+    // view between baseFragment and resourcesProvider — accept and ignore.
+    public MentionsContainerView(@NonNull Context context, long dialogId, long threadMessageId, BaseFragment baseFragment, android.view.ViewGroup contentView, Theme.ResourcesProvider resourcesProvider) {
+        this(context, dialogId, threadMessageId, baseFragment, resourcesProvider);
+    }
+
     public MentionsContainerView(@NonNull Context context, long dialogId, long threadMessageId, BaseFragment baseFragment, Theme.ResourcesProvider resourcesProvider) {
         super(context);
         this.baseFragment = baseFragment;
