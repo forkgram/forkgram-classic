@@ -32,7 +32,7 @@ echo "APP_HASH=$3" >> $vars
 echo "F_DROID=1" >> $vars
 echo "org.gradle.workers.max=1" >> $vars
 
-# tlottie's build script wants `stable` by name; the recipe pins its own toolchain.
+# [classic] #113: tlottie's build script wants `stable` by name; the recipe pins its own toolchain.
 # prepare.py does `git checkout -- prebuild` right before building, so patch prepare.py.
 rust_toolchain=$(rustup show active-toolchain 2>/dev/null | awk 'NR == 1 { print $1 }')
 if ! rustup run "$rust_toolchain" rustc --version >/dev/null 2>&1; then

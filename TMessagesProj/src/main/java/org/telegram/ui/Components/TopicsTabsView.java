@@ -107,6 +107,12 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
     private long lastSelectedTopicId;
     private long animateFromSelectedTopicId;
 
+    // forkgram-classic: pinned 12.1.1 ChatActivity passes the chat content
+    // view between fragment and currentAccount — accept and ignore.
+    public TopicsTabsView(Context context, BaseFragment fragment, android.view.ViewGroup contentView, int currentAccount, long dialogId, Theme.ResourcesProvider resourcesProvider) {
+        this(context, fragment, currentAccount, dialogId, resourcesProvider);
+    }
+
     public TopicsTabsView(Context context, BaseFragment fragment, int currentAccount, long dialogId, Theme.ResourcesProvider resourcesProvider) {
         super(context);
 
@@ -532,9 +538,11 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
     }
 
     private boolean topicBottom;
-    private boolean sidemenuEnabled;
-    private float sidemenuT = 0.0f;
-    private boolean sidemenuAnimating;
+    // forkgram-classic: re-exposed for pinned 12.1.1 ChatActivity which
+    // reads and animates the side-menu state directly.
+    public boolean sidemenuEnabled;
+    public float sidemenuT = 0.0f;
+    public boolean sidemenuAnimating;
     public void updateSidemenuPosition() {
         if (onUpdateSideMenuPosition != null) {
             onUpdateSideMenuPosition.run();
@@ -2193,4 +2201,11 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
     public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {
         updateSidemenuPosition();
     }
+
+    // forkgram-classic: 12.1.1 ChatActivity sets the bottom margin manually
+    // when the chat input grows. Upstream now adjusts the tabs internally —
+    // accept the call as a no-op.
+    public void setBottomMargin(int margin) {
+    }
+
 }
