@@ -360,7 +360,11 @@ public class ChatListItemAnimator extends DefaultItemAnimator {
                         transition.start();
                     }
                 } else {
-                    if (SharedConfig.getDevicePerformanceClass() != SharedConfig.PERFORMANCE_CLASS_LOW && Math.abs(view.getTranslationY()) < recyclerListView.getMeasuredHeight()) {
+                    // [classic] don't suppress the text-send transition on PERFORMANCE_CLASS_LOW:
+                    // the user-facing "Enable Smooth Transitions" toggle already gates the whole
+                    // animator, the transition allocates no blur/bitmaps, and the voice branch
+                    // above has always run ungated on the same hardware.
+                    if (Math.abs(view.getTranslationY()) < recyclerListView.getMeasuredHeight()) {
                         TextMessageEnterTransition transition = new TextMessageEnterTransition(chatMessageCell, activity, recyclerListView, activity.messageEnterTransitionContainer, resourcesProvider);
                         transition.start();
                     }

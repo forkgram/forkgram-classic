@@ -468,7 +468,8 @@ public class InviteContactsActivity extends BaseFragment implements Notification
         adapter = new InviteAdapter(context);
 
         listView = new RecyclerListView(context);
-        listView.setSections(true);
+        // [classic] #19: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.setEmptyView(emptyView);
         listView.setAdapter(adapter);
         listView.setLayoutManager(layoutManager);

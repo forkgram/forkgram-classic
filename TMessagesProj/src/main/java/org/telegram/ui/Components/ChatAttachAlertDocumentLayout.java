@@ -922,7 +922,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
     }
 
     public void loadRecentFiles() {
-        if (MessagesController.getGlobalMainSettings().getBoolean("disableSlideToNextChannel", false)) {
+        if (MessagesController.getGlobalMainSettings().getBoolean("disableRecentFilesAttachment", false)) {
             listAdapter.recentItems.clear();
             return;
         }
@@ -1468,7 +1468,9 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                     view = new HeaderCell(mContext, resourcesProvider);
                     break;
                 case 1:
-                    view = new SharedDocumentCell(mContext, SharedDocumentCell.VIEW_TYPE_PICKER, resourcesProvider);
+                    // [classic] #13: compact root picker rows (56dp, 40dp icon @12dp) instead of the
+                    // redesign's wide VIEW_TYPE_PICKER (64dp, 42dp icon @15dp).
+                    view = new SharedDocumentCell(mContext, SharedDocumentCell.VIEW_TYPE_DEFAULT, resourcesProvider);
                     break;
                 case 2:
                     view = new ShadowSectionCell(mContext);
