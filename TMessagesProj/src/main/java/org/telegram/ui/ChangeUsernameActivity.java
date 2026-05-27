@@ -250,7 +250,8 @@ public class ChangeUsernameActivity extends BaseFragment {
 
         fragmentView = new FrameLayout(context);
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
 
         fragmentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));

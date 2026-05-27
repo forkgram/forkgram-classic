@@ -83,6 +83,11 @@ public class ActionBar extends FrameLayout {
     // ignores it — accept and drop.
     public void setGlassDrawable(Object drawable) {}
 
+    // forkgram-classic: 12.8 ChatAvatarContainer asks the action bar to resize the centre
+    // "island" capsule as the avatar shows/hides. The classic flat bar has no capsule —
+    // accept and ignore (the islands chrome never activates).
+    public void checkAvatarContainerWidth(boolean animated) {}
+
     public static class ActionBarMenuOnItemClick {
         public void onItemClick(int id) {
 

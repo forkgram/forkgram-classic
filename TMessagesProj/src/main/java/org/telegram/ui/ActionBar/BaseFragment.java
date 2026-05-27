@@ -262,6 +262,13 @@ public abstract class BaseFragment {
         return true;
     }
 
+    // Whether a swipe at this touch position is allowed to open the left navigation drawer.
+    // Fragments that consume horizontal swipes themselves (e.g. folder switching) can restrict
+    // drawer opening to the left screen edge so the rest of the area stays free for their gesture.
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        return true;
+    }
+
     public void setInBubbleMode(boolean value) {
         inBubbleMode = value;
     }
@@ -1162,13 +1169,35 @@ public abstract class BaseFragment {
     // - getBulletinLayoutContainer() returns the container Bulletin should
     //   anchor itself to. Classic fragments use fragmentView.
     // - getBottomInset() returns the keyboard/system-bar bottom inset.
-    //   Classic doesn't track this — return 0.
     public android.widget.FrameLayout getBulletinLayoutContainer() {
         return fragmentView instanceof android.widget.FrameLayout ? (android.widget.FrameLayout) fragmentView : null;
     }
 
     public int getBottomInset() {
-        return 0;
+        // [classic] #68: keep toast/snackbar bulletins above the navigation bar.
+        // The 12.8 edge-to-edge core lets a fragment's container extend behind the
+        // nav buttons. Bulletins shown without a registered delegate (e.g. the
+        // sticker-favorites toast routed through NotificationCenter.showBulletin)
+        // fall back to Bulletin's default delegate, whose bottom offset is exactly
+        // this value. Upstream returns the live system-bar bottom inset; classic had
+        // stubbed it to 0, so those bulletins anchored at the true screen bottom and
+        // rendered hidden under the nav bar. Read the live bottom inset from the
+        // fragment's window (same source BottomSheet uses) so they clear the nav bar.
+        // USE_LEGACY_SYSTEM_INSETS is false, so AndroidUtilities.navigationBarHeight
+        // is never populated -> query rootWindowInsets directly.
+        if (fragmentView != null && Build.VERSION.SDK_INT >= 23) {
+            final android.view.WindowInsets insets = fragmentView.getRootWindowInsets();
+            if (insets != null) {
+                // Use the navigation-bar inset specifically (NOT getSystemWindowInsetBottom,
+                // which folds in the soft keyboard) so a bulletin shown while typing is not
+                // double-lifted past the IME that callers already account for.
+                if (Build.VERSION.SDK_INT >= 30) {
+                    return insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
+                }
+                return insets.getStableInsetBottom();
+            }
+        }
+        return AndroidUtilities.navigationBarHeight;
     }
 
     public void setNavigationBarColor(int color) {
