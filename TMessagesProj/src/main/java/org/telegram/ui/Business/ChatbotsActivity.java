@@ -209,7 +209,8 @@ public class ChatbotsActivity extends BaseFragment {
         recipientsHelper.setValue(currentBot == null ? null : currentBot.recipients);
 
         listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, null);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.adapter.setApplyBackground(false);
         contentView.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         actionBar.setAdaptiveBackground(listView, true);

@@ -22,7 +22,6 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.InsetDrawable;
 import android.os.SystemClock;
 import android.text.Layout;
 import android.util.Log;
@@ -164,9 +163,8 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         this.resourcesProvider = resourcesProvider;
 
         selectorDrawable = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, null);
-        float rad = AndroidUtilities.dpf2(14);
-        selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, rad, rad, rad, rad});
-//        selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, 0, 0, 0, 0});
+        float rad = AndroidUtilities.dpf2(3); // [classic] #25: 11.9.5.0 underline indicator (the redesign used a dpf2(14) full-height pill)
+        selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, 0, 0, 0, 0});
 
         setFillViewport(true);
         setWillNotDraw(false);
@@ -654,16 +652,11 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
         for (int a = 0; a < count; a++) {
             TextView tab = (TextView) tabsContainer.getChildAt(a);
             tab.setTextColor(processColor(Theme.getColor(currentPosition == a ? activeTextColorKey : unactiveTextColorKey, resourcesProvider)));
-//            tab.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f), 3));
-            tab.setBackground(
-                new InsetDrawable(
-                    Theme.createSelectorDrawable(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f), Theme.RIPPLE_MASK_ROUNDRECT_6DP, dp(14)),
-                    dp(4), dp(4), dp(4), dp(4)
-                )
-            );
+            // [classic] #25: 11.9.5.0 flat selector ripple (the redesign used an inset rounded-rect pill ripple).
+            tab.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f), 3));
         }
-//        selectorDrawable.setColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)));
-        selectorDrawable.setColor(Theme.multAlpha(processColor(Theme.getColor(activeTextColorKey, resourcesProvider)), .15f));
+        // [classic] #25: 11.9.5.0 tab-line color (the redesign tinted the pill with activeText at 15%).
+        selectorDrawable.setColor(processColor(Theme.getColor(tabLineColorKey, resourcesProvider)));
         invalidate();
     }
 
@@ -749,17 +742,12 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
             }
             int wasAlpha = selectorDrawable.getAlpha();
             selectorDrawable.setAlpha((int) (wasAlpha * tabsContainer.getAlpha()));
-//            selectorDrawable.setBounds(
-//                (int) l,
-//                height - dpr(4),
-//                (int) r,
-//                height
-//            );
+            // [classic] #25: 11.9.5.0 bottom underline (the redesign drew an inset full-height pill).
             selectorDrawable.setBounds(
-                getPaddingLeft() + (int) l + dp(4),
-                getPaddingTop() + dp(4),
-                getPaddingLeft() + (int) r - dp(4),
-                height - getPaddingBottom() - dp(4)
+                (int) l,
+                height - dpr(4),
+                (int) r,
+                height
             );
             selectorDrawable.draw(canvas);
             selectorDrawable.setAlpha(wasAlpha);
@@ -938,11 +926,12 @@ public class ScrollSlidingTextTabStrip extends HorizontalScrollView implements T
 
     private int getChildWidth(TextView child) {
         Layout layout = child.getLayout();
-//        if (layout != null) {
-//            return (int) Math.ceil(layout.getLineWidth(0)) + dp(2);
-//        } else {
+        // [classic] #25: 11.9.5.0 — the underline spans the text width (the pill spanned the whole tab).
+        if (layout != null) {
+            return (int) Math.ceil(layout.getLineWidth(0)) + dp(2);
+        } else {
             return child.getMeasuredWidth();
-//        }
+        }
     }
 
     public void onPageScrolled(int position, int first) {

@@ -703,7 +703,10 @@ public class ChatAttachAlertLocationLayout extends ChatAttachAlert.AttachAlertLa
         adapter.setUpdateRunnable(this::updateClipView);
         adapter.setMyLocationDenied(locationDenied, askedForLocation);
         listView.setVerticalScrollBarEnabled(false);
-        listView.setSections();
+        // [classic] #13: drop the redesign's inset rounded-card list (setSections() applies a
+        // dp(12) horizontal inset + card backgrounds to every row). Classic (11.9.5.0) used a plain
+        // edge-to-edge list, so the location rows sit tight to the left like the now-fixed Files tab.
+        // listView.setSections();
         listView.setLayoutManager(layoutManager = new FillLastLinearLayoutManager(context, LinearLayoutManager.VERTICAL, false, 0, listView) {
             @Override
             public void smoothScrollToPosition(RecyclerView recyclerView, RecyclerView.State state, int position) {
@@ -905,7 +908,9 @@ public class ChatAttachAlertLocationLayout extends ChatAttachAlert.AttachAlertLa
         mapViewClip.addView(markerImageView, LayoutHelper.createFrame(28, 48, Gravity.TOP | Gravity.CENTER_HORIZONTAL));
 
         searchListView = new RecyclerListView(context, resourcesProvider);
-        searchListView.setSections(true);
+        // [classic] #13: drop the redesign's inset rounded-card list (see note above; also covers
+        // the location search-results list so it stays edge-to-edge like classic 11.9.5.0).
+        // searchListView.setSections(true);
         searchListView.setClipToPadding(false);
         searchListView.setVisibility(GONE);
         searchListView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));

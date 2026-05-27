@@ -655,12 +655,10 @@ public class SharedPhotoVideoCell2 extends FrameLayout {
             imageReceiver.setImageCoords(leftpadding + padPlus, padding + padPlus, imageWidth, imageHeight);
             blurImageReceiver.setImageCoords(leftpadding + padPlus, padding + padPlus, imageWidth, imageHeight);
         }
-        imageReceiver.setRoundRadius(
-            lerp(isFirst && isTop ? dp(18) : dp(1), dp(8), checkBoxProgress),
-            lerp(isLast  && isTop ? dp(18) : dp(1), dp(8), checkBoxProgress),
-            lerp(dp(1), dp(8), checkBoxProgress),
-            lerp(dp(1), dp(8), checkBoxProgress)
-        );
+        // [classic] #60: 11.9.5.0 square media/story thumbnails. The redesign rounded the grid's
+        // outer-top corners (dp18) and every cell (dp1) at rest; classic stays square at rest and
+        // only rounds to dp8 while the checkbox-select animation runs.
+        imageReceiver.setRoundRadius(lerp(0, dp(8), checkBoxProgress));
         if (check2) {
             canvas.save();
             if (reorder || reordering) {

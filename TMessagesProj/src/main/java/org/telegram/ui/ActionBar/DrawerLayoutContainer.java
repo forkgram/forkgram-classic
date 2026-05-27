@@ -74,6 +74,7 @@ public class DrawerLayoutContainer extends FrameLayout {
     private Paint backgroundPaint = new Paint();
 
     private int behindKeyboardColor;
+    private int internalNavigationBarColor;
 
     private boolean hasCutout;
 
@@ -236,6 +237,16 @@ public class DrawerLayoutContainer extends FrameLayout {
     public void openDrawer(boolean fast) {
         if (!allowOpenDrawer || drawerLayout == null) {
             return;
+        }
+        // forkgram-classic: the hand-ported side menu's adapter is built once at
+        // startup, before any account is activated, and otherwise refreshed only on
+        // account switch — so after a fresh first login the items stay empty until a
+        // restart. Rebuild them whenever the drawer opens.
+        if (drawerListView instanceof androidx.recyclerview.widget.RecyclerView) {
+            androidx.recyclerview.widget.RecyclerView.Adapter drawerAdapter = ((androidx.recyclerview.widget.RecyclerView) drawerListView).getAdapter();
+            if (drawerAdapter != null) {
+                drawerAdapter.notifyDataSetChanged();
+            }
         }
         if (AndroidUtilities.isTablet() && parentActionBarLayout != null && parentActionBarLayout.getParentActivity() != null) {
             AndroidUtilities.hideKeyboard(parentActionBarLayout.getParentActivity().getCurrentFocus());
@@ -454,7 +465,12 @@ public class DrawerLayoutContainer extends FrameLayout {
                     parentActionBarLayout.getView().getHitRect(rect);
                     startedTrackingX = (int) ev.getX();
                     startedTrackingY = (int) ev.getY();
-                    if (rect.contains(startedTrackingX, startedTrackingY)) {
+                    boolean allowOpenSwipe = drawerOpened;
+                    if (!allowOpenSwipe) {
+                        BaseFragment lastFragment = parentActionBarLayout.getLastFragment();
+                        allowOpenSwipe = lastFragment == null || lastFragment.isDrawerOpenSwipeEnabled(ev);
+                    }
+                    if (rect.contains(startedTrackingX, startedTrackingY) && allowOpenSwipe) {
                         startedTrackingPointerId = ev.getPointerId(0);
                         maybeStartTracking = true;
                         cancelCurrentAnimation();
@@ -735,7 +751,15 @@ public class DrawerLayoutContainer extends FrameLayout {
 
             int bottomInset = insets.getSystemWindowInsetBottom();
             if (bottomInset > 0) {
-                backgroundPaint.setColor(behindKeyboardColor);
+                // forkgram-classic: when LaunchActivity has pushed a colour via
+                // setInternalNavigationBarColor, paint it over the bottom
+                // system-inset strip so the nav bar tracks fragment
+                // transitions. 0 means no override — fall back to
+                // behindKeyboardColor.
+                int fillColor = internalNavigationBarColor != 0 && !keyboardVisibility
+                        ? internalNavigationBarColor
+                        : behindKeyboardColor;
+                backgroundPaint.setColor(fillColor);
                 canvas.drawRect(0, getMeasuredHeight() - bottomInset, getMeasuredWidth(), getMeasuredHeight(), backgroundPaint);
             }
 
@@ -820,8 +844,13 @@ public class DrawerLayoutContainer extends FrameLayout {
     }
 
     // forkgram-classic: upstream LaunchActivity routes navigation bar colour
-    // changes through this method; the classic drawer container draws its
-    // own status pad and lets the window paint the nav bar. Accept and drop.
+    // changes here during fragment transitions. Store the value and invalidate
+    // so onDraw repaints the bottom system-inset strip; 0 clears the override
+    // and restores behindKeyboardColor.
     public void setInternalNavigationBarColor(int color) {
+        if (internalNavigationBarColor != color) {
+            internalNavigationBarColor = color;
+            invalidate();
+        }
     }
 }
