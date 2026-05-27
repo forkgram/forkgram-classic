@@ -505,6 +505,7 @@ public class ThemeColors {
         defaultColors[key_chat_gifSaveHintText] = 0xffffffff;
         defaultColors[key_chat_gifSaveHintBackground] = 0xE21f2b38;
         defaultColors[key_chat_goDownButton] = 0xffffffff;
+        defaultColors[key_chat_goDownButtonIcon] = 0xff8E9396;
         defaultColors[key_chat_goDownButtonCounter] = 0xffffffff;
         defaultColors[key_chat_goDownButtonCounterBackground] = TELEGRAM_COLOR;
         defaultColors[key_chat_messagePanelCancelInlineBot] = 0xffadadad;
@@ -657,8 +658,8 @@ public class ThemeColors {
         defaultColors[key_chat_outTextSelectionCursor] = 0xFF419FE8;
         defaultColors[key_chat_outBubbleLocationPlaceholder] = 0x1e307311;
         defaultColors[key_chat_inBubbleLocationPlaceholder] = 0x1e506373;
-        defaultColors[key_chat_BlurAlpha] = 0xB2000000;
-        defaultColors[key_chat_BlurAlphaSlow] = 0xC1000000;
+        defaultColors[key_chat_BlurAlpha] = 0xFF000000; // [classic] #64: restore the 11.9.5.0 fully-opaque blur scrim (modern 12.4.0 lowered it to 0xB2, making the chat header/panel render as translucent "glass"). With alpha 255 the blur node is skipped (blurAlpha < 255 is false in drawBlurRect) -> flat solid action bar even with Chat Blur enabled.
+        defaultColors[key_chat_BlurAlphaSlow] = 0xFF000000; // [classic] #64: same for the non-RenderNode (slow) blur path so classic bars stay flat on every device class.
         defaultColors[key_chat_editMediaButton] = 0xff1A9CFF;
 
         defaultColors[key_statisticChartSignature] = 0x7f252529;
@@ -1356,6 +1357,7 @@ public class ThemeColors {
         colorKeysMap.put(key_chat_gifSaveHintText, "chat_gifSaveHintText");
         colorKeysMap.put(key_chat_gifSaveHintBackground, "chat_gifSaveHintBackground");
         colorKeysMap.put(key_chat_goDownButton, "chat_goDownButton");
+        colorKeysMap.put(key_chat_goDownButtonIcon, "chat_goDownButtonIcon");
         colorKeysMap.put(key_chat_goDownButtonCounter, "chat_goDownButtonCounter");
         colorKeysMap.put(key_chat_goDownButtonCounterBackground, "chat_goDownButtonCounterBackground");
         colorKeysMap.put(key_chat_outTextSelectionHighlight, "chat_outTextSelectionHighlight");

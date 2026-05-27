@@ -76,6 +76,7 @@ public class ForkSettingsActivity extends BaseFragment {
     public static final int ID_HIDE_BOTTOM_BUTTON = 11;
     public static final int ID_CUSTOM_TITLE = 12;
     public static final int ID_AVATAR_CORNERS = 13;
+    public static final int ID_SHOW_BOTTOM_TABS = 14; // [classic] #61
 
     public static final int ID_SYNC_PINS = 20;
     public static final int ID_UNMUTED_ON_TOP = 21;
@@ -463,6 +464,10 @@ public class ForkSettingsActivity extends BaseFragment {
             items.add(UItem.asButtonCheck(ID_HIDE_BOTTOM_BUTTON, LocaleController.getString(R.string.HideBottomButton), LocaleController.getString(R.string.HideBottomButtonInfo))
                 .setChecked(pref("hideBottomButton", false)).setMultiline(true));
         }
+        // [classic] #61: "Show bottom tabs" — moved here from the top-right overflow menu.
+        items.add(UItem.asButtonCheck(ID_SHOW_BOTTOM_TABS, LocaleController.getString(R.string.ShowBottomTabs),
+                "Show the floating tab bar (Chats, Contacts, Settings, Profile) at the bottom of the chat list. When off, use the side menu instead.")
+            .setChecked(!getUserConfig().getMainTabsHiddenFork()).setMultiline(true));
         items.add(UItem.asSettingsCell(ID_CUSTOM_TITLE, LocaleController.getString(R.string.EditAdminRank), prefs().getString("forkCustomTitle", "Fork Client")));
         items.add(UItem.asShadow(null));
 
@@ -591,7 +596,9 @@ public class ForkSettingsActivity extends BaseFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.ForkSectionSystem)));
         items.add(UItem.asButtonCheck(ID_DISABLE_UNIFIED_PUSH, LocaleController.getString(R.string.DisableUnifiedPush), LocaleController.getString(R.string.DisableUnifiedPushInfo))
             .setChecked(pref("disableUnifiedPush", false)).setMultiline(true));
-        items.add(UItem.asSettingsCell(ID_UPDATE_CHECK_INTERVAL, LocaleController.getString(R.string.UpdateCheckInterval), getUpdateIntervalText()));
+        // forkgram-classic: no update-check-interval row — F-Droid is the only update channel, so an
+        // in-app update-check interval is irrelevant. (ID_UPDATE_CHECK_INTERVAL is left defined; the
+        // item is simply never shown, so it also stays out of the settings search index.)
         if (AndroidUtilities.isTabletInternal()) {
             items.add(UItem.asButtonCheck(ID_DISABLE_TABLET_MODE, LocaleController.getString(R.string.DisableTabletMode), LocaleController.getString(R.string.DisableTabletModeInfo))
                 .setChecked(SharedConfig.forceDisableTabletMode)
@@ -651,6 +658,13 @@ public class ForkSettingsActivity extends BaseFragment {
             toggle("hideInAppHints", item, view);
         } else if (id == ID_HIDE_BOTTOM_BUTTON) {
             toggle("hideBottomButton", item, view);
+        } else if (id == ID_SHOW_BOTTOM_TABS) {
+            // [classic] #61: backed by UserConfig.mainTabsHiddenFork (show = !hidden); applied live on
+            // return to the home via MainTabsActivity.onResume() -> DialogsActivity.checkUi_mainTabsVisible().
+            final boolean newHidden = !getUserConfig().getMainTabsHiddenFork();
+            getUserConfig().setMainTabsHiddenFork(newHidden);
+            item.checked = !newHidden;
+            setCellChecked(view, !newHidden);
         } else if (id == ID_CUSTOM_TITLE) {
             showCustomTitleDialog(view);
 
