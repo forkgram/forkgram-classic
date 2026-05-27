@@ -927,6 +927,17 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         return botVerificationDrawable;
     }
 
+    // forkgram-classic: 12.9 removed this 12.8 helper; the design-pinned ChatActivity
+    // (12.1.1 baseline, re-shimmed on 12.8) still calls it. Restored from 12.8.5.
+    public void setTitleExpand(boolean titleExpand) {
+        int newRightPadding = titleExpand ? dp(10) : 0;
+        if (titleTextView.getPaddingRight() != newRightPadding) {
+            titleTextView.setPadding(0, dp(6), newRightPadding, dp(12));
+            requestLayout();
+            invalidate();
+        }
+    }
+
     public void setTitle(CharSequence value) {
         setTitle(value, false, false, false, false, null, false);
     }

@@ -7,7 +7,6 @@ import android.content.Context;
 import android.graphics.Outline;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
-import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -62,6 +61,8 @@ public class RichEditorToolbar extends FrameLayout {
     private final Theme.ResourcesProvider resourcesProvider;
 
     private final View topGradient, bottomGradient;
+    // [classic] #78: hairlines that replace the modern fade-out gradients (see the constructor).
+    private final View topShadow, bottomShadow;
     private final FrameLayout topPanel;
     private final ImageView backButton;
     private final LinearLayout historyButtons;
@@ -103,19 +104,25 @@ public class RichEditorToolbar extends FrameLayout {
         setClipChildren(false);
         setClipToPadding(false);
 
+        // [classic] #78: the modern toolbar floats capsule buttons over white fade-out gradients;
+        // classic uses solid flat bars with the standard header shadows. Same treatment RichEditor
+        // (the full-screen twin of this toolbar) already got during the 12.9 bump — this one was
+        // skipped only because its host was unreachable until the Article tab was wired up.
+        // Height drops 8+44+16 -> 8+44+8 to match bottomPanel exactly: a solid bar that overshot
+        // the panel would cover content, which a fading gradient did not.
         topGradient = new View(context);
-        topGradient.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
-            color(Theme.key_windowBackgroundWhite),
-            Theme.multAlpha(color(Theme.key_windowBackgroundWhite), 0.0f)
-        }));
-        addView(topGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 16, Gravity.FILL_HORIZONTAL | Gravity.TOP));
+        topGradient.setBackgroundColor(color(Theme.key_windowBackgroundWhite));
+        addView(topGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 8, Gravity.FILL_HORIZONTAL | Gravity.TOP));
+        topShadow = new View(context);
+        topShadow.setBackground(getContext().getResources().getDrawable(R.drawable.header_shadow).mutate());
+        addView(topShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3, Gravity.FILL_HORIZONTAL | Gravity.TOP, 0, 8 + 44 + 8, 0, 0));
 
         bottomGradient = new View(context);
-        bottomGradient.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{
-            Theme.multAlpha(color(Theme.key_windowBackgroundWhite), 0.0f),
-            color(Theme.key_windowBackgroundWhite)
-        }));
-        addView(bottomGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 16, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM));
+        bottomGradient.setBackgroundColor(color(Theme.key_windowBackgroundWhite));
+        addView(bottomGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 8, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM));
+        bottomShadow = new View(context);
+        bottomShadow.setBackground(getContext().getResources().getDrawable(R.drawable.header_shadow_reverse).mutate());
+        addView(bottomShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM, 0, 0, 0, 8 + 44 + 8));
 
         topPanel = new FrameLayout(context);
         topPanel.setClipChildren(false);
@@ -125,7 +132,7 @@ public class RichEditorToolbar extends FrameLayout {
         backButton = new ImageView(context);
         backButton.setImageResource(R.drawable.ic_ab_back);
         backButton.setScaleType(ImageView.ScaleType.CENTER);
-        backButton.setBackground(RichEditor.withShadow(Theme.createRadSelectorDrawable(color(Theme.key_glass_targetMainTabs), Theme.blendOver(color(Theme.key_glass_targetMainTabs), color(Theme.key_listSelector)), dp(22), dp(22))));
+        backButton.setBackground(Theme.createSelectorDrawable(color(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // [classic] #78: flat bar icon
         backButton.setColorFilter(new PorterDuffColorFilter(color(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
         ScaleStateListAnimator.apply(backButton);
         backButton.setContentDescription(getString(R.string.AccDescrGoBack));
@@ -134,7 +141,7 @@ public class RichEditorToolbar extends FrameLayout {
 
         historyButtons = new LinearLayout(context);
         historyButtons.setOrientation(LinearLayout.HORIZONTAL);
-        historyButtons.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: no capsule behind undo/redo — the flat bar is the surface
         topPanel.addView(historyButtons, LayoutHelper.createFrame(82, 44, Gravity.TOP | Gravity.RIGHT, 8, 8, 8, 8));
 
         undoButton = new ImageView(context);
@@ -176,7 +183,7 @@ public class RichEditorToolbar extends FrameLayout {
         emojiButton = new ChatActivityEnterViewAnimatedIconView(context, 24);
         emojiButton.setPadding(dp(10), dp(10), dp(10), dp(10));
         emojiButton.setColorFilter(new PorterDuffColorFilter(color(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        emojiButton.setBackground(RichEditor.withShadow(Theme.createRadSelectorDrawable(color(Theme.key_glass_targetMainTabs), Theme.blendOver(color(Theme.key_glass_targetMainTabs), color(Theme.key_listSelector)), dp(22), dp(22))));
+        emojiButton.setBackground(Theme.createSelectorDrawable(color(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // [classic] #78: flat bar icon
         emojiButton.setState(ChatActivityEnterViewAnimatedIconView.State.SMILE, false);
         bottomPanel.addView(emojiButton, LayoutHelper.createLinear(44, 44, 0, Gravity.LEFT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
         ScaleStateListAnimator.apply(emojiButton);
@@ -187,7 +194,7 @@ public class RichEditorToolbar extends FrameLayout {
         aiButton.setImageDrawable(new AiButtonDrawable(context));
         aiButton.setScaleType(ImageView.ScaleType.CENTER);
         aiButton.setColorFilter(new PorterDuffColorFilter(color(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        aiButton.setBackground(RichEditor.withShadow(Theme.createRadSelectorDrawable(color(Theme.key_glass_targetMainTabs), Theme.blendOver(color(Theme.key_glass_targetMainTabs), color(Theme.key_listSelector)), dp(22), dp(22))));
+        aiButton.setBackground(Theme.createSelectorDrawable(color(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // [classic] #78: flat bar icon
         bottomPanel.addView(aiButton, LayoutHelper.createLinear(44, 44, 0, Gravity.LEFT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
         ScaleStateListAnimator.apply(aiButton);
         aiButton.setContentDescription("AI");
@@ -198,7 +205,7 @@ public class RichEditorToolbar extends FrameLayout {
         blocksContainer2.setClipChildren(false);
 
         final FrameLayout blocksContainer = new FrameLayout(context);
-        blocksContainer.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: no capsule behind the block-type row — flat bar surface
         blocksContainer2.addView(blocksContainer, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
 
         blocksScrollView = new HorizontalScrollView(context) {
@@ -240,7 +247,7 @@ public class RichEditorToolbar extends FrameLayout {
         addButton.setImageResource(R.drawable.outline_poll_attach_24);
         addButton.setScaleType(ImageView.ScaleType.CENTER);
         addButton.setColorFilter(new PorterDuffColorFilter(color(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        addButton.setBackground(RichEditor.withShadow(Theme.createRadSelectorDrawable(color(Theme.key_glass_targetMainTabs), Theme.blendOver(color(Theme.key_glass_targetMainTabs), color(Theme.key_listSelector)), dp(22), dp(22))));
+        addButton.setBackground(Theme.createSelectorDrawable(color(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // [classic] #78: flat bar icon
         bottomPanel.addView(addButton, LayoutHelper.createLinear(44, 44, 0, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 8, 0, 0, 0));
         ScaleStateListAnimator.apply(addButton);
         addButton.setContentDescription("Attach");
@@ -298,11 +305,11 @@ public class RichEditorToolbar extends FrameLayout {
         }
         trashPanelIcon.setScaleType(ImageView.ScaleType.CENTER);
         trashPanelIcon.setColorFilter(new PorterDuffColorFilter(color(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        trashPanelIcon.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: flat selection bar — no capsule behind the trash icon
         trashPanel.addView(trashPanelIcon, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
 
         final FrameLayout formattingStylesContainer = new FrameLayout(context);
-        formattingStylesContainer.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: flat formatting row — no capsule
         formattingPanel.addView(formattingStylesContainer, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44));
 
         formattingScrollView = new HorizontalScrollView(context) {
@@ -347,7 +354,7 @@ public class RichEditorToolbar extends FrameLayout {
         addFormattingButton(R.drawable.iv_super, RichTextStyle.SUPERSCRIPT, true);
 
         quoteButton = new RichEditor.Button(context, R.drawable.iv_quote, resourcesProvider);
-        quoteButton.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         quoteButton.setContentDescription(getString(R.string.Quote));
         quoteButton.setOnClickListener(v -> delegate.onQuote());
         formattingPanelLayout.addView(quoteButton, LayoutHelper.createLinear(38, 38, Gravity.CENTER_VERTICAL, formattingPanelLayout.getChildCount() == 0 ? 0 : 2, 0, 0, 0));
@@ -355,16 +362,16 @@ public class RichEditorToolbar extends FrameLayout {
         formattingLayout2 = new LinearLayout(context);
         formattingLayout2.setOrientation(LinearLayout.HORIZONTAL);
         formattingLayout2.setPadding(dp(2), 0, dp(2), 0);
-        formattingLayout2.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: flat formatting row — no capsule
         formattingPanel.addView(formattingLayout2, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM, 8, 0, 0, 0));
 
         linkButton = new RichEditor.Button(context, R.drawable.media_link_24, resourcesProvider);
-        linkButton.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         linkButton.setContentDescription(getString(R.string.CreateLink));
         linkButton.setOnClickListener(v -> delegate.onLink());
         formattingLayout2.addView(linkButton, LayoutHelper.createLinear(38, 38, Gravity.CENTER_VERTICAL));
         dateButton = new RichEditor.Button(context, R.drawable.msg_calendar2, resourcesProvider);
-        dateButton.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         dateButton.setContentDescription(getString(R.string.AccDescrIVInsertDate));
         dateButton.setOnClickListener(v -> delegate.onDate());
         formattingLayout2.addView(dateButton, LayoutHelper.createLinear(38, 38, Gravity.CENTER_VERTICAL));
@@ -372,11 +379,11 @@ public class RichEditorToolbar extends FrameLayout {
         formattingLayout3 = new LinearLayout(context);
         formattingLayout3.setOrientation(LinearLayout.HORIZONTAL);
         formattingLayout3.setPadding(dp(2), 0, dp(2), 0);
-        formattingLayout3.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: flat formatting row — no capsule
         formattingPanel.addView(formattingLayout3, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM, 8, 0, 0, 0));
 
         mathButton = new RichEditor.Button(context, R.drawable.iv_math, resourcesProvider);
-        mathButton.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         mathButton.setPremium();
         premiumButtons.add(mathButton);
         mathButton.setContentDescription(getString(R.string.AccDescrIVFormula));
@@ -386,25 +393,36 @@ public class RichEditorToolbar extends FrameLayout {
         formattingLayout1 = new LinearLayout(context);
         formattingLayout1.setOrientation(LinearLayout.HORIZONTAL);
         formattingLayout1.setPadding(dp(2), 0, dp(2), 0);
-        formattingLayout1.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_glass_targetMainTabs))));
+        // [classic] #78: flat formatting row — no capsule
         formattingPanel.addView(formattingLayout1, 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM, 0, 0, 8, 0));
 
         aiStyleButton = new RichEditor.Button(context, R.drawable.input_ai, resourcesProvider);
         aiStyleButton.setImageDrawable(new AiButtonDrawable(context));
-        aiStyleButton.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         aiStyleButton.setContentDescription(getString(R.string.AIEditor));
         aiStyleButton.setOnClickListener(v -> delegate.onAiStyle());
         formattingLayout1.addView(aiStyleButton, LayoutHelper.createLinear(38, 38, Gravity.CENTER_VERTICAL));
 
+        // [classic] #92: flattened send button — see the twin in RichEditor. This is the one the
+        // attach-sheet Article tab shows; keep the two in step or the same editor changes shape
+        // when it goes full screen.
         sendButton = new ChatActivityEnterView.SendButton(context, R.drawable.send_plane_24, resourcesProvider, true) {
             @Override
             public boolean isOpen() {
-                return sendLoading || super.isOpen();
+                return true;
+            }
+            @Override
+            public boolean shouldDrawBackground() {
+                return true;
+            }
+            @Override
+            public int getFillColor() {
+                return color(Theme.key_chat_messagePanelSend);
             }
         };
-        sendButton.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), color(Theme.key_chat_messagePanelSend))));
+        sendButton.setCircleSize(dp(50), dp(36));
         ScaleStateListAnimator.apply(sendButton);
-        bottomPanel.addView(sendButton, LayoutHelper.createLinear(44, 44, 0, Gravity.RIGHT, 8, 0, 0, 0));
+        bottomPanel.addView(sendButton, LayoutHelper.createLinear(58, 44, 0, Gravity.RIGHT, 8, 0, 0, 0));
         sendButton.setContentDescription("Send");
         sendButton.setOnClickListener(v -> delegate.onSend());
         sendButton.setOnLongClickListener(v -> delegate.onSendLongClick(v));
@@ -414,7 +432,7 @@ public class RichEditorToolbar extends FrameLayout {
 
     private RichEditor.Button addBlockButton(int icon, int flag, boolean premium) {
         final RichEditor.Button button = new RichEditor.Button(blocksLayout.getContext(), icon, resourcesProvider);
-        button.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         if (premium) {
             button.setPremium();
             premiumButtons.add(button);
@@ -433,7 +451,7 @@ public class RichEditorToolbar extends FrameLayout {
 
     private void addFormattingButton(int icon, int styleFlag, boolean premium) {
         final RichEditor.Button button = new RichEditor.Button(getContext(), icon, resourcesProvider);
-        button.setBackgroundColorKey(Theme.key_glass_targetMainTabs);
+        // [classic] #78: leave Button at its default key_windowBackgroundWhite — no glass tint
         if (premium) {
             button.setPremium();
             premiumButtons.add(button);
@@ -459,11 +477,12 @@ public class RichEditorToolbar extends FrameLayout {
 
     public void setTopPanelVisible(boolean visible) {
         topPanel.setVisibility(visible ? View.VISIBLE : View.GONE);
-        topGradient.setVisibility(visible ? View.VISIBLE : View.GONE);
+        setTopGradientVisible(visible);
     }
 
     public void setTopGradientVisible(boolean visible) {
         topGradient.setVisibility(visible ? View.VISIBLE : View.GONE);
+        topShadow.setVisibility(visible ? View.VISIBLE : View.GONE); // [classic] #78: the hairline goes with the bar
     }
 
     /** Vertical offset (px) of the undo/redo (and back) buttons from the toolbar top. */
@@ -691,8 +710,27 @@ public class RichEditorToolbar extends FrameLayout {
         return bottomContainer;
     }
 
-    public void setBottomGradientTranslationY(float ty) {
+    /**
+     * [classic] #78: the flat bottom bar is bottom-anchored — {@code ty} lifts it above the emoji
+     * panel, {@code extraHeight} stretches it down over the navigation-bar strip so that no article
+     * content shows through under the raised button row. The modern fading gradient needed neither:
+     * it was simply transparent wherever it ended, so the host offset it by a value that excludes
+     * the nav inset while the button row itself is raised by one.
+     */
+    public void setBottomBar(float ty, int extraHeight) {
         bottomGradient.setTranslationY(ty);
+        bottomShadow.setTranslationY(ty);
+        final int height = dp(8 + 44 + 8) + Math.max(0, extraHeight);
+        final FrameLayout.LayoutParams barParams = (FrameLayout.LayoutParams) bottomGradient.getLayoutParams();
+        if (barParams.height != height) {
+            barParams.height = height;
+            bottomGradient.setLayoutParams(barParams);
+        }
+        final FrameLayout.LayoutParams shadowParams = (FrameLayout.LayoutParams) bottomShadow.getLayoutParams();
+        if (shadowParams.bottomMargin != height) {
+            shadowParams.bottomMargin = height;
+            bottomShadow.setLayoutParams(shadowParams);
+        }
     }
 
     public FrameLayout getBottomInnerContainer() {

@@ -49,7 +49,7 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
             RLottieDrawable drawable = stateMap.get(getAnyState(currentState));
             drawable.stop();
 
-            drawable.setProgress(state == State.VOICE ? 0.5f : 0, false);
+            drawable.setProgress(0, false);
             setAnimation(drawable);
         } else {
             TransitState transitState = getState(fromState, currentState);
@@ -60,15 +60,7 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
             animatingState = transitState;
             RLottieDrawable drawable = stateMap.get(transitState);
             drawable.stop();
-            if (transitState == TransitState.VIDEO_TO_VOICE) {
-                drawable.setCustomEndFrame(30);
-                drawable.setProgress(0, false);
-            } else if (transitState == TransitState.VOICE_TO_VIDEO) {
-                drawable.setCustomEndFrame(60);
-                drawable.setProgress(0.5f, false);
-            } else {
-                drawable.setProgress(0, false);
-            }
+            drawable.setProgress(0, false);
             drawable.setAutoRepeat(0);
             drawable.setOnAnimationEndListener(() -> animatingState = null);
             setAnimation(drawable);
@@ -108,10 +100,10 @@ public class ChatActivityEnterViewAnimatedIconView extends RLottieImageView {
     }
 
     private enum TransitState {
-        VOICE_TO_VIDEO(State.VOICE, State.VIDEO, R.raw.voice_and_video),
+        VOICE_TO_VIDEO(State.VOICE, State.VIDEO, R.raw.voice_to_video),
         STICKER_TO_KEYBOARD(State.STICKER, State.KEYBOARD, R.raw.sticker_to_keyboard),
         SMILE_TO_KEYBOARD(State.SMILE, State.KEYBOARD, R.raw.smile_to_keyboard),
-        VIDEO_TO_VOICE(State.VIDEO, State.VOICE, R.raw.voice_and_video),
+        VIDEO_TO_VOICE(State.VIDEO, State.VOICE, R.raw.video_to_voice),
         KEYBOARD_TO_STICKER(State.KEYBOARD, State.STICKER, R.raw.keyboard_to_sticker),
         KEYBOARD_TO_GIF(State.KEYBOARD, State.GIF, R.raw.keyboard_to_gif),
         KEYBOARD_TO_SMILE(State.KEYBOARD, State.SMILE, R.raw.keyboard_to_smile),
