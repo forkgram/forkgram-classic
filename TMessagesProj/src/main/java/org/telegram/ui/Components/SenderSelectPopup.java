@@ -172,7 +172,7 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
         shadowDrawable.getPadding(padding);
         scrimPopupContainerLayout.setPadding(padding.left, padding.top, padding.right, padding.bottom);
 
-//        dimView = new View(context);
+        dimView = new View(context);
 //        dimView.setBackgroundColor(0x33000000);
 
         int maxHeight = AndroidUtilities.dp(450);
