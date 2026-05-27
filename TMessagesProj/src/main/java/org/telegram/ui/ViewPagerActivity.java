@@ -230,7 +230,8 @@ public abstract class ViewPagerActivity extends BaseFragment {
         final BaseFragment fragment = getCurrentVisibleFragment();
         if (fragment != null && !fragment.onBackPressed(invoked))
             return false;
-        return super.onBackPressed(invoked);
+        if (closeSheet()) return false;
+        return true;
     }
 
     @Override

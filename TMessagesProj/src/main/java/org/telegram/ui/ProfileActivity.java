@@ -639,6 +639,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int stickersRow;
     private int devicesRow;
     private int devicesSectionRow;
+    private int forkHeaderRow;
+    private int forkRow;
+    private int forkSectionCell;
     private int helpHeaderRow;
     private int questionRow;
     private int faqRow;
@@ -661,6 +664,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int userInfoRow;
     private int channelInfoRow;
     private int usernameRow;
+    private int idRow;
     private int notificationsDividerRow;
     private int notificationsRow;
     private int bizHoursRow;
@@ -4207,6 +4211,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (getParentActivity() == null) {
                 return;
             }
+            if (position == idRow) {
+                final long idValueToCopy = (dialogId != 0) ? dialogId : (userId != 0) ? userId : chatId;
+                if (idValueToCopy != 0) {
+                    try {
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                        android.content.ClipData clip = android.content.ClipData.newPlainText("label", idValueToCopy + "");
+                        clipboard.setPrimaryClip(clip);
+                        Toast.makeText(getParentActivity(), LocaleController.getString("TextCopied", R.string.TextCopied), Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    }
+                }
+                return;
+            }
             listView.stopScroll();
             if (position == affiliateRow) {
                 TLRPC.User user = getMessagesController().getUser(userId);
@@ -4381,6 +4399,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new LiteModeSettingsActivity());
             } else if (position == devicesRow) {
                 presentFragment(new SessionsActivity(0));
+            } else if (position == forkRow) {
+                presentFragment(new ForkSettingsActivity());
             } else if (position == questionRow) {
                 showDialog(AlertsCreator.createSupportAlert(ProfileActivity.this, resourcesProvider));
             } else if (position == faqRow) {
@@ -4543,7 +4563,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 SharedConfig.inappCamera ? getString("DebugMenuDisableCamera", R.string.DebugMenuDisableCamera) : getString("DebugMenuEnableCamera", R.string.DebugMenuEnableCamera),
                                 getString("DebugMenuClearMediaCache", R.string.DebugMenuClearMediaCache),
                                 getString(R.string.DebugMenuCallSettings),
-                                null,
+                                "Set ignoreSetOnline = true.",
                                 BuildVars.DEBUG_PRIVATE_VERSION || ApplicationLoader.isStandaloneBuild() || ApplicationLoader.isBetaBuild() ? getString("DebugMenuCheckAppUpdate", R.string.DebugMenuCheckAppUpdate) : null,
                                 getString("DebugMenuReadAllDialogs", R.string.DebugMenuReadAllDialogs),
                                 BuildVars.DEBUG_PRIVATE_VERSION ? (SharedConfig.disableVoiceAudioEffects ? "Enable voip audio effects" : "Disable voip audio effects") : null,
@@ -4645,7 +4665,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             } else if (which == 7) { // Call settings
                                 VoIPHelper.showCallDebugSettings(getParentActivity());
                             } else if (which == 8) { // ?
-                                SharedConfig.toggleRoundCamera16to9();
+                                MessagesController.getInstance(currentAccount).ignoreSetOnline = true;
+                                Toast.makeText(getParentActivity(), "ignoreSetOnline = true;", Toast.LENGTH_SHORT).show();
+                                // SharedConfig.toggleRoundCamera16to9();
                             } else if (which == 9) { // Check app update
                                 ((LaunchActivity) getParentActivity()).checkAppUpdate(true, null);
                             } else if (which == 10) { // Read all chats
@@ -10470,6 +10492,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         stickersRow = -1;
         devicesRow = -1;
         devicesSectionRow = -1;
+        forkHeaderRow = -1;
+        forkRow = -1;
+        forkSectionCell = -1;
         helpHeaderRow = -1;
         questionRow = -1;
         faqRow = -1;
@@ -10502,6 +10527,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         locationRow = -1;
         channelInfoRow = -1;
         usernameRow = -1;
+        idRow = -1;
         settingsTimerRow = -1;
         settingsKeyRow = -1;
         notificationsDividerRow = -1;
@@ -10595,10 +10621,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     setAvatarRow = rowCount++;
                     setAvatarSectionRow = rowCount++;
                 }
-                numberSectionRow = rowCount++;
-                numberRow = rowCount++;
-                setUsernameRow = rowCount++;
-                bioRow = rowCount++;
+                if (SharedConfig.hideSensitiveData()) {
+                    numberSectionRow = -1;
+                    numberRow = -1;
+                    setUsernameRow = -1;
+                    idRow = -1;
+                    bioRow = -1;
+                } else {
+                    numberSectionRow = rowCount++;
+                    numberRow = rowCount++;
+                    setUsernameRow = rowCount++;
+                    idRow = rowCount++;
+                    bioRow = rowCount++;
+                }
 
                 settingsSectionRow = rowCount++;
 
@@ -10627,6 +10662,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 devicesRow = rowCount++;
                 languageRow = rowCount++;
                 devicesSectionRow = rowCount++;
+                forkHeaderRow = rowCount++;
+                forkRow = rowCount++;
+                forkSectionCell = rowCount++;
                 if (!getMessagesController().premiumFeaturesBlocked()) {
                     premiumRow = rowCount++;
                 }
@@ -10652,7 +10690,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 policyRow = rowCount++;
                 if (BuildVars.LOGS_ENABLED || BuildVars.DEBUG_PRIVATE_VERSION) {
                     helpSectionCell = rowCount++;
-                    debugHeaderRow = rowCount++;
+                    // debugHeaderRow = rowCount++;
                 }
                 if (BuildVars.LOGS_ENABLED) {
                     sendLogsRow = rowCount++;
@@ -10705,6 +10743,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         noteRow = rowCount++;
                     }
                 }
+                idRow = rowCount++;
 //                if (phoneRow != -1 || userInfoRow != -1 || usernameRow != -1 || bizHoursRow != -1 || bizLocationRow != -1) {
 //                    notificationsDividerRow = rowCount++;
 //                }
@@ -10848,6 +10887,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 notificationsRow = rowCount++;
             }
+            idRow = rowCount++;
             infoSectionRow = rowCount++;
 
             if (ChatObject.isChannel(currentChat) && !currentChat.megagroup) {
@@ -11002,6 +11042,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         if (actionsView != null) {
             actionsView.set(ProfileActionsView.KEY_JOIN, hasJoinRow);
+        }
+        if (listView != null && infoStartRow >= 0 && infoEndRow >= infoStartRow) {
+            if (listView.forcedSections == null) {
+                listView.forcedSections = new ArrayList<>();
+            } else {
+                listView.forcedSections.clear();
+            }
+            listView.forcedSections.add(AndroidUtilities.pack(infoStartRow, infoEndRow));
+        } else if (listView != null && listView.forcedSections != null) {
+            listView.forcedSections.clear();
         }
     }
 
@@ -11210,7 +11260,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateUpdating) {
             onlineTextOverride = LocaleController.getString(R.string.Updating);
         } else if (currentConnectionState == ConnectionsManager.ConnectionStateConnectingToProxy) {
-            onlineTextOverride = LocaleController.getString(R.string.ConnectingToProxy);
+            onlineTextOverride = SharedConfig.hideSensitiveData()
+                ? "..."
+                : LocaleController.getString(R.string.ConnectingToProxy);
         } else {
             onlineTextOverride = null;
         }
@@ -11993,6 +12045,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         Context context = actionBar.getContext();
         otherItem.removeAllSubItems();
         animatingItem = null;
+        otherItem.setOnLongClickListener(null);
 
         editItemVisible = false;
         callItemVisible = false;
@@ -12022,6 +12075,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         editItemVisible = true;
                     }
                 }
+                otherItem.setOnLongClickListener(v -> {
+                    AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+                    builder.setTitle("User info menu");
+                    String[] items = {
+                        "Change phone number",
+                        "Change username",
+                        "Change bio",
+                    };
+                    builder.setItems(items, (d, which) -> {
+                        if (which == 0) {
+                            presentFragment(new ActionIntroActivity(ActionIntroActivity.ACTION_TYPE_CHANGE_PHONE_NUMBER));
+                        } else if (which == 1) {
+                            presentFragment(new ChangeUsernameActivity());
+                        } else if (which == 2) {
+                            presentFragment(new ChangeBioActivity());
+                        }
+                    });
+                    builder.setNegativeButton(
+                        LocaleController.getString("Cancel", R.string.Cancel),
+                        null);
+                    showDialog(builder.create());
+                    return true;
+                });
                 otherItem.addSubItem(edit_info, R.drawable.msg_edit, LocaleController.getString(R.string.EditInfo));
                 if (imageUpdater != null) {
                     otherItem.addSubItem(add_photo, R.drawable.msg_addphoto, LocaleController.getString(R.string.AddPhoto));
@@ -13330,6 +13406,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         headerCell.setText(LocaleController.getString(R.string.SETTINGS));
                     } else if (position == numberSectionRow) {
                         headerCell.setText(LocaleController.getString(R.string.Account));
+                    } else if (position == forkHeaderRow) {
+                        headerCell.setText("Fork");
                     } else if (position == helpHeaderRow) {
                         headerCell.setText(LocaleController.getString(R.string.SettingsHelp));
                     } else if (position == debugHeaderRow) {
@@ -13408,6 +13486,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             getString(R.string.ProfileNotesInfo),
                             false
                         );
+                    } else if (position == idRow) {
+                        final long idValueToShow = (dialogId != 0) ? dialogId : (userId != 0) ? userId : chatId;
+                        if (idValueToShow != 0) {
+                            detailCell.setTextAndValue(idValueToShow + "", "ID", false);
+                        }
                     } else if (position == usernameRow) {
                         String username = null;
                         CharSequence text;
@@ -13725,6 +13808,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textCell.setText("Switch Backend", false);
                     } else if (position == devicesRow) {
                         textCell.setTextAndIcon(LocaleController.getString(R.string.Devices), R.drawable.msg2_devices, true);
+                    } else if (position == forkRow) {
+                        textCell.setTextAndIcon(LocaleController.getString(R.string.ForkSettingsTitle), R.drawable.menu_fork, true);
                     } else if (position == setAvatarRow) {
                         cellCameraDrawable.setCustomEndFrame(86);
                         cellCameraDrawable.setCurrentFrame(85, false);
@@ -14126,7 +14211,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
             if (notificationRow != -1) {
                 int position = holder.getAdapterPosition();
-                return position == notificationRow || position == numberRow || position == privacyRow ||
+                return position == notificationRow || position == numberRow || position == privacyRow || position == forkRow ||
                         position == languageRow || position == setUsernameRow || position == bioRow ||
                         position == versionRow || position == dataRow || position == chatRow ||
                         position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
@@ -14160,9 +14245,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         @Override
         public int getItemViewType(int position) {
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
-                    position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
+                    position == numberSectionRow || position == helpHeaderRow || position == forkHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow) {
+            } else if (position == idRow || position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -14174,7 +14259,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     position == subscribersRow || position == subscribersRequestsRow || position == administratorsRow || position == settingsRow || position == blockedUsersRow ||
                     position == addMemberRow || position == joinRow || position == unblockRow ||
                     position == sendMessageRow || position == notificationRow || position == privacyRow ||
-                    position == languageRow || position == dataRow || position == chatRow ||
+                    position == languageRow || position == forkRow || position == dataRow || position == chatRow ||
                     position == questionRow || position == devicesRow || position == filtersRow || position == stickersRow ||
                     position == faqRow || position == policyRow || position == sendLogsRow || position == sendLastLogsRow ||
                     position == clearLogsRow || position == switchBackendRow || position == setAvatarRow || position == addToGroupButtonRow ||
@@ -14190,7 +14275,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             } else if (position == notificationsSimpleRow) {
                 return VIEW_TYPE_NOTIFICATIONS_CHECK_SIMPLE;
             } else if (position == lastSectionRow || position == membersSectionRow ||
-                    position == secretSettingsSectionRow || position == settingsSectionRow || position == devicesSectionRow ||
+                    position == secretSettingsSectionRow || position == settingsSectionRow || position == devicesSectionRow || position == forkSectionCell ||
                     position == helpSectionCell || position == setAvatarSectionRow || position == passwordSuggestionSectionRow ||
                     position == phoneSuggestionSectionRow || position == premiumSectionsRow || position == reportDividerRow ||
                     position == channelDividerRow || position == graceSuggestionSectionRow || position == balanceDividerRow ||
