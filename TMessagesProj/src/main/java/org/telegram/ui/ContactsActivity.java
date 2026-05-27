@@ -535,7 +535,8 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         listView.addEdgeEffectListener(() -> listView.postOnAnimation(() -> {
             blur3_InvalidateBlur();
         }));
-        listView.setSections(true);
+        // [classic] #17: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
 
         FlickerLoadingView flickerLoadingView = new FlickerLoadingView(context);

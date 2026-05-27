@@ -708,6 +708,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
     private ArrayList<SharedAudioCell> audioCellCache = new ArrayList<>(10);
     private ArrayList<SharedAudioCell> audioCache = new ArrayList<>(10);
     public ScrollSlidingTextTabStripInner scrollSlidingTextTabStrip;
+    private View shadowLine; // [classic] #25: 11.9.5.0 divider under the tab strip
     //    public UniversalRecyclerView tabsListView;
     public SearchTagsList searchTagsList;
     private ChatActionCell floatingDateView;
@@ -3739,19 +3740,8 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 setVisibleHeight(lastVisibleHeight);
             });
 
-            if (iBlur3FactoryLiquidGlass != null) {
-                BlurredBackgroundDrawable filterTabsViewBackground = iBlur3FactoryLiquidGlass.create(scrollSlidingTextTabStrip, BlurredBackgroundProviderImpl.topPanel(resourcesProvider));
-                filterTabsViewBackground.setRadius(dp(18));
-                filterTabsViewBackground.setPadding(dp(6.666f));
-                scrollSlidingTextTabStrip.setPadding(0, dp(7), 0, dp(7));
-                scrollSlidingTextTabStrip.setClipToPadding(false);
-                scrollSlidingTextTabStrip.setBackground(null);
-                scrollSlidingTextTabStrip.setBlurredBackground(filterTabsViewBackground);
-                scrollSlidingTextTabStrip.setOpen(false);
-                addView(scrollSlidingTextTabStrip, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 50, Gravity.CENTER_HORIZONTAL | Gravity.TOP, -2, 0, -2, 0));
-            } else {
-                addView(scrollSlidingTextTabStrip, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
-            }
+            // [classic] #25: 11.9.5.0 flat full-width tab strip — no floating liquid-glass pill card.
+            addView(scrollSlidingTextTabStrip, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
             searchTagsList = new SearchTagsList(getContext(), profileActivity, null, profileActivity.getCurrentAccount(), includeSavedDialogs() ? 0 : dialog_id, resourcesProvider, false) {
                 @Override
                 protected boolean setFilter(ReactionsLayoutInBubble.VisibleReaction reaction) {
@@ -3799,6 +3789,13 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             addView(searchTagsList, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.LEFT | Gravity.TOP, 0, 4, 0, 0));
             addView(actionModeLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
         }
+
+        // [classic] #25: 11.9.5.0 divider line under the tab strip.
+        shadowLine = new View(context);
+        shadowLine.setBackgroundColor(getThemedColor(Theme.key_divider));
+        FrameLayout.LayoutParams shadowLayoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1);
+        shadowLayoutParams.topMargin = customTabs() ? 0 : dp(48) - 1;
+        addView(shadowLine, shadowLayoutParams);
 
         updateTabs(false);
         switchToCurrentSelectedMode(false);
@@ -4403,9 +4400,9 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             scrollSlidingTextTabStrip.setInitialTabId(initialTab);
             initialTab = -1;
         }
-        scrollSlidingTextTabStrip.animationDuration = 320;
+        // [classic] #25: 11.9.5.0 strip — opaque background, full-width weighted tabs, default indicator timing.
+        scrollSlidingTextTabStrip.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         scrollSlidingTextTabStrip.setColors(Theme.key_profile_tabSelectedLine, Theme.key_profile_tabSelectedText, Theme.key_profile_tabText, Theme.key_profile_tabSelector);
-        scrollSlidingTextTabStrip.setUseMinimalWidth(true);
         scrollSlidingTextTabStrip.setDelegate(new ScrollSlidingTextTabStrip.ScrollSlidingTabStripDelegate() {
             @Override
             public void onPageSelected(int id, boolean forward) {
@@ -11574,7 +11571,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 blurBounds.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
                 canvas.save();
                 canvas.translate(getScrollX(), 0);
-                canvas.clipPath(clipPath);
+                // [classic] #25: full-rect background — no rounded pill clip (11.9.5.0 strip is a flat bar).
                 if (SharedConfig.chatBlurEnabled()) {
                     drawBackgroundWithBlur(canvas, getY(), blurBounds, backgroundPaint);
                 } else {
