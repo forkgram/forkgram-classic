@@ -64,7 +64,7 @@ public class UserConfig extends BaseController {
     public boolean syncContacts = false;
     public boolean suggestContacts = true;
     public boolean showCallsTab;
-    public boolean mainTabsHiddenFork = false;
+    public boolean mainTabsHiddenFork = true;
     public boolean hasSecureData;
     public int loginTime;
     public TLRPC.TL_help_termsOfService unacceptedTermsOfService;
@@ -332,7 +332,14 @@ public class UserConfig extends BaseController {
             loginTime = preferences.getInt("loginTime", currentAccount);
             syncContacts = preferences.getBoolean("syncContacts", false);
             showCallsTab = preferences.getBoolean("showCallsTab", false);
-            mainTabsHiddenFork = preferences.getBoolean("mainTabsHiddenFork", false);
+            mainTabsHiddenFork = preferences.getBoolean("mainTabsHiddenFork", true);
+            if (!preferences.getBoolean("classic_mainTabsHidden_migrated_v1", false)) {
+                mainTabsHiddenFork = true;
+                preferences.edit()
+                        .putBoolean("mainTabsHiddenFork", true)
+                        .putBoolean("classic_mainTabsHidden_migrated_v1", true)
+                        .apply();
+            }
             suggestContacts = preferences.getBoolean("suggestContacts", true);
             hasSecureData = preferences.getBoolean("hasSecureData", false);
             notificationsSettingsLoaded = preferences.getBoolean("notificationsSettingsLoaded4", false);
@@ -507,7 +514,7 @@ public class UserConfig extends BaseController {
         contactsReimported = true;
         syncContacts = false;
         showCallsTab = false;
-        mainTabsHiddenFork = false;
+        mainTabsHiddenFork = true;
         suggestContacts = true;
         unreadDialogsLoaded = true;
         hasValidDialogLoadIds = true;

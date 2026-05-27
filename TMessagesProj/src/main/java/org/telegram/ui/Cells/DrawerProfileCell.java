@@ -48,6 +48,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
@@ -723,12 +724,29 @@ public class DrawerProfileCell extends FrameLayout implements NotificationCenter
         }
         animatedStatus.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
         status.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
-        phoneTextView.setText(PhoneFormat.getInstance().format("+" + user.phone));
+        if (SharedConfig.hideSensitivePhone()) { // [classic] #85: follows the phone switch, not the master toggle
+            phoneTextView.setText("");
+        } else {
+            phoneTextView.setText(PhoneFormat.getInstance().format("+" + user.phone));
+        }
+        // forkgram-classic: do NOT override the avatar colour with
+        // key_avatar_backgroundInProfileBlue — its default is 0xffffffff and the light
+        // theme never redefines it, so a photo-less account showed a white circle (visible
+        // only after toggling to dark). AvatarDrawable(user) already picks a per-user
+        // gradient that shows on every theme.
         AvatarDrawable avatarDrawable = new AvatarDrawable(user);
-        avatarDrawable.setColor(Theme.getColor(Theme.key_avatar_backgroundInProfileBlue));
         avatarImageView.setForUserOrChat(user, avatarDrawable);
         applyBackground(true);
         updateRightDrawable = true;
+        // forkgram-classic: on a cold login the name/phone are laid out before their text
+        // height is measured, so SimpleTextView's centred offset draws them shifted down into
+        // the header edge, and the pinned header is not re-laid-out until a restart. Force one
+        // more layout pass after binding to recompute the offset.
+        AndroidUtilities.runOnUIThread(() -> {
+            nameTextView.requestLayout();
+            phoneTextView.requestLayout();
+            requestLayout();
+        });
     }
 
     public Integer applyBackground(boolean force) {
