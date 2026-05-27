@@ -48,6 +48,8 @@ public class SimpleAvatarView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        // [classic] #86: same as SenderSelectView — the dp(28) above is meant for a dialog-sized
+        // avatar, and on the 40dp one in the "send as" list it leaves the shape all but round.
         avatarImage.setRoundRadius(Math.min(w, h) / 2);
     }
 

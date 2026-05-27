@@ -124,6 +124,12 @@
     <string name="HideContactsInDialogs">Hide contacts in chats list</string>
     <string name="MainTabsHiddenHint">Tabs hidden. Long-press the title to show them again.</string>
     <string name="ShowBottomTabs">Show bottom tabs</string>
+    <string name="ForkDrawerItems">Side menu items</string>
+    <string name="ForkDrawerItemsHeader">Menu items</string>
+    <string name="ForkDrawerItemsBots">Bots</string>
+    <string name="ForkDrawerItemsAllShown">All shown</string>
+    <string name="ForkDrawerItemsHidden">%1$d hidden</string>
+    <string name="ForkDrawerItemsInfo">Uncheck an entry to remove it from the side menu. My Profile and Settings always stay, so there is always a way back into the app.</string>
     <string name="HideBottomTabs">Hide bottom tabs</string>
     <string name="DisableTabletMode">Disable tablet mode</string>
     <string name="DisableQuickReaction">Disable quick reaction</string>
