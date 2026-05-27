@@ -84,7 +84,8 @@ public class ReactionsDoubleTapManageActivity extends BaseFragment implements No
         linaerLayout.setOrientation(LinearLayout.VERTICAL);
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         ((DefaultItemAnimator)listView.getItemAnimator()).setSupportsChangeAnimations(false);
         listView.setLayoutManager(new LinearLayoutManager(context));
