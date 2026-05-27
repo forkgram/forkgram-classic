@@ -1096,7 +1096,10 @@ public class ThemeActivity extends BaseFragment implements NotificationCenter.No
         fragmentView = frameLayout;
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: restore edge-to-edge rows on the Chat Settings screen — zero the modern
+        // ListSectionsDecoration dp(12) horizontal inset and dp(16) card corner radius while keeping
+        // the section-paint path (so cells keep their backgrounds). 12.1.1 had full-width rows.
+        listView.setSections(0, 0, false);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setVerticalScrollBarEnabled(false);
         listView.setAdapter(listAdapter);

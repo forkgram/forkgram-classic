@@ -70,7 +70,7 @@ public class ForkSettingsActivity extends BaseFragment {
         private TextPaint textPaint;
 
         private final int startStickerSize = 2;
-        private final int endStickerSize = (int)ChatMessageCell.MAX_STICKER_SIZE;
+        private final int endStickerSize = (int) ChatMessageCell.MAX_STICKER_SIZE;
         private final String option = "stickerSize";
 
         private float diff() {
@@ -160,6 +160,7 @@ public class ForkSettingsActivity extends BaseFragment {
     private int hideSensitiveDataRow;
     private int forceBlockScreenshotsRow;
     private int squareAvatarsRow;
+    private int showBottomTabsRow; // [classic] #61
     private int inappCameraRow;
     private int systemCameraRow;
     private int photoHasStickerRow;
@@ -510,6 +511,7 @@ public class ForkSettingsActivity extends BaseFragment {
         hideSensitiveDataRow = SharedConfig.isUserOwner() ? -1 : rowCount++;
         forceBlockScreenshotsRow = rowCount++;
         squareAvatarsRow = rowCount++;
+        showBottomTabsRow = rowCount++; // [classic] #61: "Show bottom tabs" toggle (default off)
         photoHasStickerRow = rowCount++;
         showNotificationContent = rowCount++;
         hiddenAccountsRow = HiddenAccountHelper.shouldShowSettingsEntry(currentAccount) ? rowCount++ : -1;
@@ -528,7 +530,7 @@ public class ForkSettingsActivity extends BaseFragment {
         hideContactsInDialogsRow = rowCount++;
         enableLastSeenDots = rowCount++;
         customTitleRow = rowCount++;
-        updateCheckIntervalRow = rowCount++;
+        updateCheckIntervalRow = -1; // forkgram-classic: removed — F-Droid is the only update channel, so an in-app update-check interval is irrelevant.
         disableTabletModeRow = AndroidUtilities.isTabletInternal() ? rowCount++ : -1;
 
         emptyRows.add(rowCount++);
@@ -637,6 +639,15 @@ public class ForkSettingsActivity extends BaseFragment {
         listView.setOnItemClickListener((view, position, x, y) -> {
             if (position == squareAvatarsRow) {
                 toggleGlobalMainSetting("squareAvatars", view, false);
+            } else if (position == showBottomTabsRow) {
+                // [classic] #61: toggle "Show bottom tabs" (default off). Backed by
+                // UserConfig.mainTabsHiddenFork (show = !hidden); applied live on return to the
+                // home via MainTabsActivity.onResume() -> DialogsActivity.checkUi_mainTabsVisible().
+                final boolean newHidden = !getUserConfig().getMainTabsHiddenFork();
+                getUserConfig().setMainTabsHiddenFork(newHidden);
+                if (view instanceof TextCheckCell) {
+                    ((TextCheckCell) view).setChecked(!newHidden);
+                }
             } else if (position == inappCameraRow) {
                 SharedConfig.toggleInappCamera();
                 if (view instanceof TextCheckCell) {
@@ -934,6 +945,12 @@ public class ForkSettingsActivity extends BaseFragment {
                         String t = LocaleController.getString("SquareAvatars", R.string.SquareAvatars);
                         String info = LocaleController.getString("SquareAvatarsInfo", R.string.SquareAvatarsInfo);
                         textCell.setTextAndValueAndCheck(t, info, preferences.getBoolean("squareAvatars", false), false, false);
+                    } else if (position == showBottomTabsRow) {
+                        // [classic] #61: "Show bottom tabs" — backed by UserConfig.mainTabsHiddenFork
+                        // (show = !hidden). Default off. Moved here from the top-right overflow menu.
+                        String t = "Show bottom tabs";
+                        String info = "Show the floating tab bar (Chats, Contacts, Settings, Profile) at the bottom of the chat list. When off, use the side menu instead.";
+                        textCell.setTextAndValueAndCheck(t, info, !getUserConfig().getMainTabsHiddenFork(), true, false);
                     } else if (position == inappCameraRow) {
                         String t = LocaleController.getString("InAppCamera", R.string.InAppCamera);
                         String info = LocaleController.getString("InAppCameraInfo", R.string.InAppCameraInfo);
@@ -1188,6 +1205,7 @@ public class ForkSettingsActivity extends BaseFragment {
             } else if (position == customTitleRow || position == hiddenAccountsRow || position == cloudflareSTTRow || position == voiceQualityRow || position == updateCheckIntervalRow || position == lastFmLoginRow || position == exportSettingsRow || position == importSettingsRow) {
                 return 2;
             } else if (position == squareAvatarsRow
+                || position == showBottomTabsRow
                 || position == hideSensitiveDataRow
                 || position == forceBlockScreenshotsRow
                 || position == inappCameraRow
