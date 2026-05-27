@@ -2277,6 +2277,9 @@ public class Theme {
     public static Paint dialogs_countPaint;
     public static Paint dialogs_errorPaint;
     public static Paint dialogs_countGrayPaint;
+    // [classic] #116: fills behind the mention/reaction/poll glyphs, as 11.9.5.0 drew them.
+    public static Paint dialogs_reactionsCountPaint;
+    public static Paint dialogs_pollMentionCountPaint;
     public static Paint dialogs_actionMessagePaint;
     public static Paint dialogs_tagPaint;
     public static TextPaint[] dialogs_namePaint;
@@ -3108,6 +3111,7 @@ public class Theme {
     public static final int key_chat_gifSaveHintText = colorsCount++;
     public static final int key_chat_gifSaveHintBackground = colorsCount++;
     public static final int key_chat_goDownButton = colorsCount++;
+    public static final int key_chat_goDownButtonIcon = colorsCount++;
     public static final int key_chat_goDownButtonCounter = colorsCount++;
     public static final int key_chat_goDownButtonCounterBackground = colorsCount++;
     public static final int key_chat_inTextSelectionHighlight = colorsCount++;
@@ -7880,6 +7884,8 @@ public class Theme {
             dialogs_tabletSeletedPaint = new Paint();
             dialogs_pinnedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_countGrayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            dialogs_reactionsCountPaint = new Paint(Paint.ANTI_ALIAS_FLAG); // [classic] #116
+            dialogs_pollMentionCountPaint = new Paint(Paint.ANTI_ALIAS_FLAG); // [classic] #116
             dialogs_errorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_actionMessagePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -7976,6 +7982,8 @@ public class Theme {
         dialogs_archiveTextPaintSmall.setColor(getColor(key_chats_archiveText));
         dialogs_countPaint.setColor(getColor(key_chats_unreadCounter));
         dialogs_countGrayPaint.setColor(getColor(key_chats_unreadCounterMuted));
+        dialogs_reactionsCountPaint.setColor(getColor(key_dialogReactionMentionBackground)); // [classic] #116
+        dialogs_pollMentionCountPaint.setColor(getColor(key_color_purple)); // [classic] #116
         dialogs_actionMessagePaint.setColor(getColor(key_chats_actionMessage));
         dialogs_errorPaint.setColor(getColor(key_chats_sentError));
         dialogs_onlinePaint.setColor(getColor(key_windowBackgroundWhiteBlueText3));
@@ -7997,9 +8005,10 @@ public class Theme {
         setDrawableColorByKey(dialogs_unmuteDrawable, key_chats_muteIcon);
         setDrawableColorByKey(dialogs_hiddenDrawable, key_chats_muteIcon);
 
-        setDrawableColorByKey(dialogs_mentionDrawable, key_chats_unreadCounter);
-        setDrawableColorByKey(dialogs_reactionsMentionDrawable, key_dialogReactionMentionBackground);
-        setDrawableColorByKey(dialogs_pollMentionDrawable, key_color_purple);
+        // [classic] #116: white glyphs on the coloured badges, as 11.9.5.0 tinted them.
+        setDrawableColorByKey(dialogs_mentionDrawable, key_chats_mentionIcon);
+        setDrawableColorByKey(dialogs_reactionsMentionDrawable, key_chats_mentionIcon);
+        setDrawableColorByKey(dialogs_pollMentionDrawable, key_chats_mentionIcon);
 
         setDrawableColorByKey(dialogs_mentionDrawableMuted, key_chats_unreadCounterMuted);
         setDrawableColorByKey(dialogs_reactionsMentionDrawableMuted, key_chats_unreadCounterMuted);
@@ -8313,6 +8322,14 @@ public class Theme {
             chat_gradientRightDrawable = resources.getDrawable(R.drawable.gradient_right);
 
             chat_contextResult_shadowUnderSwitchDrawable = resources.getDrawable(R.drawable.header_shadow).mutate();
+
+            chat_attachButtonDrawables[0] = new RLottieDrawable(R.raw.attach_gallery, dp(26), dp(26));
+            chat_attachButtonDrawables[1] = new RLottieDrawable(R.raw.attach_music, dp(26), dp(26));
+            chat_attachButtonDrawables[2] = new RLottieDrawable(R.raw.attach_file, dp(26), dp(26));
+            chat_attachButtonDrawables[3] = new RLottieDrawable(R.raw.attach_contact, dp(26), dp(26));
+            chat_attachButtonDrawables[4] = new RLottieDrawable(R.raw.attach_location, dp(26), dp(26));
+            chat_attachButtonDrawables[5] = new RLottieDrawable(R.raw.attach_poll, dp(26), dp(26));
+            chat_attachButtonDrawables[6] = new RLottieDrawable(R.raw.todo_attach, dp(26), dp(26));
             chat_attachEmptyDrawable = resources.getDrawable(R.drawable.nophotos3);
 
             chat_shareIconDrawable = resources.getDrawable(R.drawable.filled_button_share).mutate();

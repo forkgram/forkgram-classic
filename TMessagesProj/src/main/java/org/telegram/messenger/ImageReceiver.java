@@ -2535,6 +2535,7 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
     }
 
     public void setRoundRadius(int[] value) {
+        // [classic] #86: shared with everything that has to draw around an avatar, see the helper.
         final int corners = AndroidUtilities.avatarCornersType();
         for (int a = 0; a < value.length; a++) {
             value[a] = AndroidUtilities.avatarShapedRadius(corners, value[a]);

@@ -873,7 +873,8 @@ public class StatisticActivity extends BaseFragment implements NotificationCente
 
 
 
-        recyclerListView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        recyclerListView.setSections(0, 0, false);
 
         progressLayout = new LinearLayout(context);
         progressLayout.setOrientation(LinearLayout.VERTICAL);

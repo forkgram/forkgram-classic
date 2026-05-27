@@ -154,7 +154,8 @@ public class LogoutActivity extends BaseFragment {
                 showDialog(makeLogOutDialog(getParentActivity(), currentAccount));
             }
         });
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
 
         return fragmentView;

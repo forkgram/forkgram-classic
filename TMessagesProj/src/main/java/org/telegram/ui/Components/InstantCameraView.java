@@ -750,6 +750,14 @@ public class InstantCameraView extends FrameLayout implements NotificationCenter
         }
         switchCameraButton.setImageDrawable(switchCameraDrawable);
 
+        // [classic] #84: the send transition fades this whole view out and nothing ever fades it back
+        // in — showCamera()/startAnimation() only restore cameraContainer, textureOverlayView,
+        // buttonsLayout, muteImageView and the progress paint, and setVisibility(VISIBLE) resets the
+        // children's alphas but not the parent's. So from the second round video onwards the camera
+        // opens, the GL thread runs and cameraReady goes true, yet the whole view draws at alpha 0:
+        // the reported "no camera". Measured on device — at +900ms the second recording has
+        // cameraContainer alpha 1.0 and the view's own alpha 0.0, the first has both at 1.0.
+        setAlpha(1.0f);
         textureOverlayView.setAlpha(1.0f);
         textureOverlayView.invalidate();
         if (lastBitmap == null) {

@@ -164,7 +164,7 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
 
         setBackgroundDrawable(null);
 
-        Drawable shadowDrawable = ContextCompat.getDrawable(context, R.drawable.popup_fixed_alert4).mutate();
+        Drawable shadowDrawable = ContextCompat.getDrawable(context, R.drawable.popup_fixed_alert2).mutate();
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider), PorterDuff.Mode.MULTIPLY));
         scrimPopupContainerLayout.setBackground(shadowDrawable);
 
@@ -172,7 +172,7 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
         shadowDrawable.getPadding(padding);
         scrimPopupContainerLayout.setPadding(padding.left, padding.top, padding.right, padding.bottom);
 
-//        dimView = new View(context);
+        dimView = new View(context);
 //        dimView.setBackgroundColor(0x33000000);
 
         int maxHeight = AndroidUtilities.dp(450);
