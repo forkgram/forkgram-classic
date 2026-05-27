@@ -506,7 +506,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ActionBarMenuSubItem proxyMenuSubItem;
     private HintView2 storyHint;
     private HintView2 storyPremiumHint;
-    private HintView2 forkTitleHint;
     private boolean canShowStoryHint;
     private boolean storyHintShown;
     private FragmentFloatingButton floatingButton3;
@@ -556,6 +555,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private boolean updatePullAfterScroll;
 
     private BackDrawable backDrawable;
+    private MenuDrawable menuDrawable;
 
     private final Paint actionBarDefaultPaint = new Paint();
 
@@ -857,7 +857,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 h += storiesHeight * (1f - searchAnimationProgress) * (1f - rightSlidingProgress) * (1f - progressToActionMode);
             }
             h += storiesOverscroll;
-            h += dp(SEARCH_FIELD_HEIGHT) * (1f - progressToActionMode) * (1f - searchAnimationProgress) * (1f - rightSlidingProgress);
+            // [classic] #9: the inline search-field band only exists while a search is active
+            // (button-only search hides it at rest). Gate it on animatorSearchVisible so the header
+            // full height matches the list top padding — otherwise the header clip/fill covered the
+            // first dialog after the padding was removed. (In full search mode the (1 - searchAnimationProgress)
+            // factor already zeroes this, so search-mode layout is unchanged.)
+            h += dp(SEARCH_FIELD_HEIGHT) * (1f - progressToActionMode) * (1f - searchAnimationProgress) * (1f - rightSlidingProgress) * animatorSearchVisible.getFloatValue();
 
             return (int) h;
         }
@@ -891,24 +896,28 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     canvas.clipRect(0, -getY() + getActionBarTop() + getActionBarFullHeight(), getMeasuredWidth(), getMeasuredHeight());
                 }
                 if (slideFragmentProgress != 1f) {
+                    // [classic] #4: direction-aware — drawer-open slides/scales the content to the
+                    // right (pivot at right edge); swipe-back keeps the original leftward motion
+                    // (isDrawerTransition == false reduces this to the upstream behavior exactly).
                     if (slideFragmentLite) {
-                        canvas.translate((-1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
+                        canvas.translate((isDrawerTransition ? 1 : -1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
                     } else {
                         final float s = 1f - 0.05f * (1f - slideFragmentProgress);
-                        canvas.translate((-dp(4)) * (1f - slideFragmentProgress), 0);
-                        canvas.scale(s, s, 0, -getY() + scrollYOffset + getActionBarFullHeight());
+                        canvas.translate((isDrawerTransition ? dp(4) : -dp(4)) * (1f - slideFragmentProgress), 0);
+                        canvas.scale(s, s, isDrawerTransition ? getMeasuredWidth() : 0, -getY() + scrollYOffset + getActionBarFullHeight());
                     }
                 }
                 result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
             } else if (child == actionBar && slideFragmentProgress != 1f) {
                 canvas.save();
+                // [classic] #4: direction-aware (see drawChild above); drawer-open pivots right.
                 if (slideFragmentLite) {
-                    canvas.translate((-1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
+                    canvas.translate((isDrawerTransition ? 1 : -1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
                 } else {
                     float s = 1f - 0.05f * (1f - slideFragmentProgress);
-                    canvas.translate((-dp(4)) * (1f - slideFragmentProgress), 0);
-                    canvas.scale(s, s, 0, (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() / 2f);
+                    canvas.translate((isDrawerTransition ? dp(4) : -dp(4)) * (1f - slideFragmentProgress), 0);
+                    canvas.scale(s, s, isDrawerTransition ? getMeasuredWidth() : 0, (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() / 2f);
                 }
                 result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
@@ -920,22 +929,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public void drawBlurRect(Canvas canvas, float y, Rect rectTmp, Paint blurScrimPaint, boolean top) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !SharedConfig.chatBlurEnabled() || iBlur3SourceGlassFrosted == null || !BlurredBackgroundProviderImpl.checkBlurEnabled(currentAccount, resourceProvider)) {
-                canvas.drawRect(rectTmp, blurScrimPaint);
-                return;
-            }
-
-            final boolean isThemeLight = resourceProvider != null ? !resourceProvider.isDark() : !Theme.isCurrentThemeDark();
-            int blurAlpha = isThemeLight ? 216 : ChatActivity.ACTION_BAR_BLUR_ALPHA;
-            canvas.save();
-            canvas.translate(0, -y);
-            iBlur3SourceGlassFrosted.draw(canvas, rectTmp.left, rectTmp.top + y, rectTmp.right, rectTmp.bottom + y);
-            canvas.restore();
-
-            final int oldScrimAlpha = blurScrimPaint.getAlpha();
-            blurScrimPaint.setAlpha(blurAlpha);
+            // [classic] #8: paint the dialogs header as a flat opaque fill matching the opaque
+            // folder-tabs strip, instead of the modern frosted-blur + 216/180-alpha composite.
+            // This removes the visible seam between the header and the tabs. The paint passed in
+            // (actionBarDefaultPaint / actionBarSearchPaint) is opaque key_windowBackgroundWhite —
+            // the same color the tabs paint via setBackgroundColor.
             canvas.drawRect(rectTmp, blurScrimPaint);
-            blurScrimPaint.setAlpha(oldScrimAlpha);
         }
 
         @Override
@@ -1167,9 +1166,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     if (actionBarColorAnimator == null) {
                         child.setTranslationY(0);
                     }
-                    int transitionPadding = ((isSlideBackTransition) ? (int) (h * 0.05f) : 0);
+                    int transitionPadding = ((isSlideBackTransition || isDrawerTransition) ? (int) (h * 0.05f) : 0); // [classic] #4: drawer-open also needs bottom room for the scale
                     h += transitionPadding;
-                    child.setPadding(child.getPaddingLeft(), child.getPaddingTop(), child.getPaddingRight(), transitionPadding);
+                    // [classic] #4: for the drawer-open scale let the list FILL the extra height instead of
+                    // leaving it as empty bottom padding — otherwise, once the content scales toward the top,
+                    // the bottommost dialog ended above the screen edge with an empty gap under it (looked cut
+                    // in half). With no bottom padding the rows fill down so the last one stays flush with the
+                    // screen bottom after the 0.95 scale. Swipe-back keeps the original padding behavior.
+                    int transitionBottomPadding = isDrawerTransition ? 0 : transitionPadding;
+                    child.setPadding(child.getPaddingLeft(), child.getPaddingTop(), child.getPaddingRight(), transitionBottomPadding);
                     child.measure(contentWidthSpec, View.MeasureSpec.makeMeasureSpec(Math.max(dp(10), h), View.MeasureSpec.EXACTLY));
                     child.setPivotX(child.getMeasuredWidth() / 2f);
                 } else if (child == searchViewPager) {
@@ -1194,7 +1199,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     }
                 } else if (child == rightSlidingDialogContainer) {
                     int h = View.MeasureSpec.getSize(heightMeasureSpec);
-                    int transitionPadding = ((isSlideBackTransition) ? (int) (h * 0.05f) : 0);
+                    int transitionPadding = ((isSlideBackTransition || isDrawerTransition) ? (int) (h * 0.05f) : 0); // [classic] #4: drawer-open also needs bottom room for the scale
                     h += transitionPadding;
                     rightSlidingDialogContainer.setTransitionPaddingBottom(transitionPadding);
                     child.measure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(Math.max(dp(10), h), View.MeasureSpec.EXACTLY));
@@ -1297,7 +1302,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     childTop = 0;
                 } else if (child == topPanelLayout || child == topBubblesFadeView || child == filterTabsView) {
                     childTop += actionBar.getMeasuredHeight();
-                    childTop += dp(SEARCH_FIELD_HEIGHT);
+                    // [classic] #9: button-only search has no inline field band at rest, so the folder
+                    // tabs / top panels sit directly under the action bar. Reserve the 48dp only while a
+                    // search is active (was unconditional, which left an empty 48dp band above the tabs
+                    // when folders were enabled).
+                    childTop += (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
                 } else if (dialogStoriesCell != null && dialogStoriesCell.getPremiumHint() == child) {
                     continue;
                 }
@@ -2036,15 +2045,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 t += dp(DialogStoriesCell.HEIGHT_IN_DP);
             }
             if (!actionModeFullyShowed) {
-                t += dp(SEARCH_FIELD_HEIGHT);
+                // [classic] #9: search is button-only, the inline field is hidden at rest, so only
+                // reserve its 48dp top padding while a search is actually active. Unconditionally
+                // adding it left an empty 48dp band between the action bar and the first dialog.
+                t += (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
             }
             additionalPadding = 0;
 
             final float filterTabsVisibility = getFilterTabsVisibilityFactor(false);
             final float topPanelsVisibility = topPanelLayout != null ? topPanelLayout.getMetadata().getTotalVisibility() : 0f;
 
-            t += (int) (dp(36 + 14) * filterTabsVisibility);
-            additionalPadding += (int) (dp(36 + 14) * filterTabsVisibility);
+            t += (int) (dp(44) * filterTabsVisibility);
+            additionalPadding += (int) (dp(44) * filterTabsVisibility);
 
             if (topPanelLayout != null) {
                 final int h = (int) topPanelLayout.getAnimatedHeightWithPadding(lerp((float) dp(14), dp(7), filterTabsVisibility));
@@ -3474,6 +3486,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else {
             if (searchString != null || folderId != 0) {
                 actionBar.setBackButtonDrawable(backDrawable = new BackDrawable(false));
+            } else {
+                actionBar.setBackButtonDrawable(menuDrawable = new MenuDrawable());
+                menuDrawable.setRoundCap();
+                actionBar.setBackButtonContentDescription(getString(R.string.AccDescrOpenMenu));
             }
             if (folderId != 0) {
                 actionBar.setTitle(getString(R.string.ArchivedChats));
@@ -3880,6 +3896,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         }
                     } else if (onlySelect || folderId != 0) {
                         finishFragment();
+                    } else if (parentLayout != null && parentLayout.getDrawerLayoutContainer() != null) {
+                        parentLayout.getDrawerLayoutContainer().openDrawer(false);
                     }
                 } else if (id == 1) {
                     if (getParentActivity() == null) {
@@ -4659,14 +4677,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         searchViewPagerIndex = contentView.getChildCount();
 
         searchTabsAndFiltersLayout = new SearchTabsAndFiltersLayout(getContext());
-        searchTabsAndFiltersLayout.setPadding(0, dp(7), 0, dp(7));
-        contentView.addView(searchTabsAndFiltersLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, SEARCH_TABS_HEIGHT, Gravity.TOP, 4, 0, 4, 0));
-
-        BlurredBackgroundDrawable searchTabsViewBackground = iBlur3FactoryLiquidGlass.create(searchTabsAndFiltersLayout, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
-        searchTabsViewBackground.setRadius(dp(18));
-        searchTabsViewBackground.setPadding(dp(6.666f));
-        searchTabsAndFiltersLayout.setPadding(0, dp(7), 0, dp(7));
-        searchTabsAndFiltersLayout.setBlurredBackground(searchTabsViewBackground);
+        searchTabsAndFiltersLayout.setPadding(0, 0, 0, 0);
+        contentView.addView(searchTabsAndFiltersLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, SEARCH_TABS_HEIGHT, Gravity.TOP));
 
         filtersView = new FiltersView(getParentActivity(), null);
         filtersView.setPadding(0, dp(3), 0, dp(3));
@@ -4724,24 +4736,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
-        if (!isArchive() && initialDialogsType == DIALOGS_TYPE_DEFAULT) {
-            if (MessagesController.getGlobalMainSettings().getBoolean("forktitlehint", true)) {
-                forkTitleHint = new HintView2(context, HintView2.DIRECTION_TOP)
-                    .setRounding(8)
-                    .setDuration(15_000)
-                    .setCloseButton(true)
-                    .setMaxWidth(260)
-                    .setMultilineText(true)
-                    .setText("Long-press the title to toggle the bottom tab bar.\nLong-press \u22EE to quickly open Settings.")
-                    .setJoint(0, 40)
-                    .setBgColor(getThemedColor(Theme.key_undo_background))
-                    .setOnHiddenListener(() -> MessagesController.getGlobalMainSettings().edit().putBoolean("forktitlehint", false).apply());
-                final int forkTitleHintTopPx = AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight() + AndroidUtilities.dp(8);
-                contentView.addView(forkTitleHint, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, AndroidUtilities.dp(100), Gravity.TOP | Gravity.FILL_HORIZONTAL, AndroidUtilities.dp(12), forkTitleHintTopPx, AndroidUtilities.dp(12), 0));
-                forkTitleHint.bringToFront();
-            }
-        }
-
         updateStoriesPosting();
 
         searchTabsView = null;
@@ -4765,14 +4759,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             });
 
-            BlurredBackgroundDrawable topPanelLayoutBackground = iBlur3FactoryLiquidGlass.create(topPanelLayout,
-                BlurredBackgroundProviderImpl.topPanel(resourceProvider));
-
-
-            topPanelLayoutBackground.setRadius(dp(24));
-            topPanelLayoutBackground.setPadding(dp(7));
-            topPanelLayout.setPadding(dp(11), dp(21), dp(11), dp(21));
-            topPanelLayout.setBlurredBackground(topPanelLayoutBackground);
+            topPanelLayout.setSolidBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+            topPanelLayout.setPadding(0, 0, 0, 0);
 
             fragmentLocationContextViewWrapper = new FrameLayout(context);
             topPanelLayout.addView(fragmentLocationContextViewWrapper);
@@ -4805,7 +4793,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             fragmentContextViewWrapper.addView(fragmentContextView);
 
             dialogsHintCell = new DialogsHintCell(context);
-            dialogsHintCell.setBackground(Theme.getSelectorDrawable(false));
+            dialogsHintCell.setPadding(dp(14), dp(8), dp(14), dp(8));
+            dialogsHintCell.setBackground(Theme.createSimpleSelectorRoundRectDrawable(0, getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector))));
             updateDialogsHint();
             CacheControlActivity.calculateTotalSize(size -> {
                 cacheSize = size;
@@ -5098,12 +5087,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         if (filterTabsView != null) {
-            BlurredBackgroundDrawable filterTabsViewBackground = iBlur3FactoryLiquidGlass.create(filterTabsView, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
-            filterTabsViewBackground.setRadius(dp(18));
-            filterTabsViewBackground.setPadding(dp(6.666f));
-            filterTabsView.setPadding(0, dp(7), 0, dp(7));
-            filterTabsView.setBlurredBackground(filterTabsViewBackground);
-            contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36 + 7 + 7, Gravity.TOP, 4, 0, 4, 0));
+            filterTabsView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+            contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44));
         }
 
         if (fragmentSearchField != null) {
@@ -5545,7 +5530,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         // contentView.addView(dialogsActivityStatusLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
 
         if (topPanelLayout != null) {
-            contentView.addView(topPanelLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, -14, 0, 0));
+            contentView.addView(topPanelLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, 0, 0, 0));
         }
 
         updateStoriesVisibility(false);
@@ -5672,10 +5657,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int getMaxScrollYOffset() {
+        // [classic] #9: search is button-only now — the inline search field is never
+        // scroll-revealed, so reserve its SEARCH_FIELD_HEIGHT in the scroll range ONLY while a
+        // search is actually active. At rest animatorSearchVisible is 0, so the field no longer
+        // leaves an empty 48dp gap above the dialogs on overscroll.
+        final int searchFieldPart = (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
         if (hasStories) {
-            return dp(DialogStoriesCell.HEIGHT_IN_DP) + dp(SEARCH_FIELD_HEIGHT);
+            return dp(DialogStoriesCell.HEIGHT_IN_DP) + searchFieldPart;
         } else {
-            return dp(SEARCH_FIELD_HEIGHT);
+            return searchFieldPart;
         }
     }
 
@@ -6511,7 +6501,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (filterTabsView != null) {
             filterTabsView.setTranslationY(totalOffset - searchOffset);
             filtersTabVisibility = filterTabsView.getAlpha();
-            filtersTabHeight = dp(36 + 7) * filtersTabVisibility;
+            filtersTabHeight = dp(44) * filtersTabVisibility;
             totalOffset += filtersTabHeight;
         }
 
@@ -7174,6 +7164,40 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     @Override
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        // When folder tabs are shown and a horizontal swipe switches folders, opening the
+        // navigation drawer is limited to the far-left screen edge (dp(12)) so that swiping
+        // left-to-right elsewhere switches to the previous folder instead of opening the drawer.
+        // On the first (leftmost) tab there is nothing to switch left to, so the drawer is
+        // allowed from anywhere. See https://github.com/forkgram/forkgram-classic/issues/1
+        if (event != null && isFolderSwitchSwipeActive()) {
+            return event.getX() <= AndroidUtilities.dp(12)
+                    || (filterTabsView != null && filterTabsView.isFirstTab());
+        }
+        return true;
+    }
+
+    private boolean isFolderSwitchSwipeActive() {
+        return filterTabsView != null
+                && filterTabsView.getVisibility() == View.VISIBLE
+                && !filterTabsView.isEditing()
+                && !searching
+                && (rightSlidingDialogContainer == null || !rightSlidingDialogContainer.hasFragment())
+                && (
+                        initialDialogsType == DIALOGS_TYPE_FORWARD
+                                || SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS
+                                || SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE
+                                        && viewPages != null && viewPages[0] != null && viewPages[0].dialogsAdapter != null
+                                        && (viewPages[0].dialogsAdapter.getDialogsType() == 7 || viewPages[0].dialogsAdapter.getDialogsType() == 8)
+                );
+    }
+
+    @Override
+    public boolean onBackPressed() {
+        return onBackPressed(true);
+    }
+
+    @Override
     public boolean onBackPressed(boolean invoked) {
         if (hasShownSheet()) {
             if (invoked) closeSheet();
@@ -7222,7 +7246,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else if (dialogStoriesCell.isFullExpanded() && dialogStoriesCell.scrollToFirst()) {
             return false;
         }
-        return super.onBackPressed(invoked);
+        if (closeSheet()) return false;
+        return true;
     }
 
     @Override
@@ -7282,11 +7307,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             storyHintShown = true;
             canShowStoryHint = false;
             storyHint.show();
-        }
-        if (forkTitleHint != null) {
-            final HintView2 hint = forkTitleHint;
-            forkTitleHint = null;
-            AndroidUtilities.runOnUIThread(hint::show, 1500);
         }
         AndroidUtilities.runOnUIThread(this::createSearchViewPager, 200);
     }
@@ -7410,7 +7430,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 searchFiltersWasShowed = true;
             }
             if (searchTabsView == null && searchViewPager != null && !onlyDialogsAdapter) {
-                searchTabsView = searchViewPager.createTabsView(false, ViewPagerFixed.SELECTOR_TYPE_BUBBLE_STYLE);
+                searchTabsView = searchViewPager.createTabsView(false, 0);
                 searchTabsAndFiltersLayout.addView(searchTabsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
             } else if (searchTabsAndFiltersLayout != null && onlyDialogsAdapter) {
                 AndroidUtilities.removeFromParent(searchTabsView);
@@ -7455,7 +7475,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             setDialogsListFrozen(true);
             viewPages[0].listView.setVerticalScrollBarEnabled(false);
             if (searchViewPager != null) {
-                searchViewPager.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                searchViewPager.setBackgroundColor(0);
             }
             searchAnimator = new AnimatorSet();
             ArrayList<Animator> animators = new ArrayList<>();
@@ -8474,7 +8494,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         final ChatActivity[] chatActivity = new ChatActivity[1];
-        previewMenu[0] = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert4, getResourceProvider(), flags);
+        previewMenu[0] = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert2, getResourceProvider(), flags);
 
         if (hasFolders) {
             foldersMenu[0] = previewMenu[0].addViewToSwipeBack(foldersMenuView);
@@ -11838,7 +11858,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 //                }
 //            }
             if (dialogsHintCell != null) {
-                dialogsHintCell.setBackground(Theme.getSelectorDrawable(false));
+                dialogsHintCell.setBackground(Theme.createSimpleSelectorRoundRectDrawable(0, getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector))));
             }
             if (filterOptions != null) {
                 filterOptions.updateColors();
@@ -11851,6 +11871,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
 
             if (filterTabsView != null) {
+                filterTabsView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
                 filterTabsView.updateColors();
             }
             if (filtersView != null) {
@@ -12318,6 +12339,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     final int slideAmplitudeDp = 40;
     boolean slideFragmentLite;
     boolean isSlideBackTransition;
+    boolean isDrawerTransition; // [classic] #4: true while the navigation drawer is sliding open
     ValueAnimator slideBackTransitionAnimator;
 
     @Override
@@ -12409,18 +12431,24 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void setSlideTransitionProgress(float progress) {
-        if (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW && !BuildVars.DEBUG_PRIVATE_VERSION || slideFragmentProgress == progress) {
+        // [classic] #4: run the parallax for the drawer-open transition on all devices; for swipe-back
+        // keep upstream's low-perf skip. Always allow the reset to identity (progress == 1f) so the
+        // transforms never get stuck after a transition on a low-perf device.
+        if (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW && !BuildVars.DEBUG_PRIVATE_VERSION
+                && !isDrawerTransition && progress != 1f
+                || slideFragmentProgress == progress) {
             return;
         }
 
-        slideFragmentLite = SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_AVERAGE || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_SCALE);
+        // [classic] #4: drawer-open always uses the full translate+scale path (not the lite translate-only).
+        slideFragmentLite = !isDrawerTransition && (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_AVERAGE || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_SCALE));
         slideFragmentProgress = progress;
         if (fragmentView != null) {
             fragmentView.invalidate();
         }
 
         if (slideFragmentLite) {
-            final float translationX = -dp(slideAmplitudeDp) * (1f - slideFragmentProgress);
+            final float translationX = (isDrawerTransition ? 1 : -1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress); // [classic] #4: direction-aware
             if (dialogStoriesCell != null) {
                 dialogStoriesCell.setTranslationX(translationX);
             }
@@ -12433,13 +12461,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         } else {
-            final float translationX = -dp(4) * (1f - slideFragmentProgress);
+            final float translationX = (isDrawerTransition ? dp(4) : -dp(4)) * (1f - slideFragmentProgress); // [classic] #4: direction-aware
             final float s = 1f - 0.05f * (1f - slideFragmentProgress);
             if (dialogStoriesCell != null) {
                 dialogStoriesCell.setScaleX(s);
                 dialogStoriesCell.setScaleY(s);
                 dialogStoriesCell.setTranslationX(translationX);
-                dialogStoriesCell.setPivotX(0);
+                dialogStoriesCell.setPivotX(isDrawerTransition ? dialogStoriesCell.getMeasuredWidth() : 0); // [classic] #4: pivot right on drawer-open
                 dialogStoriesCell.setPivotY(0);
             }
             if (fragmentSearchField != null) {
@@ -12453,10 +12481,39 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     rightSlidingDialogContainer.getFragmentView().setScaleY(s);
                     rightSlidingDialogContainer.getFragmentView().setTranslationX(translationX);
                 }
-                rightSlidingDialogContainer.getFragmentView().setPivotX(0);
+                rightSlidingDialogContainer.getFragmentView().setPivotX(isDrawerTransition ? rightSlidingDialogContainer.getMeasuredWidth() : 0); // [classic] #4: pivot right on drawer-open
                 rightSlidingDialogContainer.getFragmentView().setPivotY(0);
             }
         }
+    }
+
+    @Override
+    public void setProgressToDrawerOpened(float progress) {
+        // [classic] #4: restore the 12.1.1 drawer-open parallax. Modern Telegram dropped this
+        // override, so DrawerLayoutContainer's per-frame call landed on the empty BaseFragment
+        // stub and the chat list stayed static while the drawer slid over it. We drive the same
+        // slide/scale machinery used by swipe-back, but in the drawer (rightward) direction via
+        // isDrawerTransition; guarded off during swipe-back so the two never fight, and disabled
+        // while the search UI is shown (matching the baseline).
+        // [classic] #4: the drawer-open parallax (rightward translate + slight scale) should run on
+        // all devices to match the pre-12.1 look the issue asks for; upstream gated it out on
+        // low-perf. Keep only the swipe-back guard (the two transitions share the slide machinery).
+        if (isSlideBackTransition) {
+            return;
+        }
+        boolean drawerTransition = progress > 0;
+        if (searchIsShowed) {
+            drawerTransition = false;
+            progress = 0;
+        }
+        if (drawerTransition != isDrawerTransition) {
+            isDrawerTransition = drawerTransition;
+            setFragmentIsSliding(isDrawerTransition);
+            if (fragmentView != null) {
+                fragmentView.requestLayout();
+            }
+        }
+        setSlideTransitionProgress(1f - progress);
     }
 
     @Override
@@ -13466,6 +13523,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
                 });
             });
+            final boolean tabsHidden = getUserConfig().getMainTabsHiddenFork();
+            io.add(R.drawable.msg_folders, tabsHidden ? "Show bottom tabs" : "Hide bottom tabs", () -> {
+                getUserConfig().setMainTabsHiddenFork(!tabsHidden);
+                checkUi_mainTabsVisible();
+            });
             io.addGap();
             io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
                 Bundle args = new Bundle();
@@ -13706,9 +13768,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void checkUi_topPanelVisible() {
-        //final float factor1 = 1f - animatorSearchVisible.getFloatValue();
-        // final float factor2 = 1f - getRightSlidingProgress();
-        final float factor = 1f; // factor1; // * factor2;
+        final float factor1 = 1f - animatorSearchVisible.getFloatValue();
+        final float factor2 = 1f - getRightSlidingProgress();
+        final float factor = factor1 * factor2;
 
         if (topPanelLayout != null) {
             final float s = lerp(0.98f, 1f, factor);
@@ -13769,15 +13831,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
-        final int maxScrollWithoutSearch = getMaxScrollYOffsetWithoutSearch();
-        final float alphaByScrollOffset = 1f - MathUtils.clamp((-scrollYOffset - maxScrollWithoutSearch) / dp(SEARCH_FIELD_HEIGHT), 0, 1);
-
         final float actionModeVisible = Math.max(progressToActionMode, animatorActionModeVisible.getFloatValue());
         final float searchFieldVisible = animatorSearchVisible.getFloatValue();
 
         final float factor0 = isSupportSearch() ? 1 : 0;
         final float factor1 = (1f - actionModeVisible) * (1f - animatorDoneButtonVisible.getFloatValue());
-        final float factor2 = Math.max(searchFieldVisible, alphaByScrollOffset * (1f - getRightSlidingProgress()));
+        // [classic] #9: the inline search field tracks ONLY the active-search state, never the
+        // scroll offset, so scrolling/overscrolling never reveals an inline Liquid-Glass search
+        // bar. Search is entered solely via the always-visible action-bar magnifier button (which
+        // stays visible because alpha is 0 at rest -> animatorSearchButtonVisible.setValue(true)).
+        final float factor2 = searchFieldVisible;
 
         final float alpha = factor0 * factor1 * factor2;
 
