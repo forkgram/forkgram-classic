@@ -15,7 +15,10 @@ import android.content.Intent;
 public class AppStartReceiver extends BroadcastReceiver {
 
     public void onReceive(Context context, Intent intent) {
-        if (intent != null && Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
+        if (intent == null) {
+            return;
+        }
+        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             AndroidUtilities.runOnUIThread(() -> {
                 SharedConfig.loadConfig();
                 if (SharedConfig.passcodeHash.length() > 0) {
@@ -24,6 +27,10 @@ public class AppStartReceiver extends BroadcastReceiver {
                 }
                 ApplicationLoader.startPushService();
             });
+        } else if ("org.telegram.start".equals(intent.getAction())) {
+            // [classic] Both the 15-minute watchdog alarm and NotificationsService.onDestroy fire
+            // this action; the filter already accepted it but onReceive used to drop it silently.
+            AndroidUtilities.runOnUIThread(ApplicationLoader::startPushService);
         }
     }
 }
