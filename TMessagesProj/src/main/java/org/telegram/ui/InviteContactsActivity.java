@@ -460,7 +460,8 @@ public class InviteContactsActivity extends BaseFragment implements Notification
         emptyView.subtitle.setText("");
         emptyView.showProgress(ContactsController.getInstance(currentAccount).isLoadingContacts());
 
-        contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        // [classic] #36: classic white body + themed action bar (was redesign grey on both).
+        contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         contentView.addView(emptyView);
 
         layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false);
@@ -468,7 +469,8 @@ public class InviteContactsActivity extends BaseFragment implements Notification
         adapter = new InviteAdapter(context);
 
         listView = new RecyclerListView(context);
-        listView.setSections(true);
+        // [classic] #19: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.setEmptyView(emptyView);
         listView.setAdapter(adapter);
         listView.setLayoutManager(layoutManager);
@@ -569,7 +571,7 @@ public class InviteContactsActivity extends BaseFragment implements Notification
             finishFragment();
         });
 
-        actionBar.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        actionBar.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault)); // [classic] #36
         iBlur3Capture = new ViewGroupPartRenderer(listView, contentView, listView::drawChild);
         listView.addEdgeEffectListener(() -> listView.postOnAnimation(() -> {
             blur3_InvalidateBlur();
@@ -665,6 +667,7 @@ public class InviteContactsActivity extends BaseFragment implements Notification
             iconView = new ImageView(context);
             iconView.setImageResource(R.drawable.outline_search_1_24);
             iconView.setColorFilter(new PorterDuffColorFilter(Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), 0.6f), PorterDuff.Mode.SRC_IN));
+            iconView.setVisibility(GONE); // [classic] #36: no leading magnifier icon in classic flat field
             addView(iconView, LayoutHelper.createFrame(24, 24, Gravity.TOP | Gravity.LEFT, 11, 8, 11, 8));
 
             scrollView.setClipChildren(true);
@@ -692,7 +695,7 @@ public class InviteContactsActivity extends BaseFragment implements Notification
             editText.setVerticalScrollBarEnabled(false);
             editText.setHorizontalScrollBarEnabled(false);
             editText.setClipToPadding(true);
-            editText.setPadding(dp(46), 0, dp(46), 0);
+            editText.setPadding(dp(16), 0, dp(16), 0); // [classic] #36: flush-left, no icon gutter
             editText.setEllipsizeByGradient(true);
             editText.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
             editText.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
@@ -743,21 +746,15 @@ public class InviteContactsActivity extends BaseFragment implements Notification
 
         @Override
         protected void dispatchDraw(@NonNull Canvas canvas) {
-            paint.setShadowLayer(dpf2(2), 0, dpf2(0.33f), 0x11000000);
+            // [classic] #36: flat classic search field — flush-left, no rounded "pill", no shadow,
+            // no grey gradient. Paint a plain white rect under the field (matching the list rows).
+            paint.clearShadowLayer();
             paint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
-            AndroidUtilities.rectTmp.set(dp(12), dp(3), getWidth() - dp(12), dp(3) + animatorSelectorContainerHeight.getFactor() + dp(3));
-            path.rewind();
-            path.addRoundRect(AndroidUtilities.rectTmp, dp(20), dp(20), Path.Direction.CW);
-
-            if (gradient != null) {
-                gradient.setBounds(0, 0, getWidth(), Math.min(getHeight(), (int) animatorSelectorContainerHeight.getFactor() + dp(24)));
-                gradient.draw(canvas);
-            }
-
+            AndroidUtilities.rectTmp.set(0, 0, getWidth(), animatorSelectorContainerHeight.getFactor() + dp(6));
             canvas.save();
-            canvas.drawPath(path, paint);
-            canvas.clipPath(path);
+            canvas.drawRect(AndroidUtilities.rectTmp, paint);
+            canvas.clipRect(AndroidUtilities.rectTmp);
             super.dispatchDraw(canvas);
             canvas.restore();
         }
@@ -780,17 +777,10 @@ public class InviteContactsActivity extends BaseFragment implements Notification
         }
 
         public void setSpansBounds(int spansCount, float height, float lastLineWidth, boolean over) {
-            final boolean showIcon = spansCount <= 0;
-            iconView.animate()
-                .alpha(showIcon ? 1.0f : 0.0f)
-                .scaleX(showIcon ? 1.0f : 0.5f)
-                .scaleY(showIcon ? 1.0f : 0.5f)
-                .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
-                .setDuration(320)
-                .start();
+            // [classic] #36: no leading icon to fade; placeholder stays flush-left.
             editText.animate()
                 .translationY(over ? getHeight() - getPaddingTop() - getPaddingBottom() - dp(44) : height)
-                .translationX(over ? dp(-36) : spansCount <= 0 ? 0 : Math.max(-dp(36), lastLineWidth - dp(46)))
+                .translationX(over ? 0 : spansCount <= 0 ? 0 : Math.max(0, lastLineWidth))
                 .setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT)
                 .setDuration(320)
                 .start();
@@ -1016,7 +1006,7 @@ public class InviteContactsActivity extends BaseFragment implements Notification
             }
         };
 
-        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
+        themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite)); // [classic] #36
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));

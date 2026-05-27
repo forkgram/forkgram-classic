@@ -130,9 +130,16 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
         setWillNotDraw(false);
 
         topTabsContainer = new FrameLayout(context);
+        // [classic] #34: the redesign drew the tab-bar background via a glass
+        // BlurredBackgroundDrawable supplied by ChatActivity; the pinned 12.1.1
+        // ChatActivity never supplies it, so paint the classic 11.9.5.0 opaque
+        // window background here instead (matches the flat classic tab bar).
+        topTabsContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
         addView(topTabsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, TOP_TABS_HEIGHT, Gravity.TOP | Gravity.FILL_HORIZONTAL, 7, 7, 7, 7));
 
         sideTabsContainer = new FrameLayout(context);
+        // [classic] #34: see above — restore the classic opaque side-tab background.
+        sideTabsContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
         addView(sideTabsContainer, LayoutHelper.createFrame(64, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.FILL_VERTICAL, 7, 7, 7, 7));
 
         topTabs = new UniversalRecyclerView(context, currentAccount, 0, this::fillHorizontalTabs, this::onTabClick, this::onTabLongClick, resourcesProvider) {
@@ -442,7 +449,13 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
-        if (sideTabsContainer.getVisibility() == VISIBLE) {
+        // [classic] #34: the glass BlurredBackgroundDrawables (side/top) are only
+        // supplied by the modern (12.7) ChatActivity; the pinned 12.1.1 ChatActivity
+        // leaves them null, so the original unconditional setBounds()/draw() here
+        // NPE'd and crashed on opening a tabs-styled forum. Null-guard them (the
+        // classic opaque container backgrounds set in the constructor replace the
+        // glass surface), matching the flat 11.9.5.0 dispatchDraw.
+        if (sideMenuBackgroundDrawable != null && sideTabsContainer.getVisibility() == VISIBLE) {
             sideMenuBackgroundDrawable.setBounds(
                     (int) (sideTabsContainer.getTranslationX()),
                     (int) sideMenuBackgroundMarginTop,
@@ -450,7 +463,7 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
                     (int) (getMeasuredHeight() - sideMenuBackgroundMarginBottom));
             sideMenuBackgroundDrawable.draw(canvas);
         }
-        if (topTabsContainer.getVisibility() == VISIBLE) {
+        if (topMenuBackgroundDrawable != null && topTabsContainer.getVisibility() == VISIBLE) {
             topMenuBackgroundDrawable.setBounds(
                     0, (int) topTabsContainer.getTranslationY(),
                     getMeasuredWidth(), (int) (topTabsContainer.getTranslationY() + dp(TOP_TABS_HEIGHT + 7 + 7)));
@@ -467,10 +480,13 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
         canvas.save();
-        if (child == sideTabsContainer) {
+        // [classic] #34: clip to the glass drawable path only when present (modern
+        // ChatActivity); in classic the drawables are null — skip the clip and draw
+        // the child against its own opaque background, as 11.9.5.0 did.
+        if (child == sideTabsContainer && sideMenuBackgroundDrawable != null) {
             canvas.clipPath(sideMenuBackgroundDrawable.getPath());
         }
-        if (child == topTabsContainer) {
+        if (child == topTabsContainer && topMenuBackgroundDrawable != null) {
             canvas.clipPath(topMenuBackgroundDrawable.getPath());
         }
         final boolean result = super.drawChild(canvas, child, drawingTime);
