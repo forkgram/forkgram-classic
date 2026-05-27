@@ -6979,7 +6979,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     drawSideButton = 2;
                 }
             }
-            drawSummarizeButton = TranslateController.isSummarizable(messageObject);
+            // [classic] #118: off by default — the button is opt-in via ForkSettings.
+            drawSummarizeButton = MessagesController.getGlobalMainSettings().getBoolean("showAiSummary", false)
+                && TranslateController.isSummarizable(messageObject);
             hasReplyQuote = false;
             isReplyQuote = false;
             isReplyTaskOrPollOption = false;

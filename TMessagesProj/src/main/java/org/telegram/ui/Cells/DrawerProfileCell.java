@@ -48,6 +48,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
+import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
@@ -723,12 +724,32 @@ public class DrawerProfileCell extends FrameLayout implements NotificationCenter
         }
         animatedStatus.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
         status.setColor(Theme.getColor(Theme.isCurrentThemeDark() ? Theme.key_chats_verifiedBackground : Theme.key_chats_menuPhoneCats));
-        phoneTextView.setText(PhoneFormat.getInstance().format("+" + user.phone));
+        if (SharedConfig.hideSensitivePhone()) { // [classic] #85: follows the phone switch, not the master toggle
+            phoneTextView.setText("");
+        } else {
+            phoneTextView.setText(PhoneFormat.getInstance().format("+" + user.phone));
+        }
+        // forkgram-classic: do NOT override the avatar colour with
+        // key_avatar_backgroundInProfileBlue — its default is 0xffffffff (white) and the
+        // light theme doesn't redefine it, so a photo-less account showed a white circle
+        // in the drawer (only visible after toggling to dark, which does define the key).
+        // The AvatarDrawable(user) constructor already picks the proper per-user gradient,
+        // which is visible on every theme.
         AvatarDrawable avatarDrawable = new AvatarDrawable(user);
-        avatarDrawable.setColor(Theme.getColor(Theme.key_avatar_backgroundInProfileBlue));
         avatarImageView.setForUserOrChat(user, avatarDrawable);
         applyBackground(true);
         updateRightDrawable = true;
+        // forkgram-classic: on a fresh cold login the name/phone are first laid out before
+        // their text height is measured, so SimpleTextView's centred vertical offset draws the
+        // text shifted down (the bottom of the letters clips into the header edge). The pinned
+        // header isn't re-laid-out afterwards, so it stays shifted until an app restart. Force
+        // one more layout pass after binding — a relayout recomputes the offset and lands the
+        // text correctly (confirmed via instrumentation: name view top 253, text centred).
+        AndroidUtilities.runOnUIThread(() -> {
+            nameTextView.requestLayout();
+            phoneTextView.requestLayout();
+            requestLayout();
+        });
     }
 
     public Integer applyBackground(boolean force) {

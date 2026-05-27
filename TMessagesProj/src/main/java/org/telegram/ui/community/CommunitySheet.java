@@ -17,6 +17,7 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
@@ -137,6 +138,13 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
 
     private final View fakeAnchorView;
 
+    // forkgram-classic: this modern sheet reads the global AndroidUtilities.navigationBarHeight
+    // for its list paddings / button margins, but the design-frozen 12.1.1 infra never populates
+    // that static (it stays 0), so the list's bottom padding was too short and the last row could
+    // not scroll clear of the (correctly-tall) bottom fade. Track the sheet's own real bottom
+    // inset and re-apply the affected paddings/margins from onApplyWindowInsets instead.
+    private View requestsButtonsLayout;
+
     private CommunityUtils.PendingRequests pendingRequestsList;
 
     private final boolean onlyChatsMode;
@@ -201,7 +209,7 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
         });
         foundChatsView.setClipToPadding(false);
         foundChatsView.setVisibility(View.GONE);
-        foundChatsView.setSections();
+        foundChatsView.setSections(0, 0, false);
         foundChatsView.adapter.setApplyBackground(false);
         foundChatsView.setPadding(0, AndroidUtilities.statusBarHeight + dp(52), 0, AndroidUtilities.navigationBarHeight);
 
@@ -721,7 +729,7 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
 
             listView = new UniversalRecyclerView(context, currentAccount, 0, CommunitySheet.this::fillItemsCommunity,
                 CommunitySheet.this::onClickCommunity, CommunitySheet.this::onLongClickCommunity, resourcesProvider);
-            listView.setSections();
+            listView.setSections(0, 0, false);
             listView.adapter.setApplyBackground(false);
             listView.setClipToPadding(false);
             listView.setPadding(0, 0, 0, AndroidUtilities.navigationBarHeight + dp(12 + 48));
@@ -856,7 +864,7 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
 
             listView = new UniversalRecyclerView(context, currentAccount, 0, CommunitySheet.this::fillItemsChatsToAdd,
                     CommunitySheet.this::onClickChatToAdd, null, resourcesProvider);
-            listView.setSections();
+            listView.setSections(0, 0, false);
             listView.adapter.setApplyBackground(false);
             listView.setClipToPadding(false);
             listView.setPadding(0, 0, 0, AndroidUtilities.navigationBarHeight + dp(12 + 48));
@@ -933,7 +941,7 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
 
             listView = new UniversalRecyclerView(context, currentAccount, 0, CommunitySheet.this::fillItemsRequests,
                     CommunitySheet.this::onClickRequest, null, resourcesProvider);
-            listView.setSections();
+            listView.setSections(0, 0, false);
             listView.adapter.setApplyBackground(false);
             listView.setClipToPadding(false);
             listView.setPadding(0, 0, 0, AndroidUtilities.navigationBarHeight + dp(12 + 48));
@@ -984,6 +992,7 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
             buttonsLayout.addView(buttonAddAllView, LayoutHelper.createLinear(0, 48, 1f, Gravity.NO_GRAVITY, 4, 0, 4, 0));
 
             contentView.addView(buttonsLayout, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.BOTTOM, 0, 0, 0, AndroidUtilities.navigationBarHeight));
+            requestsButtonsLayout = buttonsLayout; // forkgram-classic: re-margined on inset
 
             afterInit();
         }
@@ -1253,8 +1262,42 @@ public class CommunitySheet extends BottomSheet implements NotificationCenter.No
 
         filteredSearchView.setPagesPaddings(systemAndImeInsets.top + dp(56), systemAndImeInsets.bottom);
         communityPageFadeView.invalidate();
+        applyBottomInsets(); // forkgram-classic: classic leaves AndroidUtilities.navigationBarHeight at 0
 
         return WindowInsetsCompat.CONSUMED;
+    }
+
+    // forkgram-classic: re-apply every bottom padding/margin this sheet originally derived from
+    // the (always-zero on classic) global nav-bar height, using the sheet's own real bottom inset
+    // so the list can scroll clear of the bottom fade and buttons sit above the nav bar.
+    private void applyBottomInsets() {
+        final int bottom = systemInsets.bottom;
+        for (Page page : new Page[]{ communityPage, requestsPage, chatsPage }) {
+            if (page == null || page.listView == null) {
+                continue;
+            }
+            page.listView.setPadding(0, 0, 0, bottom + dp(12 + 48));
+            if (page.fadeView != null) {
+                page.fadeView.setFadeZoneBottom(dp(72) + bottom);
+            }
+        }
+        if (foundChatsView != null) {
+            foundChatsView.setPadding(0, AndroidUtilities.statusBarHeight + dp(52), 0, bottom);
+        }
+        setBottomMarginPx(addChatToCommunityButton, bottom + dp(12));
+        setBottomMarginPx(closeChatToCommunityButton, bottom + dp(12));
+        setBottomMarginPx(requestsButtonsLayout, bottom);
+    }
+
+    private static void setBottomMarginPx(View view, int bottomMargin) {
+        if (view == null || !(view.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)) {
+            return;
+        }
+        final ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+        if (lp.bottomMargin != bottomMargin) {
+            lp.bottomMargin = bottomMargin;
+            view.setLayoutParams(lp);
+        }
     }
 
 

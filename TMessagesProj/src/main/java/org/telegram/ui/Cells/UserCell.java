@@ -15,14 +15,18 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.icu.number.Scale;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -268,6 +272,17 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
     }
 
     private boolean isAdmin, isOwner;
+    private final Rect adminHitRect = new Rect(); // [classic] #89
+    private boolean adminPressed; // [classic] #89
+    private boolean adminLongPressed; // [classic] #110
+    private Runnable adminLongPressRunnable; // [classic] #110
+    // [classic] #89: the tag on your own row has no other action competing with it, so the whole cell
+    // may act as the button (see isInsideAdminTag()). Read the bound user rather than a flag set in
+    // setAdminRole(): the adapters call setAdminRole() before setData(), so the row only knows whose
+    // it is once it is on screen.
+    private boolean isOwnRow() { // [classic] #89, widened by #97
+        return currentObject instanceof TLRPC.User && UserObject.isUserSelf((TLRPC.User) currentObject);
+    }
     public void setAdminRole(String role, boolean isAdmin, boolean isOwner, boolean canAddTag, View.OnClickListener onClick) {
         if (adminTextView == null) {
             return;
@@ -305,6 +320,11 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             adminTextView.setOnClickListener(onClick);
         }
         adminTextView.setVisibility(role != null || canAddTag ? VISIBLE : GONE);
+        // [classic] #89: a recycled cell must not keep the pressed state of its previous binding.
+        adminPressed = false;
+        adminTextView.setPressed(false);
+        adminLongPressed = false; // [classic] #110: nor an armed long press aimed at the old member
+        cancelAdminLongPress();
         if (role != null || canAddTag) {
             CharSequence text = adminTextView.getText();
             int size = (int) Math.ceil(adminTextView.getPaint().measureText(text, 0, text.length()));
@@ -497,6 +517,138 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
         super.onMeasure(
             MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(dp(callCellStyle ? 56 : 58) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+    }
+
+    // [classic] #89: the member tag is a 14sp label pinned to the top of a 58dp row, so its own
+    // bounds only cover the upper ~18dp of the cell — a finger aimed at the row misses it and
+    // nothing at all happens ("Add Tag does nothing" until you spam-tap it). Take the touches that
+    // land beside the label as well, over the full height of the cell, without moving anything that
+    // is drawn. This has to run here rather than through a TouchDelegate: RecyclerListView routes
+    // the event to the cell with onTouchEvent() and only ever looks at the raw bounds of clickable
+    // children, so a delegate would never be consulted.
+    private boolean isInsideAdminTag(float x, float y) {
+        if (adminTextView == null || adminTextView.getVisibility() != VISIBLE || !adminTextView.hasOnClickListeners()
+                || adminTextView.getWidth() <= 0) { // an empty role keeps the label visible but blank
+            return false;
+        }
+        if (isOwnRow()) {
+            // [classic] #89: your own row is inert — tapping the name, the avatar or the empty space
+            // beside them does nothing at all — so anything short of a bullseye on the label reads as
+            // "Add Tag does nothing". Nothing competes for these touches: take the whole row.
+            // [classic] #97: measured on device, an already-set tag only answered from its own left
+            // edge minus dp(8) rightwards (x >= 567 of 720 for a 2-char tag); every tap left of that
+            // fell into the inert part of the row and did nothing, which is why editing a tag "needed
+            // spam clicking" while adding one did not. This must not be gated on being allowed to
+            // change the tag either: with "Edit Own Tags" off (the group default) a member still taps
+            // their own tag to read who set it, and that tap was back to the narrow strip.
+            adminHitRect.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
+            return adminHitRect.contains((int) x, (int) y);
+        }
+        adminTextView.getHitRect(adminHitRect);
+        adminHitRect.top = 0;
+        adminHitRect.bottom = getMeasuredHeight();
+        if (LocaleController.isRTL) {
+            adminHitRect.left = 0;
+            adminHitRect.right += dp(8);
+        } else {
+            adminHitRect.left -= dp(8);
+            adminHitRect.right = getMeasuredWidth();
+        }
+        return adminHitRect.contains((int) x, (int) y);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        final int action = event.getActionMasked();
+        final boolean inside = isInsideAdminTag(event.getX(), event.getY());
+        if (action == MotionEvent.ACTION_DOWN && inside) {
+            adminPressed = true;
+            adminLongPressed = false;
+            adminTextView.setPressed(true);
+            scheduleAdminLongPress(); // [classic] #110
+            return true;
+        } else if (adminPressed) {
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (!inside) {
+                    adminPressed = false;
+                    adminTextView.setPressed(false);
+                    cancelAdminLongPress(); // [classic] #110
+                }
+                return true;
+            } else if (action == MotionEvent.ACTION_UP) {
+                adminPressed = false;
+                adminTextView.setPressed(false);
+                cancelAdminLongPress(); // [classic] #110
+                if (inside) {
+                    adminTextView.callOnClick();
+                }
+                return true;
+            } else if (action == MotionEvent.ACTION_CANCEL) {
+                adminPressed = false;
+                adminTextView.setPressed(false);
+                cancelAdminLongPress(); // [classic] #110
+                return true;
+            }
+        }
+        // [classic] #110: once the long press has fired, eat the rest of the gesture — otherwise
+        // lifting the finger still runs the tag click and drops the sheet on top of the menu.
+        if (adminLongPressed) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                adminLongPressed = false;
+            }
+            return true;
+        }
+        return super.onTouchEvent(event);
+    }
+
+    // [classic] #110: claiming the touch above (so the tag is reachable from anywhere on your own
+    // row) costs the row its long press: RecyclerListView marks the gesture interceptedByChild and
+    // then skips its own gesture detector entirely, so onLongPress never runs and the member menu —
+    // the one carrying "Add Member Tag" — is unreachable on your own row. Time the press here and
+    // drive the very same long-click entry point the detector would have used.
+    private void scheduleAdminLongPress() {
+        cancelAdminLongPress();
+        adminLongPressRunnable = () -> {
+            adminLongPressRunnable = null;
+            if (!adminPressed) {
+                return;
+            }
+            if (performAdminLongPress()) {
+                adminLongPressed = true;
+                adminPressed = false;
+                if (adminTextView != null) {
+                    adminTextView.setPressed(false);
+                }
+            }
+        };
+        AndroidUtilities.runOnUIThread(adminLongPressRunnable, ViewConfiguration.getLongPressTimeout());
+    }
+
+    private void cancelAdminLongPress() {
+        if (adminLongPressRunnable != null) {
+            AndroidUtilities.cancelRunOnUIThread(adminLongPressRunnable);
+            adminLongPressRunnable = null;
+        }
+    }
+
+    private boolean performAdminLongPress() {
+        if (!(getParent() instanceof RecyclerListView)) {
+            return false;
+        }
+        final RecyclerListView listView = (RecyclerListView) getParent();
+        final int position = listView.getChildAdapterPosition(this);
+        if (position < 0) {
+            return false;
+        }
+        if (!listView.longClickItem(this, position)) {
+            return false;
+        }
+        // mirror what RecyclerListView.onLongPress() does once the listener accepts
+        try {
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        } catch (Exception ignored) {}
+        sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_LONG_CLICKED);
+        return true;
     }
 
     public void setStatusColors(int color, int onlineColor) {
@@ -842,6 +994,7 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
         emojiStatus.detach();
         botVerification.detach();
         storyParams.onDetachFromWindow();
+        cancelAdminLongPress(); // [classic] #110
     }
 
     public long getDialogId() {

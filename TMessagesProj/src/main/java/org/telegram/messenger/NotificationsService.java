@@ -22,6 +22,8 @@ import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
 import android.util.Log;
 
+import org.telegram.ui.LauncherIconController;
+
 public class NotificationsService extends Service {
 
     private static final int NOTIFICATION_ID = 9999;
@@ -106,7 +108,7 @@ public class NotificationsService extends Service {
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                     .setShowWhen(false)
                     .setOngoing(true)
-                    .setSmallIcon(R.drawable.notification)
+                    .setSmallIcon(LauncherIconController.getNotificationIcon()) // [classic] #54: follow selected app icon
                     .setContentText("Push service: tap to learn more");
             try {
                 Intent explainIntent = new Intent("android.intent.action.VIEW");

@@ -166,7 +166,8 @@ public class DataAutoDownloadActivity extends BaseFragment {
         FrameLayout frameLayout = (FrameLayout) fragmentView;
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         listView.setVerticalScrollBarEnabled(false);
         ((DefaultItemAnimator) listView.getItemAnimator()).setDelayAnimations(false);

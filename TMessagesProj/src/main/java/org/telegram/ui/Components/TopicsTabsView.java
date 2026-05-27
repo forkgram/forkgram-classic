@@ -130,10 +130,24 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
         setWillNotDraw(false);
 
         topTabsContainer = new FrameLayout(context);
-        addView(topTabsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, TOP_TABS_HEIGHT, Gravity.TOP | Gravity.FILL_HORIZONTAL, 7, 7, 7, 7));
+        // [classic] #34: the redesign drew the tab-bar background via a glass
+        // BlurredBackgroundDrawable supplied by ChatActivity; the pinned 12.1.1
+        // ChatActivity never supplies it, so paint the classic 11.9.5.0 opaque
+        // window background here instead (matches the flat classic tab bar).
+        topTabsContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        // [classic] #102: the 7dp margins inset the redesign's floating glass pill away
+        // from the screen edges. The classic bar is a flat opaque strip, so the inset only
+        // leaks wallpaper above, below and beside it — drop it and let the strip sit flush
+        // under the action bar across the full width.
+        addView(topTabsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, TOP_TABS_HEIGHT, Gravity.TOP | Gravity.FILL_HORIZONTAL));
 
         sideTabsContainer = new FrameLayout(context);
-        addView(sideTabsContainer, LayoutHelper.createFrame(64, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.FILL_VERTICAL, 7, 7, 7, 7));
+        // [classic] #34: see above — restore the classic opaque side-tab background.
+        sideTabsContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
+        // [classic] #102: same inset on the side menu — it left a wallpaper gutter down the
+        // left edge. Flush against the edge, the 64dp column also lines up exactly with the
+        // dp(64) content shift ChatActivity.getSideMenuWidth() applies.
+        addView(sideTabsContainer, LayoutHelper.createFrame(64, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.FILL_VERTICAL));
 
         topTabs = new UniversalRecyclerView(context, currentAccount, 0, this::fillHorizontalTabs, this::onTabClick, this::onTabLongClick, resourcesProvider) {
             private final GradientClip clip = new GradientClip();
@@ -372,8 +386,14 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
             sidemenuT = 1.0f;
             sidemenuEnabled = true;
         }
-        topicBottom = sp.getBoolean("topicssidetabsb" + dialogId, false);
-        toggleButtonSide.setImageResource(topicBottom ? R.drawable.menu_sidebar_top : R.drawable.menu_sidebar_bottom);
+        // [classic] #102: the bottom tabs position is unreachable in classic — the pinned
+        // 12.1.1 ChatActivity never feeds this view a side-menu bottom margin (its
+        // setBottomMargin() is a no-op shim) and reserves the tabs' 48dp at the TOP
+        // unconditionally, so a bottom strip is translated behind the input bar and the
+        // tabs simply vanish. Ignore any persisted bottom state so users already stuck in
+        // it come back to the top strip; the toggle only cycles top <-> side here.
+        topicBottom = false;
+        toggleButtonSide.setImageResource(R.drawable.menu_sidebar_top);
 
         checkTopicsVisibility(false);
         checkUi_closeButtonVisibility();
@@ -442,7 +462,13 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
-        if (sideTabsContainer.getVisibility() == VISIBLE) {
+        // [classic] #34: the glass BlurredBackgroundDrawables (side/top) are only
+        // supplied by the modern (12.7) ChatActivity; the pinned 12.1.1 ChatActivity
+        // leaves them null, so the original unconditional setBounds()/draw() here
+        // NPE'd and crashed on opening a tabs-styled forum. Null-guard them (the
+        // classic opaque container backgrounds set in the constructor replace the
+        // glass surface), matching the flat 11.9.5.0 dispatchDraw.
+        if (sideMenuBackgroundDrawable != null && sideTabsContainer.getVisibility() == VISIBLE) {
             sideMenuBackgroundDrawable.setBounds(
                     (int) (sideTabsContainer.getTranslationX()),
                     (int) sideMenuBackgroundMarginTop,
@@ -450,8 +476,7 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
                     (int) (getMeasuredHeight() - sideMenuBackgroundMarginBottom));
             sideMenuBackgroundDrawable.draw(canvas);
         }
-        if (topTabsContainer.getVisibility() == VISIBLE) {
-            topMenuBackgroundDrawable.setAlpha((int) (255 * topTabsContainer.getAlpha()));
+        if (topMenuBackgroundDrawable != null && topTabsContainer.getVisibility() == VISIBLE) {
             topMenuBackgroundDrawable.setBounds(
                     0, (int) topTabsContainer.getTranslationY(),
                     getMeasuredWidth(), (int) (topTabsContainer.getTranslationY() + dp(TOP_TABS_HEIGHT + 7 + 7)));
@@ -468,10 +493,13 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
     @Override
     protected boolean drawChild(@NonNull Canvas canvas, View child, long drawingTime) {
         canvas.save();
-        if (child == sideTabsContainer) {
+        // [classic] #34: clip to the glass drawable path only when present (modern
+        // ChatActivity); in classic the drawables are null — skip the clip and draw
+        // the child against its own opaque background, as 11.9.5.0 did.
+        if (child == sideTabsContainer && sideMenuBackgroundDrawable != null) {
             canvas.clipPath(sideMenuBackgroundDrawable.getPath());
         }
-        if (child == topTabsContainer) {
+        if (child == topTabsContainer && topMenuBackgroundDrawable != null) {
             canvas.clipPath(topMenuBackgroundDrawable.getPath());
         }
         final boolean result = super.drawChild(canvas, child, drawingTime);
@@ -551,7 +579,9 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
         checkUi_topicsVerticalPosition();
 
         final float leftTabsVisibility = getTabsVisibility(Position.LEFT);
-        sideTabsContainer.setTranslationX(lerp(-dp(64 + 7 + 7), 0, leftTabsVisibility));
+        // [classic] #102: the column is flush against the left edge now, so -dp(64) is
+        // exactly off-screen (it used to also clear the two 7dp margins).
+        sideTabsContainer.setTranslationX(lerp(-dp(64), 0, leftTabsVisibility));
         sideTabsContainer.setVisibility(leftTabsVisibility > 0 ? VISIBLE : GONE);
 
         toggleButtonTop.setColorFilter(new PorterDuffColorFilter(
@@ -588,7 +618,9 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
         if (topicBottom) {
             topTabsContainer.setTranslationY(getMeasuredHeight() - dp(TOP_TABS_HEIGHT + 7 + 7) - sideMenuBackgroundMarginBottom + lerp(dp(TOP_TABS_HEIGHT + 7), 0, getTabsVisibility(Position.BOTTOM)));
         } else {
-            topTabsContainer.setTranslationY(sideMenuBackgroundMarginTop + lerp(-dp(TOP_TABS_HEIGHT + 7), 0, getTabsVisibility(Position.TOP)));
+            // [classic] #102: without the 7dp top margin the strip is fully off-screen at
+            // -dp(TOP_TABS_HEIGHT).
+            topTabsContainer.setTranslationY(sideMenuBackgroundMarginTop + lerp(-dp(TOP_TABS_HEIGHT), 0, getTabsVisibility(Position.TOP)));
         }
     }
 
@@ -604,9 +636,10 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
             }
         }
 
-        if (!side) {
-            topicBottom = !topicBottom;
-        }
+        // [classic] #102: upstream cycles top -> side -> bottom -> side -> top by flipping
+        // topicBottom on every collapse. The bottom position does not exist in classic
+        // (see the constructor), so leaving the flip in made the second press hide the
+        // tabs behind the input bar. Collapsing always returns them to the top strip.
 
         sidemenuEnabled = side;
         sidemenuAnimating = true;
@@ -622,11 +655,12 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
                     sidemenuT = side ? 1.0f : 0.0f;
                     updateSidemenuPosition();
                     sidemenuAnimating = false;
-                    toggleButtonSide.setImageResource(topicBottom ? R.drawable.menu_sidebar_top : R.drawable.menu_sidebar_bottom);
+                    // [classic] #102: the side toggle always sends the tabs back to the top
+                    // strip, so its icon never flips to menu_sidebar_bottom and there is no
+                    // bottom state left to persist.
                     animator = null;
                     MessagesController.getInstance(currentAccount).getMainSettings().edit()
                         .putBoolean("topicssidetabs" + dialogId, sidemenuEnabled)
-                        .putBoolean("topicssidetabsb" + dialogId, topicBottom)
                         .apply();
                     if (pendingSidemenu != null && side != pendingSidemenu) {
                         final boolean newValue = pendingSidemenu;
@@ -2202,10 +2236,17 @@ public class TopicsTabsView extends FrameLayout implements NotificationCenter.No
         updateSidemenuPosition();
     }
 
-    // forkgram-classic: 12.1.1 ChatActivity sets the bottom margin manually
-    // when the chat input grows. Upstream now adjusts the tabs internally —
-    // accept the call as a no-op.
+    // forkgram-classic: 12.1.1 ChatActivity sets the bottom margin manually when the chat
+    // input grows.
+    // [classic] #102: this used to be a no-op on the assumption that upstream adjusts the
+    // tabs internally — it does not, it feeds the very same value in from
+    // ChatActivity.updateBotforumTabsBottomMargin(), which is part of the 12.7 inset
+    // pipeline classic dropped. Left unwired, the side column ran the full height of the
+    // content view: its last row ("New Topic") sat behind the input bar, and because the
+    // list still fit in that oversized viewport it would not scroll, so nothing could
+    // bring the row into view. Forward the call so the column ends above the input.
     public void setBottomMargin(int margin) {
+        setSideMenuBackgroundMarginBottom(margin);
     }
 
 }

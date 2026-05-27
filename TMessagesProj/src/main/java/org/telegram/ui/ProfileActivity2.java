@@ -275,7 +275,8 @@ public class ProfileActivity2 extends BaseFragment implements
                 updateScrollLayout();
             }
         });
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         container.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
 
         snapHelper = new LinearSnapHelper() {
