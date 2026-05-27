@@ -15,6 +15,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.icu.number.Scale;
@@ -268,6 +269,8 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
     }
 
     private boolean isAdmin, isOwner;
+    private final Rect adminHitRect = new Rect(); // [classic] #89
+    private boolean adminPressed; // [classic] #89
     public void setAdminRole(String role, boolean isAdmin, boolean isOwner, boolean canAddTag, View.OnClickListener onClick) {
         if (adminTextView == null) {
             return;
@@ -305,6 +308,9 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
             adminTextView.setOnClickListener(onClick);
         }
         adminTextView.setVisibility(role != null || canAddTag ? VISIBLE : GONE);
+        // [classic] #89: a recycled cell must not keep the pressed state of its previous binding.
+        adminPressed = false;
+        adminTextView.setPressed(false);
         if (role != null || canAddTag) {
             CharSequence text = adminTextView.getText();
             int size = (int) Math.ceil(adminTextView.getPaint().measureText(text, 0, text.length()));
@@ -497,6 +503,62 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
         super.onMeasure(
             MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY),
             MeasureSpec.makeMeasureSpec(dp(callCellStyle ? 56 : 58) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+    }
+
+    // [classic] #89: the member tag is a 14sp label pinned to the top of a 58dp row, so its own
+    // bounds only cover the upper ~18dp of the cell — a finger aimed at the row misses it and
+    // nothing at all happens ("Add Tag does nothing" until you spam-tap it). Take the touches that
+    // land beside the label as well, over the full height of the cell, without moving anything that
+    // is drawn. This has to run here rather than through a TouchDelegate: RecyclerListView routes
+    // the event to the cell with onTouchEvent() and only ever looks at the raw bounds of clickable
+    // children, so a delegate would never be consulted.
+    private boolean isInsideAdminTag(float x, float y) {
+        if (adminTextView == null || adminTextView.getVisibility() != VISIBLE || !adminTextView.hasOnClickListeners()
+                || adminTextView.getWidth() <= 0) { // an empty role keeps the label visible but blank
+            return false;
+        }
+        adminTextView.getHitRect(adminHitRect);
+        adminHitRect.top = 0;
+        adminHitRect.bottom = getMeasuredHeight();
+        if (LocaleController.isRTL) {
+            adminHitRect.left = 0;
+            adminHitRect.right += dp(8);
+        } else {
+            adminHitRect.left -= dp(8);
+            adminHitRect.right = getMeasuredWidth();
+        }
+        return adminHitRect.contains((int) x, (int) y);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        final int action = event.getActionMasked();
+        final boolean inside = isInsideAdminTag(event.getX(), event.getY());
+        if (action == MotionEvent.ACTION_DOWN && inside) {
+            adminPressed = true;
+            adminTextView.setPressed(true);
+            return true;
+        } else if (adminPressed) {
+            if (action == MotionEvent.ACTION_MOVE) {
+                if (!inside) {
+                    adminPressed = false;
+                    adminTextView.setPressed(false);
+                }
+                return true;
+            } else if (action == MotionEvent.ACTION_UP) {
+                adminPressed = false;
+                adminTextView.setPressed(false);
+                if (inside) {
+                    adminTextView.callOnClick();
+                }
+                return true;
+            } else if (action == MotionEvent.ACTION_CANCEL) {
+                adminPressed = false;
+                adminTextView.setPressed(false);
+                return true;
+            }
+        }
+        return super.onTouchEvent(event);
     }
 
     public void setStatusColors(int color, int onlineColor) {

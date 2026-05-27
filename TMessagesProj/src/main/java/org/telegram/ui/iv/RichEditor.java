@@ -155,7 +155,9 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
     private int[] animateEnterViewFrom, animateEnterViewTo;
     private float animateOpenProgress = 1.0f;
     public RichEditor animateFrom(ChatActivity chatActivity) {
-        animateInputView = chatActivity.chatInputViewsContainer;
+        // forkgram-classic: the classic chat has no input island (ChatInputViewsContainer),
+        // so the morph-from-input animation is skipped — animateInputView stays null and
+        // onCustomTransitionAnimation falls back to the standard fragment transition.
         animateEnterView = chatActivity.getChatActivityEnterView();
         return this;
     }
@@ -525,19 +527,21 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         }
         listView.resetHistoryBaseline();
 
+        // forkgram-classic: the modern editor floats capsule buttons over white
+        // gradients; classic uses solid flat bars with the standard header shadows.
         topGradient = new View(context);
-        topGradient.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int [] {
-            getThemedColor(Theme.key_windowBackgroundWhite),
-            Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundWhite), 0.0f)
-        }));
-        container.addView(topGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 16, Gravity.FILL_HORIZONTAL | Gravity.TOP));
+        topGradient.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        container.addView(topGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 8, Gravity.FILL_HORIZONTAL | Gravity.TOP));
+        final View topShadowClassic = new View(context);
+        topShadowClassic.setBackground(getContext().getResources().getDrawable(R.drawable.header_shadow).mutate());
+        container.addView(topShadowClassic, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3, Gravity.FILL_HORIZONTAL | Gravity.TOP, 0, 8 + 44 + 8, 0, 0));
 
         bottomGradient = new View(context);
-        bottomGradient.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int [] {
-                Theme.multAlpha(getThemedColor(Theme.key_windowBackgroundWhite), 0.0f),
-                getThemedColor(Theme.key_windowBackgroundWhite)
-        }));
-        container.addView(bottomGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 16, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM));
+        bottomGradient.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        container.addView(bottomGradient, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 8 + 44 + 8, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM));
+        final View bottomShadowClassic = new View(context);
+        bottomShadowClassic.setBackground(getContext().getResources().getDrawable(R.drawable.header_shadow_reverse).mutate());
+        container.addView(bottomShadowClassic, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM, 0, 0, 0, 8 + 44 + 8));
 
         topPanel = new FrameLayout(context);
         topPanel.setClipChildren(false);
@@ -547,7 +551,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         backButton = new ImageView(context);
         backButton.setImageResource(R.drawable.ic_ab_back);
         backButton.setScaleType(ImageView.ScaleType.CENTER);
-        backButton.setBackground(withShadow(Theme.createRadSelectorDrawable(getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector)), dp(22), dp(22))));
+        backButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // forkgram-classic: flat bar icon
         backButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
         ScaleStateListAnimator.apply(backButton);
         backButton.setContentDescription(getString(R.string.AccDescrGoBack));
@@ -558,7 +562,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
 
         historyButtons = new LinearLayout(context);
         historyButtons.setOrientation(LinearLayout.HORIZONTAL);
-        historyButtons.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: no capsule behind undo/redo — the flat bar is the surface
         topPanel.addView(historyButtons, LayoutHelper.createFrame(82, 44, Gravity.TOP | Gravity.RIGHT, 8, 8, 8, 8));
 
         undoButton = new ImageView(context);
@@ -603,7 +607,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         emojiButton = new ChatActivityEnterViewAnimatedIconView(context, 24);
         emojiButton.setPadding(dp(10), dp(10), dp(10), dp(10));
         emojiButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        emojiButton.setBackground(withShadow(Theme.createRadSelectorDrawable(getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector)), dp(22), dp(22))));
+        emojiButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // forkgram-classic: flat bar icon
         emojiButton.setState(ChatActivityEnterViewAnimatedIconView.State.SMILE, false);
         bottomPanel.addView(emojiButton, LayoutHelper.createLinear(44, 44, 0, Gravity.LEFT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
         ScaleStateListAnimator.apply(emojiButton);
@@ -614,7 +618,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         aiButton.setImageDrawable(new AiButtonDrawable(context));
         aiButton.setScaleType(ImageView.ScaleType.CENTER);
         aiButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        aiButton.setBackground(withShadow(Theme.createRadSelectorDrawable(getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector)), dp(22), dp(22))));
+        aiButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // forkgram-classic: flat bar icon
         bottomPanel.addView(aiButton, LayoutHelper.createLinear(44, 44, 0, Gravity.LEFT | Gravity.CENTER_VERTICAL, 0, 0, 8, 0));
         ScaleStateListAnimator.apply(aiButton);
         aiButton.setContentDescription(getString(R.string.AIEditor));
@@ -631,7 +635,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         blocksContainer2.setClipChildren(false);
 
         final FrameLayout blocksContainer = new FrameLayout(context);
-        blocksContainer.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: no capsule behind the block-type row — flat bar surface
         blocksContainer2.addView(blocksContainer, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
 
         blocksScrollView = new HorizontalScrollView(context) {
@@ -785,7 +789,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         addButton.setImageResource(R.drawable.outline_poll_attach_24);
         addButton.setScaleType(ImageView.ScaleType.CENTER);
         addButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        addButton.setBackground(withShadow(Theme.createRadSelectorDrawable(getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector)), dp(22), dp(22))));
+        addButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), Theme.RIPPLE_MASK_CIRCLE_20DP, dp(18))); // forkgram-classic: flat bar icon
         bottomPanel.addView(addButton, LayoutHelper.createLinear(44, 44, 0, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 8, 0, 0, 0));
         ScaleStateListAnimator.apply(addButton);
         addButton.setContentDescription(getString(R.string.AccDescrAttachButton));
@@ -846,11 +850,11 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         }
         trashPanelIcon.setScaleType(ImageView.ScaleType.CENTER);
         trashPanelIcon.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText), PorterDuff.Mode.SRC_IN));
-        trashPanelIcon.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: flat selection bar — no capsule behind the trash icon
         trashPanel.addView(trashPanelIcon, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
 
         final FrameLayout formattingStylesContainer = new FrameLayout(context);
-        formattingStylesContainer.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: flat formatting row — no capsule
         formattingPanel.addView(formattingStylesContainer, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44));
 
         formattingScrollView = new HorizontalScrollView(context) {
@@ -927,7 +931,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         formattingLayout2 = new LinearLayout(context);
         formattingLayout2.setOrientation(LinearLayout.HORIZONTAL);
         formattingLayout2.setPadding(dp(2), 0, dp(2), 0);
-        formattingLayout2.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: flat formatting row — no capsule
         formattingPanel.addView(formattingLayout2, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM, 8, 0, 0, 0));
 
         linkButton = new Button(context, R.drawable.media_link_24, getResourceProvider());
@@ -942,7 +946,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         formattingLayout3 = new LinearLayout(context);
         formattingLayout3.setOrientation(LinearLayout.HORIZONTAL);
         formattingLayout3.setPadding(dp(2), 0, dp(2), 0);
-        formattingLayout3.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: flat formatting row — no capsule
         formattingPanel.addView(formattingLayout3, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM, 8, 0, 0, 0));
 
         mathButton = new Button(context, R.drawable.iv_math, getResourceProvider());
@@ -955,7 +959,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         formattingLayout1 = new LinearLayout(context);
         formattingLayout1.setOrientation(LinearLayout.HORIZONTAL);
         formattingLayout1.setPadding(dp(2), 0, dp(2), 0);
-        formattingLayout1.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_windowBackgroundWhite))));
+        // forkgram-classic: flat formatting row — no capsule
         formattingPanel.addView(formattingLayout1, 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 44, Gravity.BOTTOM, 0, 0, 8, 0));
 
         aiStyleButton = new Button(context, 0, getResourceProvider());
@@ -965,19 +969,33 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
         formattingLayout1.addView(aiStyleButton, LayoutHelper.createLinear(38, 38, Gravity.CENTER_VERTICAL));
 
         final int sendIcon = editingMessageObject != null ? R.drawable.input_done : (isInScheduleMode() ? R.drawable.input_schedule : R.drawable.send_plane_24);
+        // [classic] #92: the flattened send button, the shape ShareAlert already uses for its
+        // forward buttons. SendButton draws that shape itself once isOpen() holds — a rounded
+        // rect of getCircleSize() x getCircleHeight(), radius min/2, anchored bottom-right and
+        // inset by dp(4) + circlePadding, with the glyph centred in it. So no View background:
+        // a dp(22) round rect behind it would show as a circle under the pill.
+        // 50x36 inside a 58x44 view leaves dp(4) all round, which centres the pill in the view.
         sendButton = new ChatActivityEnterView.SendButton(context, sendIcon, getResourceProvider(), true) {
             @Override
             public boolean isOpen() {
-                return sendButtonLoading || super.isOpen();
+                return true;
             }
             @Override
             public boolean isInScheduleMode() {
                 return RichEditor.this.isInScheduleMode();
             }
+            @Override
+            public boolean shouldDrawBackground() {
+                return true;
+            }
+            @Override
+            public int getFillColor() {
+                return getThemedColor(Theme.key_chat_messagePanelSend);
+            }
         };
-        sendButton.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_chat_messagePanelSend))));
+        sendButton.setCircleSize(dp(50), dp(36));
         ScaleStateListAnimator.apply(sendButton);
-        bottomPanel.addView(sendButton, LayoutHelper.createLinear(44, 44, 0, Gravity.RIGHT, 8, 0, 0, 0));
+        bottomPanel.addView(sendButton, LayoutHelper.createLinear(58, 44, 0, Gravity.RIGHT, 8, 0, 0, 0));
         sendButton.setContentDescription(getString(R.string.Send));
         sendButton.setOnClickListener(v -> sendMessage());
         sendButton.setOnLongClickListener(this::onSendLongClick);
@@ -2049,7 +2067,7 @@ public class RichEditor extends BaseFragment implements NotificationCenter.Notif
             }
         });
         if (previewSendButton != null) {
-            previewSendButton.setBackground(withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_featuredStickers_addButton))));
+            previewSendButton.setBackground(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_featuredStickers_addButton))); // forkgram-classic: flat (no elevation)
             messageSendPreview.setSendButtonWidth(dp(44));
         }
 

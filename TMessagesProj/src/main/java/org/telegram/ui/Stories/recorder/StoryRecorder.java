@@ -1256,7 +1256,14 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
         public boolean dispatchKeyEventPreIme(KeyEvent event) {
             if (event != null && event.getKeyCode()
                     == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
-                onBackPressed();
+                // forkgram-classic: on the bare camera page the caption's emoji/popup state can be
+                // stale (it rides on the 12.1.1 design-frozen EmojiView), so onBackPressed() may
+                // spuriously consume BACK via captionEdit without closing. Fall back to closing the
+                // recorder so BACK always works on the camera page.
+                if (!onBackPressed() && currentPage == PAGE_CAMERA && currentEditMode == EDIT_MODE_NONE
+                        && galleryListView == null && (collageLayoutView == null || !collageLayoutView.hasContent())) {
+                    close(true);
+                }
                 return true;
             }
             return super.dispatchKeyEventPreIme(event);
@@ -2688,7 +2695,13 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
             if (awaitingPlayer) {
                 return;
             }
-            onBackPressed();
+            // forkgram-classic: same fallback as dispatchKeyEventPreIme — on the bare camera page the
+            // caption's stale (12.1.1-frozen) emoji/popup state can make onBackPressed() spuriously
+            // consume the press without closing, so force-close the recorder there.
+            if (!onBackPressed() && currentPage == PAGE_CAMERA && currentEditMode == EDIT_MODE_NONE
+                    && galleryListView == null && (collageLayoutView == null || !collageLayoutView.hasContent())) {
+                close(true);
+            }
         });
         actionBarContainer.addView(backButton, LayoutHelper.createFrame(56, 56, Gravity.TOP | Gravity.LEFT));
         flashViews.add(backButton);

@@ -611,8 +611,15 @@ public class PostsSearchContainer extends FrameLayout {
     }
 
     public void setKeyboardHeight(int h) {
+        // [classic] #44: the upstream redesign assumes a full-height (adjustPan / non-resizing)
+        // search window and lifts the centred empty state by half the keyboard height to re-centre
+        // it in the visible half. Classic's LaunchActivity window is adjustResize, so by the time
+        // this runs the page has ALREADY been measured to the above-keyboard height and the empty
+        // state is centred in the visible area. Applying the -h/2 shift on top of that double-counts
+        // the keyboard, dragging the "Subscribe to Premium" block up under the search tabs (it was
+        // clipped there). Keep the empty state put — the resized layout already centres it correctly.
         emptyView.animate()
-            .translationY(-h / 2.0f)
+            .translationY(0)
             .setDuration(AdjustPanLayoutHelper.keyboardDuration)
             .setInterpolator(AdjustPanLayoutHelper.keyboardInterpolator)
             .start();
