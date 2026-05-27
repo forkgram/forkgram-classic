@@ -262,6 +262,13 @@ public abstract class BaseFragment {
         return true;
     }
 
+    // Whether a swipe at this touch position is allowed to open the left navigation drawer.
+    // Fragments that consume horizontal swipes themselves (e.g. folder switching) can restrict
+    // drawer opening to the left screen edge so the rest of the area stays free for their gesture.
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        return true;
+    }
+
     public void setInBubbleMode(boolean value) {
         inBubbleMode = value;
     }

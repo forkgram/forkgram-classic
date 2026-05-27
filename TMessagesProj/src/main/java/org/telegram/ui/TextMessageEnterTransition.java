@@ -461,7 +461,11 @@ public class TextMessageEnterTransition implements MessageEnterTransitionContain
             messageViewX = messageView.getX() + listView.getX() - container.getX();
             messageViewY = messageView.getTop() + messageView.getPaddingTop() + listView.getTop() - container.getY();
 
-            messageViewY -= (listViewTargetBottomPadding - listView.getPaddingBottom());
+            // [classic] the modern correction compensates the collapsing input island
+            // (islandHeight - dp(44)); classic has no island, so with the stubbed
+            // getInputIslandHeightTarget()==0 it pulled the landing spot 44dp up.
+            // Restore the 11.9.5.0 term: pre-compensate the classic topView/reply panel.
+            messageViewY += enterView.getTopViewHeight();
 
             lastMessageX = messageViewX;
             lastMessageY = messageViewY;
