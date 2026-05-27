@@ -454,7 +454,7 @@ public class ApplicationLoader extends Application {
             final boolean unifiedPushActive = PushListenerController.isUnifiedPushActive();
             cancelLegacyKeepAliveAlarms(pendingIntentFlags);
             if (unifiedPushActive) {
-                Log.d("Fork Client", "UnifiedPush is active, skipping push service watchdog");
+                Log.d("Forkgram Classic", "UnifiedPush is active, skipping push service watchdog");
                 try {
                     applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
                 } catch (Throwable ignore) {
@@ -481,7 +481,7 @@ public class ApplicationLoader extends Application {
                 alarm.cancel(pendingIntent);
             }
             } catch (Throwable ignore) {
-                Log.d("Fork Client", "Failed to set intent");
+                Log.d("Forkgram Classic", "Failed to set intent");
             }
         }
     }

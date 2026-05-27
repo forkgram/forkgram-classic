@@ -93,6 +93,23 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         this.highlightActionButtons = highlightActionButtons;
     }
 
+    // forkgram-classic: 12.8 INavigationLayout adds the split "layers" presentation
+    // (iPad/large-screen rounded right pane). Classic ships the single-pane layout —
+    // report neither mode so the redesign code paths stay dormant.
+    @Override
+    public boolean isLayersLayout() {
+        return false;
+    }
+
+    @Override
+    public boolean isRightLayout() {
+        return false;
+    }
+
+    // forkgram-classic: 12.8 LaunchActivity tags the right split-pane via setIsRightLayout().
+    // Classic is single-pane — no-op.
+    public void setIsRightLayout() {}
+
     public boolean storyViewerAttached() {
         BaseFragment lastFragment = null;
         if (!fragmentsStack.isEmpty()) {
@@ -259,10 +276,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
             if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                final int bottomSheetHeight = isKeyboardVisible ? 0 : getBottomTabsHeight(true);
+                // [classic] #32: upstream 12.7 removed this bottom-tabs early-return (modern keeps it commented out).
+                // With it active, a non-zero animated tabs height makes the container silently swallow every
+                // touch below the threshold — in chats that killed all poll taps (and any in-cell interaction).
+                /*final int bottomSheetHeight = isKeyboardVisible ? 0 : getBottomTabsHeight(true);
                 if (ev.getY() > getHeight() - bottomSheetHeight) {
                     return false;
-                }
+                }*/
             }
 //            processMenuButtonsTouch(ev);
             boolean passivePreview = inPreviewMode && previewMenu == null;
@@ -457,8 +477,8 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     private ArrayList<int[]> animateEndColors = new ArrayList<>();
 
     StartColorsProvider startColorsProvider = new StartColorsProvider();
-    public Theme.MessageDrawable messageDrawableOutStart;
-    public Theme.MessageDrawable messageDrawableOutMediaStart;
+    public MessageDrawable messageDrawableOutStart;
+    public MessageDrawable messageDrawableOutMediaStart;
     public ThemeAnimationSettings.onAnimationProgress animationProgressListener;
 
     private ArrayList<ArrayList<ThemeDescription>> themeAnimatorDescriptions = new ArrayList<>();
@@ -2463,9 +2483,9 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
                     startAnimation = true;
                     if (settings.resourcesProvider != null) {
                         if (messageDrawableOutStart == null) {
-                            messageDrawableOutStart = new Theme.MessageDrawable(Theme.MessageDrawable.TYPE_TEXT, true, false, startColorsProvider);
+                            messageDrawableOutStart = new MessageDrawable(MessageDrawable.TYPE_TEXT, true, false, startColorsProvider);
                             messageDrawableOutStart.isCrossfadeBackground = true;
-                            messageDrawableOutMediaStart = new Theme.MessageDrawable(Theme.MessageDrawable.TYPE_MEDIA, true, false, startColorsProvider);
+                            messageDrawableOutMediaStart = new MessageDrawable(MessageDrawable.TYPE_MEDIA, true, false, startColorsProvider);
                             messageDrawableOutMediaStart.isCrossfadeBackground = true;
                         }
                         startColorsProvider.saveColors(settings.resourcesProvider);
@@ -2724,12 +2744,12 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
     }
 
     @Override
-    public Theme.MessageDrawable getMessageDrawableOutStart() {
+    public MessageDrawable getMessageDrawableOutStart() {
         return messageDrawableOutStart;
     }
 
     @Override
-    public Theme.MessageDrawable getMessageDrawableOutMediaStart() {
+    public MessageDrawable getMessageDrawableOutMediaStart() {
         return messageDrawableOutMediaStart;
     }
 
