@@ -63,7 +63,10 @@ public class DarkThemeResourceProvider implements Theme.ResourcesProvider {
         sparseIntArray.put(Theme.key_featuredStickers_addedIcon, Color.WHITE);
         sparseIntArray.put(Theme.key_actionBarDefault, Color.WHITE);
         sparseIntArray.put(Theme.key_chat_gifSaveHintText, Color.WHITE);
-//        sparseIntArray.put(Theme.key_chat_messagePanelSend, Color.WHITE);
+        // [classic] the redesign dropped this override because its glass send button paints itself.
+        // The classic 11.9.5.0 send button tints its arrow with the key, so without it the arrow
+        // falls back to the app theme's colour on top of the dark story pill.
+        sparseIntArray.put(Theme.key_chat_messagePanelSend, Color.WHITE);
 
         sparseIntArray.put(Theme.key_chat_emojiSearchBackground, ColorUtils.setAlphaComponent(Color.WHITE, 30));
         sparseIntArray.put(Theme.key_chat_emojiPanelBackground, 0xFF20242A);
