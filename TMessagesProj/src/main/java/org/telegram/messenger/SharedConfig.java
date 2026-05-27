@@ -315,6 +315,9 @@ public class SharedConfig {
     public static boolean noSoundHintShowed = false;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
+    // forkgram-classic: 12.9 removed this constant; the design-pinned ActionBar,
+    // ActionBarLayout and ProfileActivity (12.1.1 baseline) still consult it.
+    public static final boolean noStatusBar = true;
     public static boolean streamMkv = false;
     public static boolean saveStreamMedia = true;
     public static boolean pauseMusicOnRecord = false;
@@ -707,8 +710,17 @@ public class SharedConfig {
             photoLiveDefault = preferences.getBoolean("photoLiveDefault", false);
             disableUnifiedPush = preferences.getBoolean("disableUnifiedPush", false);
             unifiedPushGateway = preferences.getString("unifiedPushGateway", "");
-            if ("https://p2p.belloworld.it/".equals(unifiedPushGateway)) {
-                unifiedPushGateway = "";
+            // [classic] #109: dropping the old default gateway is a one-time migration, not a filter.
+            // Running it on every load also wiped the value for anyone who picks that gateway on
+            // purpose, so it could never survive a restart. Clear it once, persist the result so the
+            // stored preference matches, and never touch the user's own choice again.
+            if (!preferences.getBoolean("unifiedPushGatewayMigrated", false)) {
+                SharedPreferences.Editor editor = preferences.edit().putBoolean("unifiedPushGatewayMigrated", true);
+                if ("https://p2p.belloworld.it/".equals(unifiedPushGateway)) {
+                    unifiedPushGateway = "";
+                    editor.putString("unifiedPushGateway", unifiedPushGateway);
+                }
+                editor.apply();
             }
 
             loadDebugConfig(preferences);
@@ -1830,6 +1842,10 @@ public class SharedConfig {
         return MessagesController.getGlobalMainSettings().getBoolean("hideSensitiveData", false);
     }
 
+    // [classic] #85: "Hide Sensitive Data" used to be all-or-nothing, so turning it on to hide the
+    // phone number also took the bio with it. Every piece it hides now has its own switch under the
+    // master one. They default to true, so an install that already had the master on keeps hiding
+    // exactly what it hid before, and everything still falls back to off once the master is off.
     public static boolean hideSensitivePhone() {
         return hideSensitiveData() && hideSensitivePart("hideSensitivePhone");
     }
