@@ -76,6 +76,7 @@ public class ForkSettingsActivity extends BaseFragment {
     public static final int ID_HIDE_BOTTOM_BUTTON = 11;
     public static final int ID_CUSTOM_TITLE = 12;
     public static final int ID_AVATAR_CORNERS = 13;
+    public static final int ID_SHOW_BOTTOM_TABS = 14; // [classic] #61
 
     public static final int ID_SYNC_PINS = 20;
     public static final int ID_UNMUTED_ON_TOP = 21;
@@ -85,8 +86,8 @@ public class ForkSettingsActivity extends BaseFragment {
     public static final int ID_DISABLE_GLOBAL_SEARCH = 25;
     public static final int ID_HIDE_CONTACTS_IN_DIALOGS = 26;
     public static final int ID_ENABLE_LAST_SEEN_DOTS = 27;
-    public static final int ID_HIDE_ALL_CHATS_TAB = 28;
-    public static final int ID_DEFAULT_FOLDER = 29;
+    public static final int ID_HIDE_ALL_CHATS_TAB = 28; // [classic] #79
+    public static final int ID_DEFAULT_FOLDER = 29; // [classic] #79
 
     public static final int ID_REPLACE_FORWARD = 30;
     public static final int ID_MENTION_BY_NAME = 31;
@@ -465,6 +466,10 @@ public class ForkSettingsActivity extends BaseFragment {
             items.add(UItem.asButtonCheck(ID_HIDE_BOTTOM_BUTTON, LocaleController.getString(R.string.HideBottomButton), LocaleController.getString(R.string.HideBottomButtonInfo))
                 .setChecked(pref("hideBottomButton", false)).setMultiline(true));
         }
+        // [classic] #61: "Show bottom tabs" — moved here from the top-right overflow menu.
+        items.add(UItem.asButtonCheck(ID_SHOW_BOTTOM_TABS, LocaleController.getString(R.string.ShowBottomTabs),
+                "Show the floating tab bar (Chats, Contacts, Settings, Profile) at the bottom of the chat list. When off, use the side menu instead.")
+            .setChecked(!getUserConfig().getMainTabsHiddenFork()).setMultiline(true));
         items.add(UItem.asSettingsCell(ID_CUSTOM_TITLE, LocaleController.getString(R.string.EditAdminRank), prefs().getString("forkCustomTitle", "Fork Client")));
         items.add(UItem.asShadow(null));
 
@@ -500,6 +505,7 @@ public class ForkSettingsActivity extends BaseFragment {
             .setChecked(pref("hideContactsInDialogs", false)).setMultiline(true));
         items.add(UItem.asButtonCheck(ID_ENABLE_LAST_SEEN_DOTS, LocaleController.getString(R.string.EnableLastSeenDots), LocaleController.getString(R.string.EnableLastSeenDotsInfo))
             .setChecked(pref("enableLastSeenDots", true)).setMultiline(true));
+        // [classic] #79: hide the "All Chats" folder tab and pick which folder opens on launch.
         items.add(UItem.asButtonCheck(ID_HIDE_ALL_CHATS_TAB, LocaleController.getString(R.string.HideAllChatsTab), LocaleController.getString(R.string.HideAllChatsTabInfo))
             .setChecked(pref("hideAllChatsTab", false)).setMultiline(true));
         items.add(UItem.asSettingsCell(ID_DEFAULT_FOLDER, LocaleController.getString(R.string.DefaultFolder), getDefaultFolderText()));
@@ -596,7 +602,9 @@ public class ForkSettingsActivity extends BaseFragment {
         items.add(UItem.asHeader(LocaleController.getString(R.string.ForkSectionSystem)));
         items.add(UItem.asButtonCheck(ID_DISABLE_UNIFIED_PUSH, LocaleController.getString(R.string.DisableUnifiedPush), LocaleController.getString(R.string.DisableUnifiedPushInfo))
             .setChecked(pref("disableUnifiedPush", false)).setMultiline(true));
-        items.add(UItem.asSettingsCell(ID_UPDATE_CHECK_INTERVAL, LocaleController.getString(R.string.UpdateCheckInterval), getUpdateIntervalText()));
+        // forkgram-classic: no update-check-interval row — F-Droid is the only update channel, so an
+        // in-app update-check interval is irrelevant. (ID_UPDATE_CHECK_INTERVAL is left defined; the
+        // item is simply never shown, so it also stays out of the settings search index.)
         if (AndroidUtilities.isTabletInternal()) {
             items.add(UItem.asButtonCheck(ID_DISABLE_TABLET_MODE, LocaleController.getString(R.string.DisableTabletMode), LocaleController.getString(R.string.DisableTabletModeInfo))
                 .setChecked(SharedConfig.forceDisableTabletMode)
@@ -656,6 +664,13 @@ public class ForkSettingsActivity extends BaseFragment {
             toggle("hideInAppHints", item, view);
         } else if (id == ID_HIDE_BOTTOM_BUTTON) {
             toggle("hideBottomButton", item, view);
+        } else if (id == ID_SHOW_BOTTOM_TABS) {
+            // [classic] #61: backed by UserConfig.mainTabsHiddenFork (show = !hidden); applied live on
+            // return to the home via MainTabsActivity.onResume() -> DialogsActivity.checkUi_mainTabsVisible().
+            final boolean newHidden = !getUserConfig().getMainTabsHiddenFork();
+            getUserConfig().setMainTabsHiddenFork(newHidden);
+            item.checked = !newHidden;
+            setCellChecked(view, !newHidden);
         } else if (id == ID_CUSTOM_TITLE) {
             showCustomTitleDialog(view);
 
@@ -678,6 +693,7 @@ public class ForkSettingsActivity extends BaseFragment {
             toggle("enableLastSeenDots", item, view);
         } else if (id == ID_HIDE_ALL_CHATS_TAB) {
             toggle("hideAllChatsTab", item, view);
+            // [classic] #79: rebuild the folder tabs on the home so the change applies immediately.
             getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
         } else if (id == ID_DEFAULT_FOLDER) {
             showDefaultFolderDialog();
@@ -945,6 +961,7 @@ public class ForkSettingsActivity extends BaseFragment {
         builder.show();
     }
 
+    // [classic] #79: current default-folder name shown as the row subtitle.
     private String getDefaultFolderText() {
         final int id = prefs().getInt("defaultFolderId", -1);
         if (id != -1) {
@@ -959,6 +976,7 @@ public class ForkSettingsActivity extends BaseFragment {
         return LocaleController.getString(R.string.FilterAllChats);
     }
 
+    // [classic] #79: pick which folder opens when the app launches (All Chats + every folder).
     private void showDefaultFolderDialog() {
         ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
         ArrayList<String> names = new ArrayList<>();

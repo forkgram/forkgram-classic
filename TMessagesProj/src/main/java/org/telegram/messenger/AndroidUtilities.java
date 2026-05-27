@@ -5389,6 +5389,27 @@ public class AndroidUtilities {
         }
     }
 
+    // forkgram-classic: 12.9 removed the scrim overlay constants and this 3-arg overload;
+    // the design-pinned ActionBarLayout (12.1.1 baseline) still calls them. Restored from 12.8.5.
+    public final static int LIGHT_STATUS_BAR_OVERLAY = 0x0f000000, DARK_STATUS_BAR_OVERLAY = 0x33000000;
+
+    public static void setLightStatusBar(Window window, boolean enable, boolean forceTransparentStatusbar) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            final View decorView = window.getDecorView();
+            changeSetSystemUiVisibility(decorView, View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR, enable);
+
+            final int statusBarColor;
+            if (!SharedConfig.noStatusBar && !forceTransparentStatusbar) {
+                statusBarColor = enable ? LIGHT_STATUS_BAR_OVERLAY : DARK_STATUS_BAR_OVERLAY;
+            } else {
+                statusBarColor = Color.TRANSPARENT;
+            }
+            if (window.getStatusBarColor() != statusBarColor) {
+                window.setStatusBarColor(statusBarColor);
+            }
+        }
+    }
+
     public static boolean getLightNavigationBar(Window window) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             final View decorView = window.getDecorView();
