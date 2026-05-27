@@ -1243,7 +1243,8 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             titleTextView.setLayoutParams(LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, -1, (isSideMenued ? 64 : 0), 0));
         } else if (style == STYLE_IMPORTING_MESSAGES) {
             selector.setBackground(Theme.getSelectorDrawable(false));
-            frameLayout.setBackgroundColor(0);
+            // [classic] #100: opaque bar, no liquid-glass backdrop — see STYLE_INACTIVE_GROUP_CALL.
+            frameLayout.setBackgroundColor(getThemedColor(Theme.key_inappPlayerBackground));
             frameLayout.setTag(Theme.key_inappPlayerBackground);
 
             for (int i = 0; i < 2; i++) {
@@ -1273,7 +1274,8 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             titleTextView.setLayoutParams(LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36, Gravity.LEFT | Gravity.TOP, 35, 0, (isSideMenued ? 64 : 0) + 36, 0));
         } else if (style == STYLE_AUDIO_PLAYER || style == STYLE_LIVE_LOCATION) {
             selector.setBackground(Theme.getSelectorDrawable(false));
-            frameLayout.setBackgroundColor(0);
+            // [classic] #100: opaque bar, no liquid-glass backdrop — see STYLE_INACTIVE_GROUP_CALL.
+            frameLayout.setBackgroundColor(getThemedColor(Theme.key_inappPlayerBackground));
             frameLayout.setTag(Theme.key_inappPlayerBackground);
 
             subtitleTextView.setVisibility(GONE);
@@ -1315,7 +1317,12 @@ public class FragmentContextView extends FrameLayout implements NotificationCent
             }
         } else if (style == STYLE_INACTIVE_GROUP_CALL) {
             selector.setBackground(Theme.getSelectorDrawable(false));
-            frameLayout.setBackgroundColor(0);
+            // [classic] #100: 12.x leaves the bar itself transparent and lets the liquid-glass
+            // backdrop behind it supply the fill. Classic has no such backdrop, so over a chat
+            // wallpaper the panel had no background at all and the chat showed straight through it
+            // (most obvious on the "Live Stream ... Join" bar). 11.9.5.0 filled it with
+            // key_inappPlayerBackground — restore that here and at the other two styles below.
+            frameLayout.setBackgroundColor(getThemedColor(Theme.key_inappPlayerBackground));
             frameLayout.setTag(Theme.key_inappPlayerBackground);
             muteButton.setVisibility(GONE);
             subtitleTextView.setVisibility(VISIBLE);

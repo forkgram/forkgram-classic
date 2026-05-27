@@ -204,7 +204,11 @@ public class AvatarDrawable extends Drawable {
     }
 
     public static int getProfileBackColorForId(long id, Theme.ResourcesProvider resourcesProvider) {
-        return Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider);
+        // [classic] #49: classic (11.9.5.0) profile header background is the themed action-bar
+        // colour, not windowBackgroundGray (which the 12.4 redesign switched to). In dark themes
+        // windowBackgroundGray is pure black (0xff000000), so the collapsed header rendered black
+        // until the avatar was expanded (the expand/collapse path resets to avatar_backgroundActionBarBlue).
+        return Theme.getColor(Theme.key_avatar_backgroundActionBarBlue, resourcesProvider);
     }
 
     public static String colorName(int color) {

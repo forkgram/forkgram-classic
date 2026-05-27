@@ -19,6 +19,10 @@ object FolderIcons {
 
     const val FLAG_EMOTICON = 1 shl 25
 
+    // [classic] #81: sizes of the tab icon, in dp.
+    private const val ICON_SIZE = 24f
+    private const val ICON_WITH_TEXT_SIZE = 20f
+
     const val PRIVATE = "👤"
     const val GROUP = "👥"
     const val CHANNELS = "📢"
@@ -179,7 +183,9 @@ object FolderIcons {
         }
         val result = SpannableStringBuilder(" ")
         val span = ColoredImageSpan(iconRes, ColoredImageSpan.ALIGN_CENTER)
-        span.setSize(AndroidUtilities.dp(18f))
+        // [classic] #81: the drawables are native 24dp, so draw them full size when an icon
+        // stands alone in the tab, and only a notch bigger when it sits next to the title.
+        span.setSize(AndroidUtilities.dp(if (style == FOLDER_TABS_STYLE_ICON) ICON_SIZE else ICON_WITH_TEXT_SIZE))
         result.setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         if (style == FOLDER_TABS_STYLE_ICON_TEXT && !name.isNullOrEmpty()) {
             result.append("  ")

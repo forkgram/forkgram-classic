@@ -44,7 +44,6 @@ import android.widget.TextView;
 
 import androidx.annotation.Keep;
 import androidx.annotation.NonNull;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -60,7 +59,6 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
-import org.telegram.messenger.utils.GradientProtectionDrawable;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
@@ -160,7 +158,7 @@ public class PollVotesAlert extends BottomSheet {
         public SectionCell(Context context) {
             super(context);
 
-            setBackgroundColor(Theme.getColor(Theme.key_dialogBackgroundGray));
+            setBackgroundColor(Theme.getColor(Theme.key_graySection)); // [classic] #39: classic gray-section band (was dialogBackgroundGray).
 
             textView = new AnimatedEmojiSpan.TextViewEmojis(getContext());
             textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
@@ -276,10 +274,12 @@ public class PollVotesAlert extends BottomSheet {
         }
     };
 
-    public class UserCell extends LinearLayout {
+    public class UserCell extends FrameLayout { // [classic] #39: classic flat FrameLayout row (was LinearLayout redesign)
 
         private final BackupImageView avatarImageView;
         private final SimpleTextView nameTextView;
+        // [classic] #39: keep the modern "voted at" timestamp, but lay it out on the classic row.
+        private final LinearLayout dateContainer;
         private final TextView dateTextView;
         private final TextView timeTextView;
 
@@ -304,33 +304,37 @@ public class PollVotesAlert extends BottomSheet {
         public UserCell(Context context) {
             super(context);
 
-            setOrientation(HORIZONTAL);
-            setLayoutDirection(LinearLayout.LAYOUT_DIRECTION_LOCALE);
+            // [classic] #39: classic 11.9.5.0 flat row geometry (36dp avatar, edge-to-edge, no inset card).
             setWillNotDraw(false);
-            setPadding(dp(12), 0, dp(12), 0);
 
             avatarDrawable = new AvatarDrawable();
 
             avatarImageView = new BackupImageView(context);
             avatarImageView.setRoundRadius(dp(18));
-            addView(avatarImageView, LayoutHelper.createLinear(34, 34, Gravity.CENTER_VERTICAL, 0, 0, 11, 0));
+            addView(avatarImageView, LayoutHelper.createFrame(36, 36, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 0 : 14, 6, LocaleController.isRTL ? 14 : 0, 0));
+
+            // [classic] #39: voted-at timestamp (kept from the redesign) — right-anchored "<date> <time>" pair.
+            dateContainer = new LinearLayout(context);
+            dateContainer.setOrientation(LinearLayout.HORIZONTAL);
+
+            dateTextView = new TextView(context);
+            dateTextView.setTextColor(Theme.getColor(Theme.key_dialogTextGray3));
+            dateTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            dateContainer.addView(dateTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, 0, 0, 4, 0));
+
+            timeTextView = new TextView(context);
+            timeTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
+            timeTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+            dateContainer.addView(timeTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL));
+
+            addView(dateContainer, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, LocaleController.isRTL ? 14 : 0, 0, LocaleController.isRTL ? 0 : 14, 0));
 
             nameTextView = new SimpleTextView(context);
             nameTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
             nameTextView.setTypeface(AndroidUtilities.bold());
             nameTextView.setTextSize(16);
             nameTextView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
-            addView(nameTextView, LayoutHelper.createLinear(0, 24, 1, Gravity.CENTER_VERTICAL, 0, 0, 0, 0));
-
-            dateTextView = new TextView(context);
-            dateTextView.setTextColor(Theme.getColor(Theme.key_dialogTextGray3));
-            dateTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            addView(dateTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, Gravity.CENTER_VERTICAL | Gravity.RIGHT, 4, 0, 2, 0));
-
-            timeTextView = new TextView(context);
-            timeTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
-            timeTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
-            addView(timeTextView, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, 0, Gravity.CENTER_VERTICAL | Gravity.RIGHT, 2, 0, 4, 0));
+            addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 24, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.TOP, LocaleController.isRTL ? 28 : 65, 12, LocaleController.isRTL ? 65 : 28, 0));
 
             statusBadgeComponent = new StatusBadgeComponent(nameTextView, 20);
         }
@@ -347,16 +351,18 @@ public class PollVotesAlert extends BottomSheet {
                 currentChat = null;
             }
 
-            timeTextView.setText(LocaleController.getInstance().getFormatterDay().format(date * 1000L));
-            dateTextView.setText(LocaleController.formatDate(date, true));
-
             needDivider = divider;
             drawPlaceholder = object == null;
             placeholderNum = num;
             if (object == null) {
                 nameTextView.setText("");
                 avatarImageView.setImageDrawable(null);
+                dateContainer.setVisibility(GONE); // [classic] #39: no timestamp while the row is still a loading placeholder.
             } else {
+                // [classic] #39: per-voter "voted at" timestamp, preserved from the redesign.
+                timeTextView.setText(LocaleController.getInstance().getFormatterDay().format(date * 1000L));
+                dateTextView.setText(LocaleController.formatDate(date, true));
+                dateContainer.setVisibility(VISIBLE);
                 update(0);
             }
             if (animators != null) {
@@ -382,6 +388,16 @@ public class PollVotesAlert extends BottomSheet {
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             super.onMeasure(MeasureSpec.makeMeasureSpec(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(dp(48) + (needDivider ? 1 : 0), MeasureSpec.EXACTLY));
+            // [classic] #39: keep a long name from running under the right-anchored timestamp.
+            if (dateContainer.getVisibility() == VISIBLE && dateContainer.getMeasuredWidth() > 0) {
+                int available = getMeasuredWidth() - dp(65 + 14) - dateContainer.getMeasuredWidth() - dp(8);
+                if (available < 0) {
+                    available = 0;
+                }
+                if (nameTextView.getMeasuredWidth() > available) {
+                    nameTextView.measure(MeasureSpec.makeMeasureSpec(available, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(nameTextView.getMeasuredHeight(), MeasureSpec.EXACTLY));
+                }
+            }
         }
 
         @Override
@@ -668,7 +684,7 @@ public class PollVotesAlert extends BottomSheet {
         updatePlaceholder();
 
         shadowDrawable = context.getResources().getDrawable(R.drawable.sheet_shadow_round).mutate();
-        shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_dialogBackgroundGray), PorterDuff.Mode.MULTIPLY));
+        shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_dialogBackground), PorterDuff.Mode.MULTIPLY)); // [classic] #39: white sheet (was dialogBackgroundGray).
 
         containerView = new FrameLayout(context) {
 
@@ -706,7 +722,7 @@ public class PollVotesAlert extends BottomSheet {
                 if (listView.getPaddingTop() != padding) {
                     ignoreLayout = true;
                     listView.setPinnedSectionOffsetY(-padding);
-                    listView.setPadding(0, padding, 0, AndroidUtilities.navigationBarHeight);
+                    listView.setPadding(0, padding, 0, 0); // [classic] #39: classic bottom padding (no gray nav-bar inset).
                     ignoreLayout = false;
                 }
                 super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(totalHeight, MeasureSpec.EXACTLY));
@@ -797,7 +813,7 @@ public class PollVotesAlert extends BottomSheet {
         containerView.setPadding(backgroundPaddingLeft, 0, backgroundPaddingLeft, 0);
 
         listView = new RecyclerListView(context) {
-            private final GradientProtectionDrawable gradientProtectionDrawable = new GradientProtectionDrawable(WindowInsetsCompat.Side.BOTTOM);
+            // [classic] #39: dropped the redesign's bottom gradient nav-bar fade.
 
             long lastUpdateTime;
 
@@ -825,12 +841,10 @@ public class PollVotesAlert extends BottomSheet {
                     invalidate();
                 }
                 super.dispatchDraw(canvas);
-                gradientProtectionDrawable.setBounds(0, getMeasuredHeight() - AndroidUtilities.navigationBarHeight, getMeasuredWidth(), getMeasuredHeight());
-                gradientProtectionDrawable.setColor(getThemedColor(Theme.key_dialogBackgroundGray));
-                gradientProtectionDrawable.draw(canvas);
             }
         };
-        listView.setSections(false);
+        // [classic] #39: do NOT call listView.setSections(false) — that draws the redesign's white rounded
+        // "island" voter cards on a gray sheet; classic uses flat edge-to-edge rows on a white sheet.
 
         DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
         itemAnimator.setAddDuration(150);
@@ -959,7 +973,7 @@ public class PollVotesAlert extends BottomSheet {
         titleTextView.setTypeface(AndroidUtilities.bold());
         titleTextView.setPadding(dp(21), dp(5), dp(14), dp(21));
         titleTextView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
-        titleTextView.setTag(RecyclerListView.TAG_NOT_SECTION);
+        // [classic] #39: removed TAG_NOT_SECTION (only needed for the redesign's setSections island cards).
         titleTextView.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
         if (poll.question != null) {
             TLRPC.TL_textWithEntities question = poll.question;
@@ -1269,7 +1283,7 @@ public class PollVotesAlert extends BottomSheet {
                 }
                 case 2: {
                     view = createSectionCell();
-                    view.setTag(RecyclerListView.TAG_NOT_SECTION);
+                    // [classic] #39: removed TAG_NOT_SECTION (redesign-only setSections exclusion).
                     break;
                 }
                 case 3:

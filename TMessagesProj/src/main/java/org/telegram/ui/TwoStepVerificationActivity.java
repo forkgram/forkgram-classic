@@ -362,7 +362,7 @@ public class TwoStepVerificationActivity extends BaseFragment implements Notific
         frameLayout.addView(emptyView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         listView = new RecyclerListView(context);
-        listView.setSections(true);
+        // [classic] #43: drop the redesign rounded inset cards (setSections) — classic 11.9.5.0 used a flat list.
         listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         listView.setEmptyView(emptyView);
         listView.setVerticalScrollBarEnabled(false);

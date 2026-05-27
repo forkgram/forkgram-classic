@@ -36,6 +36,12 @@ public class FragmentContextViewWavesDrawable {
     WeavingState previousState;
     WeavingState pausedState;
 
+    // [classic] #100: 11.9.5.0 fills the active-call bar with these animated wave lines across the
+    // full width. 12.x dropped them and draws a dp(18)-rounded capsule instead — the redesign look.
+    LineBlobDrawable lineBlobDrawable = new LineBlobDrawable(5);
+    LineBlobDrawable lineBlobDrawable1 = new LineBlobDrawable(7);
+    LineBlobDrawable lineBlobDrawable2 = new LineBlobDrawable(8);
+
     private float amplitude;
     private float amplitude2;
     private float animateToAmplitude;
@@ -138,6 +144,30 @@ public class FragmentContextViewWavesDrawable {
                 currentState.setToPaint(paint);
             }
 
+            // [classic] #100: restore the 11.9.5.0 wave lines that fill the bar edge to edge.
+            lineBlobDrawable.minRadius = 0;
+            lineBlobDrawable.maxRadius = dp(2) + dp(2) * amplitude;
+
+            lineBlobDrawable1.minRadius = dp(0);
+            lineBlobDrawable1.maxRadius = dp(3) + dp(9) * amplitude;
+
+            lineBlobDrawable2.minRadius = dp(0);
+            lineBlobDrawable2.maxRadius = dp(3) + dp(9) * amplitude;
+
+            if (i == 1 && update) {
+                lineBlobDrawable.update(amplitude, 0.3f);
+                lineBlobDrawable1.update(amplitude, 0.7f);
+                lineBlobDrawable2.update(amplitude, 0.7f);
+            }
+
+            if (LiteMode.isEnabled(LiteMode.FLAG_CALLS_ANIMATIONS)) {
+                paint.setAlpha((int) (76 * alpha));
+                float top1 = dp(6) * amplitude2;
+                float top2 = dp(6) * amplitude2;
+                lineBlobDrawable1.draw(left, top - top1, right, bottom, canvas, paint, top, progress);
+                lineBlobDrawable2.draw(left, top - top2, right, bottom, canvas, paint, top, progress);
+            }
+
             if (i == 1 && rippleTransition) {
                 paint.setAlpha(255);
             } else if (i == 1) {
@@ -154,10 +184,10 @@ public class FragmentContextViewWavesDrawable {
                 canvas.save();
 
                 canvas.clipPath(path);
-                canvas.drawRoundRect(left, top, right, bottom, dp(18), dp(18), paint);
+                lineBlobDrawable.draw(left, top, right, bottom, canvas, paint, top, progress);
                 canvas.restore();
             } else {
-                canvas.drawRoundRect(left, top, right, bottom, dp(18), dp(18), paint);
+                lineBlobDrawable.draw(left, top, right, bottom, canvas, paint, top, progress);
             }
         }
     }

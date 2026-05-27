@@ -1,0 +1,154 @@
+diff --git a/example/android/CMakeLists.txt b/example/android/CMakeLists.txt
+index 949a6e4b2..cfeec07bf 100644
+--- a/example/android/CMakeLists.txt
++++ b/example/android/CMakeLists.txt
+@@ -9,7 +9,7 @@ option(TD_ANDROID_JSON_JAVA "Use \"ON\" to build Java wrapper for JSON API.")
+ 
+ if (TD_ANDROID_JSON)
+   if (CMAKE_CROSSCOMPILING)
+-    string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -flto=thin -Oz")
++    string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -Oz -fdata-sections -ffunction-sections")
+     list(APPEND CMAKE_FIND_ROOT_PATH "${OPENSSL_ROOT_DIR}")
+   endif()
+   add_subdirectory(${TD_DIR} td)
+@@ -25,7 +25,7 @@ if (CMAKE_CROSSCOMPILING)
+ 
+   include(TdSetUpCompiler)
+   td_set_up_compiler()
+-  string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -flto=thin -Oz")
++  string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -Oz -fdata-sections -ffunction-sections")
+ 
+   list(APPEND CMAKE_FIND_ROOT_PATH "${OPENSSL_ROOT_DIR}")
+   add_subdirectory(${TD_DIR} td)
+diff --git a/example/android/build-tdlib.sh b/example/android/build-tdlib.sh
+index f62ba1ac4..3e985c380 100755
+--- a/example/android/build-tdlib.sh
++++ b/example/android/build-tdlib.sh
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env bash
+ 
+ ANDROID_SDK_ROOT=${1:-SDK}
+-ANDROID_NDK_VERSION=${2:-23.2.8568313}
++ANDROID_NDK_VERSION=${2:-27.2.12479018}
+ OPENSSL_INSTALL_DIR=${3:-third-party/openssl}
+ ANDROID_STL=${4:-c++_static}
+ TDLIB_INTERFACE=${5:-Java}
+@@ -36,54 +36,24 @@ TDLIB_INTERFACE_OPTION=$([ "$TDLIB_INTERFACE" == "JSON" ] && echo "-DTD_ANDROID_
+ 
+ cd $(dirname $0)
+ 
+-echo "Generating TDLib source files..."
++echo "Generating tde2e source files..."
+ mkdir -p build-native-$TDLIB_INTERFACE || exit 1
+ cd build-native-$TDLIB_INTERFACE
+-cmake $TDLIB_INTERFACE_OPTION -DTD_GENERATE_SOURCE_FILES=ON .. || exit 1
++cmake -DCMAKE_BUILD_TYPE=Release $TDLIB_INTERFACE_OPTION -DTD_GENERATE_SOURCE_FILES=ON .. || exit 1
+ cmake --build . || exit 1
+ cd ..
+ 
+ rm -rf tdlib || exit 1
+ 
+-if [ "$TDLIB_INTERFACE" == "Java" ] ; then
+-  echo "Downloading annotation Java package..."
+-  rm -f android.jar annotation-1.4.0.jar || exit 1
+-  $WGET https://maven.google.com/androidx/annotation/annotation/1.4.0/annotation-1.4.0.jar || exit 1
+-
+-  echo "Generating Java source files..."
+-  cmake --build build-native-$TDLIB_INTERFACE --target tl_generate_java || exit 1
+-  php AddIntDef.php org/drinkless/tdlib/TdApi.java || exit 1
+-  mkdir -p tdlib/java/org/drinkless/tdlib || exit 1
+-  cp -p {..,tdlib}/java/org/drinkless/tdlib/Client.java || exit 1
+-  mv {,tdlib/java/}org/drinkless/tdlib/TdApi.java || exit 1
+-  rm -rf org || exit 1
+-
+-  echo "Generating Javadoc documentation..."
+-  cp "$ANDROID_SDK_ROOT/platforms/android-34/android.jar" . || exit 1
+-  JAVADOC_SEPARATOR=$([ "$OS_NAME" == "win" ] && echo ";" || echo ":")
+-  javadoc -d tdlib/javadoc -encoding UTF-8 -charset UTF-8 -classpath "android.jar${JAVADOC_SEPARATOR}annotation-1.4.0.jar" -quiet -sourcepath tdlib/java org.drinkless.tdlib || exit 1
+-  rm android.jar annotation-1.4.0.jar || exit 1
+-fi
+-if [ "$TDLIB_INTERFACE" == "JSONJava" ] ; then
+-  mkdir -p tdlib/java/org/drinkless/tdlib || exit 1
+-  cp -p {..,tdlib}/java/org/drinkless/tdlib/JsonClient.java || exit 1
+-fi
+-
+-echo "Building TDLib..."
++echo "Building tde2e..."
+ for ABI in arm64-v8a armeabi-v7a x86_64 x86 ; do
+   mkdir -p tdlib/libs/$ABI/ || exit 1
+ 
+   mkdir -p build-$ABI-$TDLIB_INTERFACE || exit 1
+   cd build-$ABI-$TDLIB_INTERFACE
+-  cmake -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" -DOPENSSL_ROOT_DIR="$OPENSSL_INSTALL_DIR/$ABI" -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja -DANDROID_ABI=$ABI -DANDROID_STL=$ANDROID_STL -DANDROID_PLATFORM=android-16 $TDLIB_INTERFACE_OPTION .. || exit 1
++  cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" -DOPENSSL_ROOT_DIR="$OPENSSL_INSTALL_DIR/$ABI" -DCMAKE_BUILD_TYPE=RelWithDebInfo -GNinja -DANDROID_ABI=$ABI -DANDROID_STL=$ANDROID_STL -DANDROID_PLATFORM=android-21 $TDLIB_INTERFACE_OPTION .. || exit 1
+   if [ "$TDLIB_INTERFACE" == "Java" ] || [ "$TDLIB_INTERFACE" == "JSONJava" ] ; then
+-    cmake --build . --target tdjni || exit 1
+-    cp -p libtd*.so* ../tdlib/libs/$ABI/ || exit 1
+-  fi
+-  if [ "$TDLIB_INTERFACE" == "JSON" ] ; then
+-    cmake --build . --target tdjson || exit 1
+-    cp -p td/libtdjson.so ../tdlib/libs/$ABI/libtdjson.so.debug || exit 1
+-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" --strip-debug --strip-unneeded ../tdlib/libs/$ABI/libtdjson.so.debug -o ../tdlib/libs/$ABI/libtdjson.so || exit 1
++    cmake --build . --target tde2e || exit 1
+   fi
+   cd ..
+ 
+@@ -100,11 +70,6 @@ for ABI in arm64-v8a armeabi-v7a x86_64 x86 ; do
+     cp "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/sysroot/usr/lib/$FULL_ABI/libc++_shared.so" tdlib/libs/$ABI/ || exit 1
+     "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" tdlib/libs/$ABI/libc++_shared.so || exit 1
+   fi
+-  if [ -e "$OPENSSL_INSTALL_DIR/$ABI/lib/libcrypto.so" ] ; then
+-    cp "$OPENSSL_INSTALL_DIR/$ABI/lib/libcrypto.so" "$OPENSSL_INSTALL_DIR/$ABI/lib/libssl.so" tdlib/libs/$ABI/ || exit 1
+-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" tdlib/libs/$ABI/libcrypto.so || exit 1
+-    "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_ARCH/bin/llvm-strip" tdlib/libs/$ABI/libssl.so || exit 1
+-  fi
+ done
+ 
+ echo "Compressing..."
+diff --git a/example/android/check-environment.sh b/example/android/check-environment.sh
+index 7e63287d1..6981da2ec 100755
+--- a/example/android/check-environment.sh
++++ b/example/android/check-environment.sh
+@@ -25,7 +25,7 @@ else
+   exit 1
+ fi
+ 
+-for TOOL_NAME in gperf jar java javadoc make perl php sed tar yes unzip ; do
++for TOOL_NAME in gperf jar java javadoc make perl sed tar yes unzip ; do
+   if ! which "$TOOL_NAME" >/dev/null 2>&1 ; then
+     echo "Error: this script requires $TOOL_NAME tool installed."
+     exit 1
+diff --git a/td/generate/CMakeLists.txt b/td/generate/CMakeLists.txt
+index f6ed78a0f..83c23b284 100644
+--- a/td/generate/CMakeLists.txt
++++ b/td/generate/CMakeLists.txt
+@@ -111,14 +111,14 @@ set(TL_GENERATE_JSON_SOURCE
+ )
+ 
+ if (NOT CMAKE_CROSSCOMPILING)
+-  find_program(PHP_EXECUTABLE php)
++  find_program(FALSE php)
+ 
+   if ((CMAKE_SYSTEM_NAME MATCHES "FreeBSD") AND (CMAKE_SYSTEM_VERSION MATCHES "HBSD"))
+-    set(PHP_EXECUTABLE "PHP_EXECUTABLE-NOTFOUND")
++    set(FALSE "FALSE-NOTFOUND")
+   endif()
+ 
+-  if (PHP_EXECUTABLE AND NOT TD_ENABLE_DOTNET)
+-    set(GENERATE_COMMON_CMD generate_common && ${PHP_EXECUTABLE} ../DoxygenTlDocumentationGenerator.php ../scheme/td_api.tl td/telegram/td_api.h)
++  if (FALSE AND NOT TD_ENABLE_DOTNET)
++    set(GENERATE_COMMON_CMD generate_common && ${FALSE} ../DoxygenTlDocumentationGenerator.php ../scheme/td_api.tl td/telegram/td_api.h)
+   else()
+     set(GENERATE_COMMON_CMD generate_common)
+   endif()
+@@ -207,8 +207,8 @@ if (NOT CMAKE_CROSSCOMPILING)
+   endif()
+ 
+   if (TD_ENABLE_DOTNET)
+-    if (PHP_EXECUTABLE)
+-      set(GENERATE_DOTNET_API_CMD td_generate_dotnet_api ${TD_API_TLO_FILE} && ${PHP_EXECUTABLE} ../DotnetTlDocumentationGenerator.php ../scheme/td_api.tl td/telegram/TdDotNetApi.h)
++    if (FALSE)
++      set(GENERATE_DOTNET_API_CMD td_generate_dotnet_api ${TD_API_TLO_FILE} && ${FALSE} ../DotnetTlDocumentationGenerator.php ../scheme/td_api.tl td/telegram/TdDotNetApi.h)
+     else()
+       set(GENERATE_DOTNET_API_CMD td_generate_dotnet_api ${TD_API_TLO_FILE})
+     endif()

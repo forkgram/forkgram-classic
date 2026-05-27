@@ -216,8 +216,8 @@ public class HintView extends FrameLayout {
             } else if (count == -1) {
                 textView.setText(LocaleController.getString(R.string.PollSelectOption));
             } else {
-                return false;
-                /*if (cell.getMessageObject().isQuiz()) {
+                // [classic] #32: restored the 11.9.5.0 vote-count hint body (the redesign stubbed it with `return false`, so tapping a voted option showed nothing).
+                if (cell.getMessageObject().isQuiz()) {
                     if (count == 0) {
                         textView.setText(LocaleController.getString(R.string.NoVotesQuiz));
                     } else {
@@ -229,7 +229,7 @@ public class HintView extends FrameLayout {
                     } else {
                         textView.setText(LocaleController.formatPluralString("Vote", count));
                     }
-                }*/
+                }
             }
             measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(1000, MeasureSpec.AT_MOST));
         } else {

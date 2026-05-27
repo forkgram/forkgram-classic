@@ -129,13 +129,13 @@ public class AboutLinkCell extends FrameLayout {
         valueTextView.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         valueTextView.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         valueTextView.setFocusable(false);
-        container.addView(valueTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, 18, 0, 18, 10));
+        container.addView(valueTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, 23, 0, 23, 10)); // [classic] #40: bio inset 18->23 to match the other profile rows
 
         bottomShadow = new FrameLayout(context);
         Drawable shadowDrawable = context.getResources().getDrawable(R.drawable.gradient_bottom).mutate();
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider), PorterDuff.Mode.SRC_ATOP));
         bottomShadow.setBackground(shadowDrawable);
-        addView(bottomShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 12, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 16, 0, 16, 0));
+        addView(bottomShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 12, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, 0)); // [classic] #40: full-width fade like 11.9.5.0
 
         addView(container, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.FILL_HORIZONTAL));
 
@@ -185,7 +185,7 @@ public class AboutLinkCell extends FrameLayout {
             dp(3)
         );
         showMoreTextBackgroundView.addView(showMoreTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
-        addView(showMoreTextBackgroundView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.BOTTOM, 18 - showMoreTextBackgroundView.getPaddingLeft() / AndroidUtilities.density, 0, 18 - showMoreTextBackgroundView.getPaddingRight() / AndroidUtilities.density, 6));
+        addView(showMoreTextBackgroundView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.BOTTOM, 22 - showMoreTextBackgroundView.getPaddingLeft() / AndroidUtilities.density, 0, 22 - showMoreTextBackgroundView.getPaddingRight() / AndroidUtilities.density, 6)); // [classic] #40: "more" inset 18->22 like 11.9.5.0
         backgroundPaint.setColor(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider));
 
         setWillNotDraw(false);
@@ -287,8 +287,8 @@ public class AboutLinkCell extends FrameLayout {
     final float SPACE = dp(3f);
     private void drawText(Canvas canvas) {
         canvas.save();
-        canvas.clipRect(dp(18 - 8), dp(8), getWidth() - dp(18), getHeight());
-        canvas.translate(textX = dp(18), 0);
+        canvas.clipRect(dp(23 - 8), dp(8), getWidth() - dp(23), getHeight()); // [classic] #40: bio inset 18->23
+        canvas.translate(textX = dp(23), 0); // [classic] #40: bio inset 18->23
         if (links != null && links.draw(canvas)) {
             invalidate();
         }
@@ -371,7 +371,7 @@ public class AboutLinkCell extends FrameLayout {
         MessageObject.addLinks(false, stringBuilder, false, false, !parseLinks);
         Emoji.replaceEmoji(stringBuilder, Theme.profile_aboutTextPaint.getFontMetricsInt(), false);
         if (lastMaxWidth <= 0) {
-            lastMaxWidth = AndroidUtilities.displaySize.x - dp(18 + 18);
+            lastMaxWidth = AndroidUtilities.displaySize.x - dp(23 + 23); // [classic] #40: bio inset 18->23
         }
         checkTextLayout(lastMaxWidth, true);
         updateHeight();
@@ -442,7 +442,7 @@ public class AboutLinkCell extends FrameLayout {
             y >= showMoreTextView.getTop() &&  y <= showMoreTextView.getBottom()) {
             return null;
         }
-        if (getMeasuredWidth() > 0 && x > getMeasuredWidth() - dp(18)) {
+        if (getMeasuredWidth() > 0 && x > getMeasuredWidth() - dp(23)) { // [classic] #40: bio inset 18->23
             return null;
         }
         LinkSpanDrawable link;
@@ -679,7 +679,7 @@ public class AboutLinkCell extends FrameLayout {
     @SuppressLint("DrawAllocation")
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        checkTextLayout(MeasureSpec.getSize(widthMeasureSpec) - dp(18 + 18), false);
+        checkTextLayout(MeasureSpec.getSize(widthMeasureSpec) - dp(23 + 23), false); // [classic] #40: bio inset 18->23
         int height = updateHeight();
         super.onMeasure(
             widthMeasureSpec,

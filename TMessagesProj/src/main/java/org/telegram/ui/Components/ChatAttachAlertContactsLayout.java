@@ -414,7 +414,10 @@ public class ChatAttachAlertContactsLayout extends ChatAttachAlert.AttachAlertLa
         occupyStatusBar = true;
         occupyNavigationBar = true;
 
-        listView.setSections();
+        // [classic] #13: drop the redesign's inset rounded-card list (setSections() applies a
+        // dp(12) horizontal inset + card backgrounds to every row). Classic (11.9.5.0) used a plain
+        // edge-to-edge list, so the contact rows sit tight to the left like the now-fixed Files tab.
+        // listView.setSections();
         listView.setClipToPadding(false);
         listView.setLayoutManager(layoutManager = new FillLastLinearLayoutManager(getContext(), LinearLayoutManager.VERTICAL, false, AndroidUtilities.dp(9), listView) {
             @Override

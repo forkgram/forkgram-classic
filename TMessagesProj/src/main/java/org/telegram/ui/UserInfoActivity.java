@@ -260,7 +260,8 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
         this.listView = super.listView;
         listView.listenReorder(this::whenAccountsReordered);
         listView.allowReorder(true);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.setClipToPadding(false);
         actionBar.setAdaptiveBackground(listView);
         if (parentLayout != null && parentLayout.isRightLayout()) {
@@ -1002,7 +1003,8 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
 
             super.createView(context);
 
-            listView.setSections();
+            // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+            listView.setSections(0, 0, false);
             actionBar.setAdaptiveBackground(listView);
 
             return fragmentView;
