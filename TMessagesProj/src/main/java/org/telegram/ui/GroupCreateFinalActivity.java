@@ -481,8 +481,9 @@ public class GroupCreateFinalActivity extends BaseFragment implements Notificati
         sizeNotifierFrameLayout.addView(linearLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
 
         editTextContainer = new FrameLayout(context);
-        editTextContainer.setBackground(Theme.createRoundRectDrawableShadowed(dp(16), getThemedColor(Theme.key_windowBackgroundWhite)));
-        linearLayout.addView(editTextContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 9, 0, 9, 0));
+        // [classic] #20: flat full-width white header — drop the redesign's rounded floating card + side insets.
+        editTextContainer.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        linearLayout.addView(editTextContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         avatarImage = new BackupImageView(context) {
             @Override
@@ -596,7 +597,8 @@ public class GroupCreateFinalActivity extends BaseFragment implements Notificati
         editTextContainer.addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_VERTICAL, LocaleController.isRTL ? 5 : 96, 0, LocaleController.isRTL ? 96 : 5, 0));
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         linearLayoutManager = new FillLastLinearLayoutManager(context, LinearLayoutManager.VERTICAL, listView);
 
         listView.setAdapter(adapter = new GroupCreateAdapter(context));
@@ -1083,6 +1085,8 @@ public class GroupCreateFinalActivity extends BaseFragment implements Notificati
         };
 
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
+        // [classic] #20: keep the flat white header theme-safe on live theme switches (it has a baked bg).
+        themeDescriptions.add(new ThemeDescription(editTextContainer, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
 
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_actionBarDefault));
