@@ -281,7 +281,86 @@ This is the most "engineering-recon" phase.
     - Resource restores: `bottom_shadow.*`, `menu_shadow.*` from baseline; added back strings `PollQuestion`, `AnswerOptions`, `QuizInfo`.
     - Many one-off call-site adjustments in `ChatActivity` (`createScheduleDatePickerDialog` 7-arg, `createClearOrDeleteDialogAlert` 11-arg, `sendMessage(ArrayList,…)` 12-arg, `prepareSendingPhoto`/`prepareSendingAudioDocuments`/`prepareSendingVideo` `scheduleRepeatPeriod` slot, `editMessage(7-arg)`, `toggleTodo(5-arg)`, `StarsReactionsSheet(10-arg)`, `ShareAlert(14-arg)`, `BotHelpCell(currentAccount)`/`setText(6-arg)`, `TodoCompletion.completed_by` Peer→long).
 - [x] Phase goal — **compile clean.** Pending: `assembleForkTestDebug` (linker/R8) and runtime launch verification.
+- [x] Runtime smoke-test on 32-bit Android 11 device: app launches, login works, dialogs list opens, chats open, message sends. **Confirmed 2026-05-26.**
 - [ ] No Forkgram features at this stage — design only.
+
+#### Phase 1 → Phase 2 backlog (visual regressions seen on first run)
+
+Observed during the 2026-05-26 smoke-test on a fresh `org.forkgram.messenger`
+install. None of these block compile or runtime correctness — they are
+appearance issues that the redesigned (upstream-pinned) UI still wears
+because the relevant Forkgram patches haven't been cherry-picked yet, or
+because the pinned classic file needs a small targeted fix:
+
+1. **Chat: pinned-message bar is transparent.** [FIXED 2026-05-26.] Root
+   cause: Phase 1 hand-merge had renamed `R.drawable.blockpanel` →
+   `R.drawable.blockpanel_shadow` in 4 `ChatActivity` sites
+   (`topChatPanelView`, `topChatPanelView2`, `pinnedMessageView`,
+   `alertView`) because upstream had dropped `blockpanel.{png,webp}` and
+   the pinned 12.1.1 code did not compile. `blockpanel_shadow` is the
+   drop-shadow gradient alone, so the bar lost its solid fill. Fix:
+   restored `blockpanel.png` (mdpi, hdpi, xhdpi, xxhdpi) from baseline
+   `9cbf03332` and reverted the 4 sites back to `R.drawable.blockpanel`.
+   Built clean with `assembleAfatDebug -PF_DROID=1`; runtime verification
+   left for the next device install.
+2. **Dialogs: side drawer absent.** [NOT a cherry-pick — port required.]
+   Default UI is `MainTabsActivity` bottom tabs. PLAN §0.1.4 commits to
+   making the drawer default. **Investigation 2026-05-26:** `dev` has
+   *zero* commits touching `sideMenu` / `DrawerLayoutAdapter` /
+   `DrawerProfileCell` — upstream removed the entire wiring from
+   `LaunchActivity` (no `sideMenu` field; no `setSideMenu(...)`; no
+   `setAllowOpenDrawer(true, false)` calls anywhere). Toggle
+   `UserConfig.mainTabsHiddenFork` (commit `772d0c6b4`) only hides
+   bottom tabs; it does not bring the drawer back. To restore the
+   classic drawer we need a hand-port of ~200 LoC from
+   `9cbf03332:LaunchActivity.java` (lines 546–578 for
+   `RecyclerListView`/`DrawerLayoutAdapter`/`setDrawerLayout` plus
+   ~20 `setAllowOpenDrawer(true, false)` calls at fragment transitions)
+   on top of the upstream-pinned LaunchActivity. Tracking as its own
+   Phase 2 task.
+3. **Dialogs: folder tabs render as floating "island" chips.** Pre-
+   redesign they were a continuous bar. This is `DialogsActivity`
+   styling that comes with the upstream redesign; needs a Forkgram
+   patch (or a targeted style override) to revert.
+4. **Dialogs: server-side suggestions render as a pill.** Before the
+   redesign they were a full-width bar. Same class of regression as #3
+   — `DialogsActivity` upstream styling.
+
+For Phase 2 the live tickets:
+- ~~#1 (pinned bar) — fixed.~~
+- ~~#2 (drawer) — compile-clean port landed 2026-05-26.~~ Added imports,
+  fields and a `setupSideMenu()` helper to current `LaunchActivity` that
+  builds the sideMenu RecyclerListView + DrawerLayoutAdapter +
+  SideMenultItemAnimator, wires `drawerLayoutContainer.setDrawerLayout(...)`
+  and adds three `setAllowOpenDrawer(true|false, false)` call sites
+  (onCreate activated / not-activated paths + switchToAccount). Click
+  handler covers profile cell tap, account switch and add-account.
+  Long-press / drag / updateLayout integration not ported — minimal first
+  pass. Runtime verification still pending — needs APK install and a
+  swipe-from-left on the dialogs list to confirm drawer slides out and
+  accounts/menu items render.
+- ~~#3 (folder tabs as chips) — speculative fix landed 2026-05-26.~~
+  Root cause: `FilterTabsView` clipped `dispatchDraw` to a rounded
+  `clipPath` inset 9dp/16dp-radius, producing the chip look. Fix gutted
+  the clip path build and removed `canvas.clipPath(clipPath)` so tabs
+  paint edge-to-edge.
+- ~~#4 (server suggestion as pill) — speculative fix landed
+  2026-05-26.~~ Root cause: `DialogsActivityTopPanelLayout.dispatchDraw`
+  set the `BlurredBackgroundDrawable` bounds to `(dp(4), dp(14),
+  w-dp(4), …)` with radius `min(dp(24), bgH/2)`. Fix: full-width
+  bounds, zero radius, zero-radius clip path.
+
+All four regressions now ship in the APK and are **runtime-verified on
+a 32-bit Android 11 device (2026-05-26 evening)**.
+
+Critical layout bug discovered late in the session: the new redesign added
+`contentView.addView(topPanelLayout, createFrame(MATCH, WRAP, TOP, 0, -14,
+0, 0))` — a `-14dp` top margin that shifts the hint/context container
+14dp UP into the `filterTabsView` area. Changing it to `0` fixed the
+"tabs overlap hint", "archive half-shown", and "active tab underline
+clipped" issues simultaneously. Lesson for future Phase 2 work: when
+content appears compressed/overlapped, audit `addView(..., createFrame(...))`
+margins on the wrapper before chasing internal widget geometry.
 
 #### Phase 1 deferrals (consult before merging)
 
