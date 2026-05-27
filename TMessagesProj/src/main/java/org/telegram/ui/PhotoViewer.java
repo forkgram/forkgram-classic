@@ -268,6 +268,7 @@ import org.telegram.ui.Components.Paint.Views.StickerMakerBackgroundView;
 import org.telegram.ui.Components.PaintingOverlay;
 import org.telegram.ui.Components.PhotoCropView;
 import org.telegram.ui.Components.PhotoFilterView;
+import org.telegram.ui.Components.PhotoViewerBlurDrawable; // [classic] #24
 import org.telegram.ui.Components.PhotoViewerCoverEditor;
 import org.telegram.ui.Components.PhotoViewerPollAttachButtons;
 import org.telegram.ui.Components.PhotoViewerWebView;
@@ -4763,7 +4764,217 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
         scroller = new Scroller(activity);
 
-        windowView = new PhotoViewerWindowView(activity);
+        windowView = new FrameLayout(activity) {
+
+            @Override
+            public boolean onInterceptTouchEvent(MotionEvent ev) {
+                return isVisible && super.onInterceptTouchEvent(ev);
+            }
+
+            @Override
+            public boolean onTouchEvent(MotionEvent event) {
+                return isVisible && PhotoViewer.this.onTouchEvent(event);
+            }
+
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent event) {
+                int keyCode = event.getKeyCode();
+                if (!muteVideo && sendPhotoType != SELECT_TYPE_AVATAR && isCurrentVideo && videoPlayer != null && event.getRepeatCount() == 0 && event.getAction() == KeyEvent.ACTION_DOWN && (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+                    videoPlayer.setVolume(1.0f);
+                }
+                return super.dispatchKeyEvent(event);
+            }
+
+            @Override
+            public boolean dispatchTouchEvent(MotionEvent ev) {
+                if (videoPlayerControlVisible && isPlaying) {
+                    switch (ev.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                        case MotionEvent.ACTION_POINTER_DOWN:
+                            AndroidUtilities.cancelRunOnUIThread(hideActionBarRunnable);
+                            break;
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                        case MotionEvent.ACTION_POINTER_UP:
+                            if (currentMessageObject == null || !currentMessageObject.isSponsored()) {
+                                scheduleActionBarHide();
+                            }
+                            break;
+                    }
+                }
+                return super.dispatchTouchEvent(ev);
+            }
+
+            @Override
+            protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                boolean result;
+                try {
+                    result = super.drawChild(canvas, child, drawingTime);
+                } catch (Throwable ignore) {
+                    result = false;
+                }
+                return result;
+            }
+
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                int widthSize = MeasureSpec.getSize(widthMeasureSpec);
+                int heightSize = MeasureSpec.getSize(heightMeasureSpec);
+                if (!inBubbleMode) {
+                    if (AndroidUtilities.incorrectDisplaySizeFix) {
+                        if (heightSize > AndroidUtilities.displaySize.y) {
+                            heightSize = AndroidUtilities.displaySize.y;
+                        }
+                        heightSize += AndroidUtilities.statusBarHeight;
+                    } else {
+                        // forkgram-classic: restored from the 11.7 / 12.2 baseline. Reconciles the
+                        // global displaySize.y (which display.getSize() reports unreliably on some
+                        // OEMs) with the photo viewer's real window height, so getContainerViewHeight()
+                        // (= displaySize.y + statusBar) matches the actual canvas. Was dropped while
+                        // unwrapping the old `if (SDK_INT >= 21)` guard; without it tall/narrow images
+                        // are fit-scaled taller than the canvas and clip at the bottom.
+                        int insetBottom = insets.bottom;
+                        if (insetBottom >= 0 && AndroidUtilities.statusBarHeight >= 0) {
+                            int newSize = heightSize - AndroidUtilities.statusBarHeight - insets.bottom;
+                            if (newSize > 0 && newSize < 4096) {
+                                AndroidUtilities.displaySize.y = newSize;
+                            }
+                        }
+                    }
+                }
+                int bottomInsets = insets.bottom;
+                heightSize -= bottomInsets;
+                widthSize -= getPaddingLeft() + getPaddingRight();
+                heightSize -= getPaddingBottom();
+                setMeasuredDimension(widthSize, heightSize);
+                ViewGroup.LayoutParams layoutParams = animatingImageView.getLayoutParams();
+                animatingImageView.measure(MeasureSpec.makeMeasureSpec(layoutParams.width, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(layoutParams.height, MeasureSpec.AT_MOST));
+                containerView.measure(MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(heightSize, MeasureSpec.EXACTLY));
+                navigationBar.measure(MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(navigationBarHeight, MeasureSpec.EXACTLY));
+            }
+
+            @SuppressWarnings("DrawAllocation")
+            @Override
+            protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+                animatingImageView.layout(getPaddingLeft(), 0, getPaddingLeft() + animatingImageView.getMeasuredWidth(), animatingImageView.getMeasuredHeight());
+                containerView.layout(getPaddingLeft(), 0, getPaddingLeft() + containerView.getMeasuredWidth(), containerView.getMeasuredHeight());
+                navigationBar.layout(getPaddingLeft(), containerView.getMeasuredHeight(), navigationBar.getMeasuredWidth(), containerView.getMeasuredHeight() + navigationBar.getMeasuredHeight());
+                wasLayout = true;
+                if (changed) {
+                    if (!dontResetZoomOnFirstLayout) {
+                        scale = scale1();
+                        translationX = 0;
+                        translationY = 0;
+                        updateMinMax(scale);
+                    }
+
+                    if (checkImageView != null) {
+                        checkImageView.post(() -> {
+                            LayoutParams layoutParams = (LayoutParams) checkImageView.getLayoutParams();
+                            WindowManager manager = (WindowManager) ApplicationLoader.applicationContext.getSystemService(Activity.WINDOW_SERVICE);
+                            int rotation = manager.getDefaultDisplay().getRotation();
+                            int newMargin = (ActionBar.getCurrentActionBarHeight() - dp(34)) / 2 + (isStatusBarVisible() ? AndroidUtilities.statusBarHeight : 0);
+                            if (newMargin != layoutParams.topMargin) {
+                                layoutParams.topMargin = newMargin;
+                                checkImageView.setLayoutParams(layoutParams);
+                            }
+
+                            layoutParams = (LayoutParams) photosCounterView.getLayoutParams();
+                            newMargin = (ActionBar.getCurrentActionBarHeight() - dp(40)) / 2 + (isStatusBarVisible() ? AndroidUtilities.statusBarHeight : 0);
+                            if (layoutParams.topMargin != newMargin) {
+                                layoutParams.topMargin = newMargin;
+                                photosCounterView.setLayoutParams(layoutParams);
+                            }
+                        });
+                    }
+                }
+                if (dontResetZoomOnFirstLayout) {
+                    setScaleToFill();
+                    dontResetZoomOnFirstLayout = false;
+                }
+            }
+
+            @Override
+            protected void onAttachedToWindow() {
+                super.onAttachedToWindow();
+                centerImage.onAttachedToWindow();
+                leftImage.onAttachedToWindow();
+                rightImage.onAttachedToWindow();
+                attachedToWindow = true;
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                super.onDetachedFromWindow();
+                centerImage.onDetachedFromWindow();
+                leftImage.onDetachedFromWindow();
+                rightImage.onDetachedFromWindow();
+                attachedToWindow = false;
+                wasLayout = false;
+            }
+
+            @Override
+            public boolean dispatchKeyEventPreIme(KeyEvent event) {
+                if (event != null && event.getKeyCode() == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+                    if (textSelectionHelper.isInSelectionMode()) {
+                        textSelectionHelper.clear();
+                    }
+                    if (isCaptionOpen()) {
+                        closeCaptionEnter(true);
+                        return false;
+                    }
+                    if (ContentPreviewViewer.getInstance().isVisible()) {
+                        ContentPreviewViewer.getInstance().closeWithMenu();
+                        return false;
+                    }
+                    PhotoViewer.getInstance().closePhoto(true, false);
+                    return true;
+                }
+                return super.dispatchKeyEventPreIme(event);
+            }
+
+            @Override
+            protected void onDraw(Canvas canvas) {
+                if (stickerMakerBackgroundView != null && stickerMakerBackgroundView.getVisibility() == View.VISIBLE) {
+                    View parent = (View) stickerMakerBackgroundView.getParent();
+                    float alpha = Math.min(stickerMakerBackgroundView.getAlpha(), parent != null ? parent.getAlpha() : 1f);
+                    if (alpha > 0) {
+                        canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(), (int) (0xFF * alpha), Canvas.ALL_SAVE_FLAG);
+                        stickerMakerBackgroundView.draw(canvas);
+                        canvas.restore();
+                    }
+                }
+                if (isVisible) {
+                    blackPaint.setAlpha(backgroundDrawable.getAlpha());
+                    canvas.drawRect(0, getMeasuredHeight(), getMeasuredWidth(), getMeasuredHeight() + insets.bottom, blackPaint);
+                }
+            }
+
+            @Override
+            public void draw(@NonNull Canvas canvas) {
+                if (windowViewSkipRender) {
+                    return;
+                }
+                super.draw(canvas);
+            }
+
+            @Override
+            protected void dispatchDraw(Canvas canvas) {
+                super.dispatchDraw(canvas);
+                if (parentChatActivity != null) {
+                    View undoView = parentChatActivity.getUndoView();
+                    if (undoView != null && undoView.getVisibility() == View.VISIBLE) {
+                        canvas.save();
+                        View parent = (View) undoView.getParent();
+                        canvas.clipRect(parent.getX(), parent.getY(), parent.getX() + parent.getWidth(), parent.getY() + parent.getHeight());
+                        canvas.translate(undoView.getX(), undoView.getY());
+                        undoView.draw(canvas);
+                        canvas.restore();
+                        invalidate();
+                    }
+                }
+            }
+        };
         windowView.setBackground(backgroundDrawable);
         windowView.setFocusable(false);
 
@@ -6214,7 +6425,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-                ((LayoutParams) itemsLayout.getLayoutParams()).rightMargin = pickerViewSendButton.getVisibility() == View.VISIBLE ? dp(63) : 0;
+                ((LayoutParams) itemsLayout.getLayoutParams()).rightMargin = pickerViewSendButton.getVisibility() == View.VISIBLE ? dp(70) : 0; // [classic] #24
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             }
 
@@ -6258,7 +6469,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
                 super.onLayout(changed, left, top, right, bottom);
                 if (itemsLayout.getVisibility() != GONE) {
-                    int rightMargin = pickerViewSendButton.getVisibility() == View.VISIBLE ? dp(63) : 0;
+                    int rightMargin = pickerViewSendButton.getVisibility() == View.VISIBLE ? dp(70) : 0; // [classic] #24
                     int x = (right - left - rightMargin - itemsLayout.getMeasuredWidth()) / 2;
                     itemsLayout.layout(x, itemsLayout.getTop(), x + itemsLayout.getMeasuredWidth(), itemsLayout.getTop() + itemsLayout.getMeasuredHeight());
                 }
@@ -6690,12 +6901,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         muteButton.setScaleType(ImageView.ScaleType.CENTER);
         muteButton.setImageDrawable(muteDrawable = new MuteDrawable(parentActivity));
         muteButton.setColorFilter(new PorterDuffColorFilter(0xFFFFFFFF, PorterDuff.Mode.SRC_IN));
-        muteButton.setBackground(iBlur3FactoryFrostedLiquidGlass.create(muteButton)
-            .setColorProvider(BlurredBackgroundProviderImpl.photoViewer(null))
-            .setPadding(dp(4))
-            .setRadius(dp(16)));
+        muteButton.setBackground(new PhotoViewerBlurDrawable(this, blurManager, muteButton)); // [classic] #24: classic blur chip
         ScaleStateListAnimator.apply(muteButton);
-        containerView.addView(muteButton, LayoutHelper.createFrame(40, 40, Gravity.LEFT | Gravity.BOTTOM, 8, 0, 0, -4));
+        containerView.addView(muteButton, LayoutHelper.createFrame(32, 32, Gravity.LEFT | Gravity.BOTTOM, 12, 0, 0, 0));
         muteButton.setOnClickListener(v -> {
             if (isCaptionOpen()) {
                 return;
@@ -6792,7 +7000,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
             @Override
             public void updateKeyboard(int keyboardHeight) {
-                super.updateKeyboard(keyboardHeight - insets.bottom);
+                // [classic] #99: 11.9.5.0 passes the keyboard height straight through. 12.x subtracts
+                // insets.bottom here, but that only balances on the redesign's window geometry: the
+                // restored classic windowView.onMeasure already takes the bottom inset off its own
+                // measured height, so the height KeyboardNotifier derives from it is nav-bar-free
+                // already. Subtracting it a second time lifted the caption a navigation bar short and
+                // left it under the keyboard.
+                super.updateKeyboard(keyboardHeight);
                 final Bulletin bulletin = Bulletin.getVisibleBulletin();
                 if (bulletin != null) {
                     bulletin.updatePosition();
@@ -6865,7 +7079,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             @Override
             public void updateMentionsLayoutPosition() {
                 if (mentionContainer != null) {
-                    mentionContainer.setTranslationY(-getEditTextHeight() - dp(14) - keyboardNotifier.getKeyboardHeight());
+                    mentionContainer.setTranslationY(-getEditTextHeight() - keyboardNotifier.getKeyboardHeight()); // [classic] #24: classic — no glass-island gap
                 }
             }
 
@@ -6908,8 +7122,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 }
             }
         };
-        captionEdit.setBlurredBackgroundDrawableForMentions(iBlur3FactoryFrostedLiquidGlass);
-        // captionEdit.editText.getEditText().setBlurredBackgroundDrawableViewFactory(iBlur3FactoryFrostedLiquidGlass);
+        // [classic] #24: no liquid-glass skin for the caption box / mentions / emoji panel.
         captionEdit.setOnTimerChange(seconds -> {
             Object object1 = imagesArrLocals.get(currentIndex);
             if (object1 instanceof MediaController.PhotoEntry) {
@@ -6931,7 +7144,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             livePhotoButton.setTranslationY(-Math.max(0, height - dp(46)) * captionEdit.getAlpha());
             editCoverButton.setTranslationY(-Math.max(0, height - dp(46)) * captionEdit.getAlpha());
             if (captionEdit.mentionContainer != null) {
-                captionEdit.mentionContainer.setTranslationY(-height - dp(14));
+                captionEdit.mentionContainer.setTranslationY(-height); // [classic] #24: classic — no glass-island gap
             }
         });
         captionEdit.setOnAddPhotoClick(v -> {
@@ -6957,7 +7170,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
             @Override
             public void updateKeyboard(int keyboardHeight) {
-                super.updateKeyboard(keyboardHeight - insets.bottom);
+                // [classic] #99: same as captionEdit above — the classic window geometry has already
+                // taken the bottom inset off, so pass the height through like 11.9.5.0 did.
+                super.updateKeyboard(keyboardHeight);
                 actionBar.animate().alpha(isActionBarVisible && (getCaptionView() != topCaptionEdit || !topCaptionEdit.keyboardNotifier.keyboardVisible()) ? 1.0f : 0.0f).start();
                 if (pickerView.getVisibility() == View.VISIBLE) {
                     toggleOnlyCheckImageView(isActionBarVisible && (getCaptionView() != topCaptionEdit || !topCaptionEdit.keyboardNotifier.keyboardVisible()));
@@ -7044,7 +7259,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 }
             }
         };
-        topCaptionEdit.setBlurredBackgroundDrawableForMentions(iBlur3FactoryFrostedLiquidGlass);
+        // [classic] #24: no liquid-glass skin for the top caption box either.
         topCaptionEdit.setShowMoveButtonVisible(true, false);
         topCaptionEdit.setOnTimerChange(seconds -> {
             Object object1 = imagesArrLocals.get(currentIndex);
@@ -7342,7 +7557,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         videoAvatarTooltip.setTextColor(0xff8c8c8c);
         containerView.addView(videoAvatarTooltip, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 0, 8, 0, 0));
 
-        pickerViewSendButton = new ChatActivityEnterView.SendButton(parentActivity, R.drawable.send_plane_24, resourcesProvider) {
+        pickerViewSendButton = new ChatActivityEnterView.SendButton(parentActivity, R.drawable.msg_input_send_mini, resourcesProvider) { // [classic] #24: classic send icon
             @Override
             public boolean isOpen() {
                 return true;
@@ -7364,10 +7579,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 return getThemedColor(Theme.key_chat_editMediaButton);
             }
         };
-        pickerViewSendButton.setCircleSize(dp(52), dp(38));
-        pickerViewSendButton.newCounterPos = true;
-        pickerViewSendButton.setBlurredBackgroundDrawable(iBlur3FactoryFrostedLiquidGlass.create(pickerViewSendButton).setColorProvider(BlurredBackgroundProviderImpl.photoViewer(resourcesProvider)));
-        containerView.addView(pickerViewSendButton, LayoutHelper.createFrame(120, 120, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 8, 2f));
+        // [classic] #24: classic 48dp round send button, no liquid-glass capsule/backdrop.
+        pickerViewSendButton.setCircleSize(dp(48));
+        containerView.addView(pickerViewSendButton, LayoutHelper.createFrame(120, 120, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 14, 2.33f));
         pickerViewSendButton.setContentDescription(getString("Send", R.string.Send));
         ScaleStateListAnimator.apply(pickerViewSendButton);
         pickerViewSendButton.setOnClickListener(v -> {
@@ -7501,7 +7715,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 int height = MeasureSpec.getSize(heightMeasureSpec);
 
                 if (visibleItemsCount != 0) {
-                    int itemWidth = Math.min(dp(56), width / visibleItemsCount);
+                    int itemWidth = Math.min(dp(70), width / visibleItemsCount); // [classic] #24: classic item width
                     if (compressItem.getVisibility() == VISIBLE) {
                         ignoreLayout = true;
                         int compressIconWidth;
@@ -7538,18 +7752,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             }
         };
         itemsLayout.setOrientation(LinearLayout.HORIZONTAL);
-        itemsLayout.setPadding(dp(2), 0, dp(2), 0);
-        itemsLayout.setBackground(iBlur3FactoryFrostedLiquidGlass.create(itemsLayout)
-            .setColorProvider(BlurredBackgroundProviderImpl.photoViewer(resourcesProvider))
-            .setPadding(dp(2))
-            .setRadius(dp(22)));
-
-        pickerView.addView(itemsLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 48, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0, 3, 63, 0));
+        // [classic] #24: classic flat editor toolbar — no frosted liquid-glass pill behind the items.
+        pickerView.addView(itemsLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 48, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM, 0, 0, 70, 0));
 
         cropItem = new ImageView(parentActivity);
         cropItem.setScaleType(ImageView.ScaleType.CENTER);
         cropItem.setImageResource(R.drawable.media_crop);
-        cropItem.setBackground(Theme.createInsetRoundRectDrawable(0x10FFFFFF, dp(22), dp(4), dp(6)));
+        cropItem.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR)); // [classic] #24: classic ripple
         itemsLayout.addView(cropItem, LayoutHelper.createLinear(48, 48));
         cropItem.setOnClickListener(v -> {
             cancelStickerClippingMode();
@@ -7576,7 +7785,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         rotateItem = new ImageView(parentActivity);
         rotateItem.setScaleType(ImageView.ScaleType.CENTER);
         rotateItem.setImageResource(R.drawable.msg_photo_rotate);
-        rotateItem.setBackground(Theme.createInsetRoundRectDrawable(0x10FFFFFF, dp(22), dp(4), dp(6)));
+        rotateItem.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR)); // [classic] #24: classic ripple
         itemsLayout.addView(rotateItem, LayoutHelper.createLinear(48, 48));
         rotateItem.setOnClickListener(v -> cropRotate(-90));
         rotateItem.setContentDescription(getString("AccDescrRotate", R.string.AccDescrRotate));
@@ -7584,7 +7793,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         mirrorItem = new ImageView(parentActivity);
         mirrorItem.setScaleType(ImageView.ScaleType.CENTER);
         mirrorItem.setImageResource(R.drawable.media_flip);
-        mirrorItem.setBackground(Theme.createInsetRoundRectDrawable(0x10FFFFFF, dp(22), dp(4), dp(6)));
+        mirrorItem.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR)); // [classic] #24: classic ripple
         itemsLayout.addView(mirrorItem, LayoutHelper.createLinear(48, 48));
         mirrorItem.setOnClickListener(v -> cropMirror());
         mirrorItem.setContentDescription(getString("AccDescrMirror", R.string.AccDescrMirror));
@@ -7592,7 +7801,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         paintItem = new ImageView(parentActivity);
         paintItem.setScaleType(ImageView.ScaleType.CENTER);
         paintItem.setImageResource(R.drawable.media_draw);
-        paintItem.setBackground(Theme.createInsetRoundRectDrawable(0x10FFFFFF, dp(22), dp(4), dp(6)));
+        paintItem.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR)); // [classic] #24: classic ripple
         itemsLayout.addView(paintItem, LayoutHelper.createLinear(48, 48));
         paintItem.setOnClickListener(v -> {
             cancelStickerClippingMode();
@@ -7618,7 +7827,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
         compressItem = new VideoCompressButton(parentActivity);
         compressItem.setTag(1);
-        compressItem.setBackground(Theme.createInsetRoundRectDrawable(0x10FFFFFF, dp(22), dp(4), dp(6)));
+        compressItem.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR)); // [classic] #24: classic ripple
 
         selectedCompression = selectCompression();
         compressItem.setState(videoConvertSupported && compressionsCount > 1, muteVideo, Math.min(resultWidth, resultHeight));
@@ -7661,7 +7870,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         tuneItem = new ImageView(parentActivity);
         tuneItem.setScaleType(ImageView.ScaleType.CENTER);
         tuneItem.setImageResource(R.drawable.media_settings);
-        tuneItem.setBackground(Theme.createInsetRoundRectDrawable(0x10FFFFFF, dp(22), dp(4), dp(6)));
+        tuneItem.setBackground(Theme.createSelectorDrawable(Theme.ACTION_BAR_WHITE_SELECTOR_COLOR)); // [classic] #24: classic ripple
         itemsLayout.addView(tuneItem, LayoutHelper.createLinear(48, 48));
         tuneItem.setOnClickListener(v -> {
             if (v.getAlpha() < .9f) return;
@@ -19023,7 +19232,6 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             height = containerView.getMeasuredHeight();
         } else {
             height = AndroidUtilities.displaySize.y;
-            height += AndroidUtilities.navigationBarHeight - insets.bottom;
             if ((mode == EDIT_MODE_NONE || mode == EDIT_MODE_STICKER_MASK || mode == EDIT_MODE_COVER) && sendPhotoType != SELECT_TYPE_AVATAR && isStatusBarVisible()) {
                 height += AndroidUtilities.statusBarHeight;
             }

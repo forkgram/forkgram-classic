@@ -821,11 +821,13 @@ public class MessagePreviewView extends FrameLayout {
             menu.getSwipeBack().setOnForegroundOpenFinished(() -> {
                 switchToQuote(true, false);
             });
-            menu.setBackground(iBlur3Factory.create(menu).setColorProvider(BlurredBackgroundProviderImpl
-                .scrimMenuBackground(resourcesProvider))
-                .setPadding(dp(8))
-                .setHasPadding(true)
-                .setRadius(dp(12)));
+            if (iBlur3Factory != null) {
+                menu.setBackground(iBlur3Factory.create(menu).setColorProvider(BlurredBackgroundProviderImpl
+                    .scrimMenuBackground(resourcesProvider))
+                    .setPadding(dp(8))
+                    .setHasPadding(true)
+                    .setRadius(dp(12)));
+            }
 
             addView(menu, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
 
@@ -1859,11 +1861,13 @@ public class MessagePreviewView extends FrameLayout {
         };
 
         tabsView = new TabsView(context, resourcesProvider);
-        tabsView.setBackground(iBlur3Factory.create(tabsView)
-            .setColorProvider(BlurredBackgroundProviderImpl.scrimMenuBackground(resourcesProvider))
-            .setHasPadding(true)
-            .setPadding(dp(8))
-            .setRadius(dp(16)));
+        if (iBlur3Factory != null) {
+            tabsView.setBackground(iBlur3Factory.create(tabsView)
+                .setColorProvider(BlurredBackgroundProviderImpl.scrimMenuBackground(resourcesProvider))
+                .setHasPadding(true)
+                .setPadding(dp(8))
+                .setRadius(dp(16)));
+        }
 
         int p = 0;
         for (int i = 0; i < 3; ++i) {

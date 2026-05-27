@@ -226,14 +226,38 @@ public class ProfileMusicView extends View {
         invalidate();
     }
 
+    // forkgram-classic: classic restores a flat profile header, so this view lives as
+    // a plain list row (musicRow) instead of an overlay tied to the avatar-expand
+    // animation. updatePosition() is never called in that layout, leaving currentHeight
+    // at 0 and the draw/touch code below gated behind alpha<=0 (nothing shown, no taps).
+    // Static mode renders the pill at full size, makes it tappable, and skips the avatar
+    // frosted-glass sample (which would be misaligned for a row that scrolls with the list).
+    private boolean staticMode;
+
+    public void setStaticMode(boolean value) {
+        if (staticMode != value) {
+            staticMode = value;
+            invalidate();
+        }
+    }
+
+    // forkgram-classic: in static mode the whole row is the tap target (the pill is
+    // centered and narrow; the modern rect-only hit area left the sides dead).
+    private boolean isInsideTarget(MotionEvent event) {
+        if (staticMode) {
+            return event.getX() >= 0 && event.getX() <= getWidth() && event.getY() >= 0 && event.getY() <= getHeight();
+        }
+        return rect.contains(event.getX(), event.getY());
+    }
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
-        final float alpha = Utilities.clamp01((currentHeight) / dp(21));
+        final float alpha = staticMode ? 1f : Utilities.clamp01((currentHeight) / dp(21));
         if (alpha <= 0) return false;
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            bounce.setPressed(rect.contains(event.getX(), event.getY()));
+            bounce.setPressed(isInsideTarget(event));
         } else if (event.getAction() == MotionEvent.ACTION_MOVE && bounce.isPressed()) {
-            if (!rect.contains(event.getX(), event.getY())) {
+            if (!isInsideTarget(event)) {
                 bounce.setPressed(false);
             }
         } else if (event.getAction() == MotionEvent.ACTION_CANCEL) {
@@ -251,7 +275,7 @@ public class ProfileMusicView extends View {
     protected void onDraw(@NonNull Canvas canvas) {
         if (this.author == null || this.title == null) return;
 
-        final float alpha = Utilities.clamp01((currentHeight) / dp(21));
+        final float alpha = staticMode ? 1f : Utilities.clamp01((currentHeight) / dp(21));
         final float scale = bounce.getScale(0.02f);
         if (alpha <= 0) return;
 
@@ -293,7 +317,7 @@ public class ProfileMusicView extends View {
 
         canvas.save();
         canvas.clipPath(clipPath);
-        if (!ignoreRect && renderNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated()) {
+        if (!staticMode && !ignoreRect && renderNode != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && canvas.isHardwareAccelerated()) {
             canvas.save();
             canvas.translate(0f, renderNodeTranslateY);
             canvas.scale(renderNodeScale, renderNodeScale);

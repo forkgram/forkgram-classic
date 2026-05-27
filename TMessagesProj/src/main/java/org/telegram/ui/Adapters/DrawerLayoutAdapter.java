@@ -20,6 +20,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
+import org.telegram.messenger.forkgram.DrawerItemsHelper;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
@@ -253,8 +254,10 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         // few base variants (msg_contacts, msg_invite). Collapse all event
         // branches to the icons that still ship.
         int newGroupIcon = R.drawable.msg_groups;
-        int newSecretIcon = 0;
-        int newChannelIcon = 0;
+        // [classic] #15: restore New Secret Chat / New Channel drawer items (click handlers
+        // for id 3/4 still exist in LaunchActivity; drawables msg_secret/msg_channel still ship).
+        int newSecretIcon = R.drawable.msg_secret;
+        int newChannelIcon = R.drawable.msg_channel;
         int contactsIcon = R.drawable.msg_contacts;
         int callsIcon = R.drawable.msg_calls;
         int savedIcon = R.drawable.msg_saved;
@@ -266,7 +269,8 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         items.add(new Item(16, LocaleController.getString(R.string.MyProfile), R.drawable.left_status_profile));
         // forkgram-classic: upstream `msg_status_edit` / `msg_status_set`
         // drawables are gone; fall back to the existing left_status_profile.
-        if (me != null && me.isPremium()) {
+        // [classic] each entry below can be hidden from Forkgram Settings -> Side menu items.
+        if (me != null && me.isPremium() && !DrawerItemsHelper.isHidden(DrawerItemsHelper.ID_EMOJI_STATUS)) {
             if (me.getEmojiStatus() != null) {
                 items.add(new Item(15, LocaleController.getString(R.string.ChangeEmojiStatus), R.drawable.left_status_profile));
             } else {
@@ -285,7 +289,7 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         if (menuBots != null && menuBots.bots != null) {
             for (int i = 0; i < menuBots.bots.size(); i++) {
                 TLRPC.TL_attachMenuBot bot = menuBots.bots.get(i);
-                if (bot.show_in_side_menu) {
+                if (bot.show_in_side_menu && !DrawerItemsHelper.isBotHidden(bot.bot_id)) {
                     items.add(new Item(bot));
                     showDivider = true;
                 }
@@ -294,16 +298,42 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         if (showDivider) {
             items.add(null); // divider
         }
-        items.add(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
-        //items.add(new Item(3, LocaleController.getString(R.string.NewSecretChat), newSecretIcon));
-        //items.add(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
-        items.add(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
-        items.add(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
-        items.add(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
+        // [classic] #61: New Message moved here from the top-right overflow menu (the reporter
+        // dislikes the bottom-right compose FAB). Opens the same contact picker as
+        // DialogsActivity.openWriteContacts() (handled by id 18 in LaunchActivity).
+        addUnlessHidden(new Item(18, LocaleController.getString(R.string.NewMessageTitle), R.drawable.msg_msgbubble3));
+        addUnlessHidden(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
+        addUnlessHidden(new Item(3, LocaleController.getString(R.string.NewSecretChat), newSecretIcon));
+        addUnlessHidden(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
+        addUnlessHidden(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
+        addUnlessHidden(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
+        addUnlessHidden(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
         items.add(new Item(8, LocaleController.getString(R.string.Settings), settingsIcon));
         items.add(null); // divider
-        items.add(new Item(7, LocaleController.getString(R.string.InviteFriends), inviteIcon));
-        items.add(new Item(13, LocaleController.getString(R.string.TelegramFeatures), helpIcon));
+        addUnlessHidden(new Item(7, LocaleController.getString(R.string.InviteFriends), inviteIcon));
+        addUnlessHidden(new Item(13, LocaleController.getString(R.string.TelegramFeatures), helpIcon));
+        dropUnusedDividers();
+    }
+
+    // [classic] "My Profile" (16) and "Settings" (8) are never routed through here: they stay put so
+    // there is always a way back into the app.
+    private void addUnlessHidden(Item item) {
+        if (!DrawerItemsHelper.isHidden(item.id)) {
+            items.add(item);
+        }
+    }
+
+    // [classic] dividers are plain nulls in the item list, so hiding a whole group would leave a
+    // doubled, leading or trailing separator behind. Collapse them once the list is final.
+    private void dropUnusedDividers() {
+        for (int a = items.size() - 1; a >= 0; a--) {
+            if (items.get(a) == null && (a == items.size() - 1 || items.get(a + 1) == null)) {
+                items.remove(a);
+            }
+        }
+        if (!items.isEmpty() && items.get(0) == null) {
+            items.remove(0);
+        }
     }
 
     public boolean click(View view, int position) {

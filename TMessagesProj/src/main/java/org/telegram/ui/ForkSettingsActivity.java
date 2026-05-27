@@ -38,6 +38,7 @@ import org.telegram.messenger.Utilities;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.forkgram.ForkOfflineTranscribe;
 import org.telegram.messenger.forkgram.ForkOfflineTranslate;
+import org.telegram.messenger.forkgram.DrawerItemsHelper;
 import org.telegram.messenger.forkgram.HiddenAccountHelper;
 import org.telegram.messenger.forkgram.SettingsBackup;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -73,15 +74,17 @@ public class ForkSettingsActivity extends BaseFragment {
     public static final int ID_SHOW_NOTIFICATION_CONTENT = 3;
     public static final int ID_DROP_SCREENSHOT_CAPTION = 4;
     public static final int ID_HIDDEN_ACCOUNTS = 5;
-    public static final int ID_HIDE_SENSITIVE_PHONE = 6;
-    public static final int ID_HIDE_SENSITIVE_USERNAME = 7;
-    public static final int ID_HIDE_SENSITIVE_BIO = 8;
-    public static final int ID_HIDE_SENSITIVE_ID = 9;
+    public static final int ID_HIDE_SENSITIVE_PHONE = 6;    // [classic] #85
+    public static final int ID_HIDE_SENSITIVE_USERNAME = 7; // [classic] #85
+    public static final int ID_HIDE_SENSITIVE_BIO = 8;      // [classic] #85
+    public static final int ID_HIDE_SENSITIVE_ID = 9;       // [classic] #85
 
     public static final int ID_HIDE_IN_APP_HINTS = 10;
     public static final int ID_HIDE_BOTTOM_BUTTON = 11;
     public static final int ID_CUSTOM_TITLE = 12;
     public static final int ID_AVATAR_CORNERS = 13;
+    public static final int ID_SHOW_BOTTOM_TABS = 14; // [classic] #61
+    public static final int ID_DRAWER_ITEMS = 15; // [classic] side menu item picker
 
     public static final int ID_SYNC_PINS = 20;
     public static final int ID_UNMUTED_ON_TOP = 21;
@@ -91,8 +94,8 @@ public class ForkSettingsActivity extends BaseFragment {
     public static final int ID_DISABLE_GLOBAL_SEARCH = 25;
     public static final int ID_HIDE_CONTACTS_IN_DIALOGS = 26;
     public static final int ID_ENABLE_LAST_SEEN_DOTS = 27;
-    public static final int ID_HIDE_ALL_CHATS_TAB = 28;
-    public static final int ID_DEFAULT_FOLDER = 29;
+    public static final int ID_HIDE_ALL_CHATS_TAB = 28; // [classic] #79
+    public static final int ID_DEFAULT_FOLDER = 29; // [classic] #79
     public static final int ID_FOLDER_TABS_STYLE = 97;
 
     public static final int ID_REPLACE_FORWARD = 30;
@@ -457,6 +460,8 @@ public class ForkSettingsActivity extends BaseFragment {
             items.add(UItem.asButtonCheck(ID_HIDE_SENSITIVE_DATA, LocaleController.getString(R.string.HideSensitiveData), LocaleController.getString(R.string.ForkRestartRequired))
                 .setChecked(pref("hideSensitiveData", false)).setMultiline(true));
         }
+        // [classic] #85: pick what "Hide Sensitive Data" actually hides. Only worth showing once the
+        // master toggle is on — for the owner it is always on and the master row itself is hidden.
         if (SharedConfig.hideSensitiveData()) {
             items.add(UItem.asButtonCheck(ID_HIDE_SENSITIVE_PHONE, LocaleController.getString(R.string.HideSensitivePhone), null)
                 .setChecked(pref("hideSensitivePhone", true)));
@@ -485,6 +490,16 @@ public class ForkSettingsActivity extends BaseFragment {
             items.add(UItem.asButtonCheck(ID_HIDE_BOTTOM_BUTTON, LocaleController.getString(R.string.HideBottomButton), LocaleController.getString(R.string.HideBottomButtonInfo))
                 .setChecked(pref("hideBottomButton", false)).setMultiline(true));
         }
+        // [classic] #61: "Show bottom tabs" — moved here from the top-right overflow menu.
+        items.add(UItem.asButtonCheck(ID_SHOW_BOTTOM_TABS, LocaleController.getString(R.string.ShowBottomTabs),
+                "Show the floating tab bar (Chats, Contacts, Settings, Profile) at the bottom of the chat list. When off, use the side menu instead.")
+            .setChecked(!getUserConfig().getMainTabsHiddenFork()).setMultiline(true));
+        // [classic] lets the user drop entries they never use from the side menu.
+        final int hiddenDrawerItems = DrawerItemsHelper.getHiddenCount();
+        items.add(UItem.asSettingsCell(ID_DRAWER_ITEMS, LocaleController.getString(R.string.ForkDrawerItems),
+            hiddenDrawerItems == 0
+                ? LocaleController.getString(R.string.ForkDrawerItemsAllShown)
+                : LocaleController.formatString(R.string.ForkDrawerItemsHidden, hiddenDrawerItems)));
         items.add(UItem.asSettingsCell(ID_CUSTOM_TITLE, LocaleController.getString(R.string.EditAdminRank), prefs().getString("forkCustomTitle", "Fork Client")));
         items.add(UItem.asShadow(null));
 
@@ -520,6 +535,7 @@ public class ForkSettingsActivity extends BaseFragment {
             .setChecked(pref("hideContactsInDialogs", false)).setMultiline(true));
         items.add(UItem.asButtonCheck(ID_ENABLE_LAST_SEEN_DOTS, LocaleController.getString(R.string.EnableLastSeenDots), LocaleController.getString(R.string.EnableLastSeenDotsInfo))
             .setChecked(pref("enableLastSeenDots", true)).setMultiline(true));
+        // [classic] #79: hide the "All Chats" folder tab and pick which folder opens on launch.
         items.add(UItem.asButtonCheck(ID_HIDE_ALL_CHATS_TAB, LocaleController.getString(R.string.HideAllChatsTab), LocaleController.getString(R.string.HideAllChatsTabInfo))
             .setChecked(pref("hideAllChatsTab", false)).setMultiline(true));
         items.add(UItem.asSettingsCell(ID_DEFAULT_FOLDER, LocaleController.getString(R.string.DefaultFolder), getDefaultFolderText()));
@@ -640,7 +656,9 @@ public class ForkSettingsActivity extends BaseFragment {
             items.add(UItem.asButtonCheck(ID_SATELLITE_DATA_SAVING, LocaleController.getString(R.string.SatelliteDataSaving), LocaleController.getString(R.string.SatelliteDataSavingInfo))
                 .setChecked(pref("satelliteDataSaving", true)).setMultiline(true));
         }
-        items.add(UItem.asSettingsCell(ID_UPDATE_CHECK_INTERVAL, LocaleController.getString(R.string.UpdateCheckInterval), getUpdateIntervalText()));
+        // forkgram-classic: no update-check-interval row — F-Droid is the only update channel, so an
+        // in-app update-check interval is irrelevant. (ID_UPDATE_CHECK_INTERVAL is left defined; the
+        // item is simply never shown, so it also stays out of the settings search index.)
         if (AndroidUtilities.isTabletInternal()) {
             items.add(UItem.asButtonCheck(ID_DISABLE_TABLET_MODE, LocaleController.getString(R.string.DisableTabletMode), LocaleController.getString(R.string.DisableTabletModeInfo))
                 .setChecked(SharedConfig.forceDisableTabletMode)
@@ -686,7 +704,7 @@ public class ForkSettingsActivity extends BaseFragment {
 
         if (id == ID_HIDE_SENSITIVE_DATA) {
             toggle("hideSensitiveData", item, view);
-            listView.adapter.update(true);
+            listView.adapter.update(true); // [classic] #85: the per-item switches appear/disappear with it
         } else if (id == ID_HIDE_SENSITIVE_PHONE) {
             toggle("hideSensitivePhone", item, view);
         } else if (id == ID_HIDE_SENSITIVE_USERNAME) {
@@ -709,6 +727,15 @@ public class ForkSettingsActivity extends BaseFragment {
             toggle("hideInAppHints", item, view);
         } else if (id == ID_HIDE_BOTTOM_BUTTON) {
             toggle("hideBottomButton", item, view);
+        } else if (id == ID_SHOW_BOTTOM_TABS) {
+            // [classic] #61: backed by UserConfig.mainTabsHiddenFork (show = !hidden); applied live on
+            // return to the home via MainTabsActivity.onResume() -> DialogsActivity.checkUi_mainTabsVisible().
+            final boolean newHidden = !getUserConfig().getMainTabsHiddenFork();
+            getUserConfig().setMainTabsHiddenFork(newHidden);
+            item.checked = !newHidden;
+            setCellChecked(view, !newHidden);
+        } else if (id == ID_DRAWER_ITEMS) {
+            presentFragment(new DrawerItemsActivity());
         } else if (id == ID_CUSTOM_TITLE) {
             showCustomTitleDialog(view);
 
@@ -731,6 +758,7 @@ public class ForkSettingsActivity extends BaseFragment {
             toggle("enableLastSeenDots", item, view);
         } else if (id == ID_HIDE_ALL_CHATS_TAB) {
             toggle("hideAllChatsTab", item, view);
+            // [classic] #79: rebuild the folder tabs on the home so the change applies immediately.
             getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
         } else if (id == ID_DEFAULT_FOLDER) {
             showDefaultFolderDialog();
@@ -1033,6 +1061,7 @@ public class ForkSettingsActivity extends BaseFragment {
         builder.show();
     }
 
+    // [classic] #79: current default-folder name shown as the row subtitle.
     private String getDefaultFolderText() {
         final int id = prefs().getInt("defaultFolderId", -1);
         if (id != -1) {
@@ -1047,6 +1076,7 @@ public class ForkSettingsActivity extends BaseFragment {
         return LocaleController.getString(R.string.FilterAllChats);
     }
 
+    // [classic] #79: pick which folder opens when the app launches (All Chats + every folder).
     private void showDefaultFolderDialog() {
         ArrayList<MessagesController.DialogFilter> filters = getMessagesController().getDialogFilters();
         ArrayList<String> names = new ArrayList<>();

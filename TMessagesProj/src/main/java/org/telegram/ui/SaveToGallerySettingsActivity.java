@@ -148,7 +148,8 @@ public class SaveToGallerySettingsActivity extends BaseFragment {
         }
 
         recyclerListView = new RecyclerListView(context);
-        recyclerListView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        recyclerListView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(recyclerListView);
         DefaultItemAnimator defaultItemAnimator = new DefaultItemAnimator();
         defaultItemAnimator.setDurations(400);

@@ -48,7 +48,7 @@ public class DialogsHintCell extends FrameLayout {
         super(context);
 
         setWillNotDraw(false);
-        setPadding(dp(9), dp(5), dp(9), dp(7));
+        setPadding(dp(14), dp(5), dp(14), dp(7));
 
         avatarsImageView = new AvatarsImageView(context, false);
         avatarsImageView.setStepFactor(46f / 81f);
@@ -101,7 +101,7 @@ public class DialogsHintCell extends FrameLayout {
         closeView = new ImageView(context);
         closeView.setImageResource(R.drawable.msg_close);
         closeView.setPadding(dp(6), dp(6), dp(6), dp(6));
-        addView(closeView, LayoutHelper.createFrame(36, 36, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, -4, 0, -4, 0));
+        addView(closeView, LayoutHelper.createFrame(36, 36, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL, 0, 0, 0, 0));
         closeView.setVisibility(GONE);
         setClipToPadding(false);
         setClipChildren(false);
