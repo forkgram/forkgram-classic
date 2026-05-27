@@ -258,7 +258,8 @@ public class PasscodeActivity extends BaseFragment implements NotificationCenter
                 frameLayout.setTag(Theme.key_windowBackgroundGray);
                 frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
                 listView = new RecyclerListView(context);
-                listView.setSections();
+                // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+                listView.setSections(0, 0, false);
                 actionBar.setAdaptiveBackground(listView);
                 listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
                     @Override

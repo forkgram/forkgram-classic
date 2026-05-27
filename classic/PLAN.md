@@ -111,6 +111,38 @@ API is a dependency of `UniversalAdapter` and `EmojiTabsStrip`) and
 `com.google.firebase.appindexing`). Worth re-evaluating later whether selective
 patches beat the full upstream file.
 
+Runtime smoke-test on a 32-bit Android 11 device — launch, login, dialog list,
+opening chats, sending — confirmed 2026-05-26.
+
+#### Phase 1 → 2 backlog
+
+Four appearance regressions turned up on that first run, all fixed and
+runtime-verified the same evening. The root causes are worth keeping:
+
+1. **Pinned-message bar transparent.** The Phase 1 hand-merge had swapped
+   `R.drawable.blockpanel` for `blockpanel_shadow` at four `ChatActivity` sites
+   because upstream dropped the former — but the shadow gradient carries no
+   fill. Restored `blockpanel.png` from the baseline and reverted the sites.
+2. **Side drawer absent.** Not a cherry-pick: `dev` has *zero* commits touching
+   `sideMenu` / `DrawerLayoutAdapter`, and upstream deleted the whole wiring
+   from `LaunchActivity`; `UserConfig.mainTabsHiddenFork` only hides the bottom
+   tabs. Ported ~200 LoC back as a `setupSideMenu()` helper — the sideMenu
+   `RecyclerListView`, adapter, item animator, `setDrawerLayout(...)` and three
+   `setAllowOpenDrawer` call sites. Long-press, drag and `updateLayout`
+   integration are not ported.
+3. **Folder tabs as floating chips.** `FilterTabsView.dispatchDraw` clipped to a
+   rounded `clipPath`, inset 9dp with a 16dp radius; gutting the clip path puts
+   the tabs back edge-to-edge.
+4. **Server suggestions as a pill.** `DialogsActivityTopPanelLayout.dispatchDraw`
+   bounded its `BlurredBackgroundDrawable` to `dp(4)` insets with a `dp(24)`
+   radius; full-width bounds and zero radius restore the bar.
+
+One lesson from the same session: the redesign attaches `topPanelLayout` with a
+`-14dp` top margin, which lifts the hint container into `filterTabsView`.
+Setting it to 0 fixed "tabs overlap hint", "archive half-shown" and "active tab
+underline clipped" at once. When content looks compressed or overlapped, audit
+the wrapper's `createFrame` margins before the widget's own geometry.
+
 ### Phase 2 — reinstate Forkgram patches
 
 The ~250 patches already live on `dev`, so this is a rebase or a cherry-pick,

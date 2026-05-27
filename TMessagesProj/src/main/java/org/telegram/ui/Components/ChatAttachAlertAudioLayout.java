@@ -23,6 +23,7 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -67,6 +68,8 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
 
     private final FrameLayout frameLayout;
     private final FragmentSearchField searchField;
+    private final View searchShadow;
+    private final View searchBackdrop;
     private UniversalRecyclerView listView;
     private final View fadeView;
 
@@ -113,7 +116,14 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
 
         frameLayout = new FrameLayout(context);
         searchField = new ChatAttachAlert.AttachSearchField(context, parentAlert, resourcesProvider);
-        searchField.setPadding(dp(4), dp(4), dp(4), dp(4));
+        // [classic] 12.x floats this field as a translucent pill (5% black) over the list and takes its
+        // backdrop from setupBlurredSearchField() -- a call that never reaches this tree, because
+        // ChatAttachAlert is pinned at 12.1.1. Nothing painted the field, so the audio rows showed
+        // straight through it. 11.9.5.0 used a flush, opaque bar that still had the magnifier
+        // (ChatAttachAlertAudioLayout:105/142/230), so restore that shape -- and keep it dp(56) tall,
+        // which is what the padding/offset maths below already budgets for.
+        searchField.setClassicFlat(true);
+        searchField.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
         searchField.editText.addTextChangedListener(new TextWatcherImpl() {
             @Override
             public void afterTextChanged(Editable s) {
@@ -145,10 +155,40 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
             }
         });
         searchField.editText.setHint(LocaleController.getString(R.string.SearchMusic));
+
+        // [classic] #119: auto-refresh is off by default (see onShow); this is the switch for it.
+        autoRefresh = MessagesController.getGlobalMainSettings().getBoolean(PREF_AUTO_REFRESH, false);
+        final ImageView menuIcon = new ImageView(context);
+        menuIcon.setScaleType(ImageView.ScaleType.CENTER);
+        menuIcon.setImageResource(R.drawable.ic_ab_other);
+        menuIcon.setColorFilter(Theme.multAlpha(getThemedColor(Theme.key_dialogTextBlack), 0.6f));
+        menuIcon.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1, dp(16)));
+        menuIcon.setLayoutParams(LayoutHelper.createLinear(32, 32, Gravity.CENTER_VERTICAL));
+        menuIcon.setOnClickListener(this::showPickerMenu);
+        searchField.addAdditionalIcon(menuIcon);
         frameLayout.addView(fadeView, LayoutHelper.createFrameMatchParent());
-        MarginLayoutParams lp = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.TOP | Gravity.LEFT, 7, 8, 7, 4);
+
+        // [classic] the bar clears the status bar through its top margin, and the offset maths in
+        // getCurrentItemTop() budgets statusBarHeight above it -- which left that band transparent, so
+        // at full expansion the list scrolled through it and rows came out sliced by the bar. The
+        // classic sheet never reached under the status bar at all (cf. #55), so there was nothing to
+        // show there; fill the band with the bar's own opaque background.
+        searchBackdrop = new View(context);
+        searchBackdrop.setBackgroundColor(getThemedColor(Theme.key_dialogBackground));
+        frameLayout.addView(searchBackdrop, new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, AndroidUtilities.statusBarHeight + dp(56), Gravity.TOP | Gravity.LEFT));
+
+        MarginLayoutParams lp = LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 56, Gravity.TOP | Gravity.LEFT);
         lp.topMargin += AndroidUtilities.statusBarHeight;
         frameLayout.addView(searchField, lp);
+
+        // [classic] 11.9.5.0's hairline under the bar (ChatAttachAlertAudioLayout:224-228): without it
+        // a white bar merges into a white list as soon as rows slide beneath it.
+        searchShadow = new View(context);
+        searchShadow.setBackgroundColor(getThemedColor(Theme.key_dialogShadowLine));
+        searchShadow.setVisibility(INVISIBLE);
+        final FrameLayout.LayoutParams shadowLp = new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, AndroidUtilities.getShadowHeight(), Gravity.TOP | Gravity.LEFT);
+        shadowLp.topMargin = AndroidUtilities.statusBarHeight + dp(56);
+        frameLayout.addView(searchShadow, shadowLp);
 
         topPanelLayout = new DialogsActivityTopPanelLayout(context);
         topPanelLayout.setPadding(dp(11), dp(21), dp(11), dp(21));
@@ -190,7 +230,10 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
             }
         };
         listView.adapter.setApplyBackground(false);
-        listView.setSections();
+        // [classic] #13: drop the redesign's inset rounded-card list (setSections() applies a
+        // dp(12) horizontal inset + card backgrounds to every row). Classic (11.9.5.0) used a plain
+        // edge-to-edge list, so the music rows sit tight to the left like the now-fixed Files tab.
+        // listView.setSections();
         iBlur3Capture = listView;
         iBlur3CaptureView = listView;
         occupyStatusBar = true;
@@ -204,6 +247,7 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                 parentAlert.updateLayout(ChatAttachAlertAudioLayout.this, true, dy);
+                checkUi_searchShadow(); // [classic]
 //                if (listView.scrollingByUser) {
 //                    AndroidUtilities.hideKeyboard(searchField.editText);
 //                }
@@ -465,6 +509,7 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
                 listView.layoutManager.scrollToPositionWithOffset(savedPosition, savedTop - listView.getPaddingTop());
 //            });
         }
+        checkUi_searchShadow(); // [classic]
     };
 
     private void onItemClick(UItem item, View view, int position, float x, float y) {
@@ -620,11 +665,45 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
 
     @Override
     public void onShow(ChatAttachAlert.AttachAlertLayout previousLayout) {
-        searchChats();
-        savedMusicList.load();
+        // [classic] #119: 12.x goes to the network every single time the picker opens -- Shared Music
+        // through messages_searchGlobal, Profile Music through getSavedMusic -- and rebuilds the list
+        // when each answer lands, which knocks the user off whatever they were reading. 11.9.5.0's
+        // picker was purely local (zero requests), so classic stays local unless auto-refresh is
+        // switched on in the three-dot menu.
+        if (autoRefresh) {
+            searchChats();
+            savedMusicList.load();
+        }
 
         listView.layoutManager.scrollToPositionWithOffset(0, 0);
         listView.adapter.update(false);
+        checkUi_searchShadow();
+    }
+
+    private static final String PREF_AUTO_REFRESH = "musicPickerAutoRefresh";
+    private boolean autoRefresh;
+
+    private void showPickerMenu(View anchor) {
+        ItemOptions.makeOptions(parentAlert.getContainer(), resourcesProvider, anchor)
+            .addChecked(autoRefresh, LocaleController.getString(R.string.AudioAutoRefresh), () -> {
+                autoRefresh = !autoRefresh;
+                MessagesController.getGlobalMainSettings().edit().putBoolean(PREF_AUTO_REFRESH, autoRefresh).apply();
+                if (autoRefresh) {
+                    // Populate the sections straight away, so the switch does not need a reopen.
+                    searchChats();
+                    savedMusicList.load();
+                }
+            })
+            .setGravity(Gravity.RIGHT)
+            .show();
+    }
+
+    private void checkUi_searchShadow() {
+        if (searchShadow == null || listView == null) return;
+        final boolean visible = listView.canScrollVertically(-1);
+        if ((searchShadow.getVisibility() == VISIBLE) != visible) {
+            searchShadow.setVisibility(visible ? VISIBLE : INVISIBLE);
+        }
     }
 
     @Override
@@ -1114,6 +1193,12 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
         ArrayList<ThemeDescription> themeDescriptions = new ArrayList<>();
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_dialogScrollGlow));
+
+        // [classic] the restored flat search bar and its hairline are plain view backgrounds, so they
+        // have to be re-resolved on a theme change like 11.9.5.0 did (ChatAttachAlertContactsLayout:1268).
+        themeDescriptions.add(new ThemeDescription(searchField, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_dialogBackground));
+        themeDescriptions.add(new ThemeDescription(searchBackdrop, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_dialogBackground));
+        themeDescriptions.add(new ThemeDescription(searchShadow, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_dialogShadowLine));
 
         themeDescriptions.add(new ThemeDescription(listView, ThemeDescription.FLAG_SELECTOR, null, null, null, null, Theme.key_listSelector));
         themeDescriptions.add(new ThemeDescription(listView, 0, new Class[]{View.class}, Theme.dividerPaint, null, null, Theme.key_divider));

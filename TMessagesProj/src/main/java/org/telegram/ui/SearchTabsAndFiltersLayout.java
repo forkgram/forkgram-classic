@@ -21,19 +21,8 @@ public class SearchTabsAndFiltersLayout extends FrameLayout implements Theme.Col
     }
 
     @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
-        clipPath.rewind();
-        clipPath.addRoundRect(dp(9), dp(9), w - dp(9), h - dp(9),
-                dp(16), dp(16), Path.Direction.CW);
-    }
-
-    @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
-        canvas.save();
-        canvas.clipPath(clipPath);
         super.dispatchDraw(canvas);
-        canvas.restore();
     }
 
     public void setBlurredBackground(BlurredBackgroundDrawable drawable) {

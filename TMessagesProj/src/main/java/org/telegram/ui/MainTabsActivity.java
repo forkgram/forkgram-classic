@@ -85,7 +85,6 @@ import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceColor;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.glass.GlassTabView;
-import org.telegram.ui.Stories.recorder.HintView2;
 
 import java.util.ArrayList;
 import me.vkryl.android.animator.BoolAnimator;
@@ -278,8 +277,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         blur3_updateColors();
         checkContactsTabBadge();
         checkUnreadCount(true);
-
-        showAccountChangeHint();
+        // [classic] #61: re-apply the "Show bottom tabs" preference when returning to the home
+        // (e.g. after toggling it in Forkgram Settings) so the change takes effect without a restart.
+        if (dialogsActivity != null) {
+            dialogsActivity.checkUi_mainTabsVisible();
+        }
     }
 
     private void checkContactsTabBadge() {
@@ -293,14 +295,6 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             } else {
                 tabs[INDEX_CONTACTS].setCounter(null, true, true);
             }
-        }
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        if (accountSwitchHint != null) {
-            accountSwitchHint.hide();
         }
     }
 
@@ -803,6 +797,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private DialogsActivity dialogsActivity;
 
     @Override
+    public boolean onBackPressed() {
+        return onBackPressed(true);
+    }
+
+    @Override
     public boolean onBackPressed(boolean invoked) {
         final boolean result = super.onBackPressed(invoked);
         if (result) {
@@ -868,6 +867,31 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         return dialogsActivity;
     }
 
+    @Override
+    public void setProgressToDrawerOpened(float v) {
+        // [classic] #4: this tabs wrapper is the top fragment the DrawerLayoutContainer drives, but the
+        // drawer-open parallax (slide + scale of the chat list) lives in the nested DialogsActivity.
+        // Forward the progress so the list actually moves — otherwise the call lands on the empty
+        // BaseFragment stub and the background stays static (the bug behind issue #4).
+        if (dialogsActivity != null) {
+            dialogsActivity.setProgressToDrawerOpened(v);
+        }
+    }
+
+    @Override
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        // [classic] #1: the DrawerLayoutContainer asks the TOP fragment (this tabs wrapper) whether a
+        // left-to-right swipe may open the drawer, but the folder-aware guard lives in the nested
+        // DialogsActivity. Forward it so that, with folders + "Change folder" swipe, a mid-screen L→R
+        // swipe switches folders instead of opening the drawer (the drawer stays reachable from the
+        // far-left edge / on the first tab). Without this the call hit BaseFragment's "return true"
+        // and the drawer always won — which is exactly what issue #1 reports.
+        if (dialogsActivity != null) {
+            return dialogsActivity.isDrawerOpenSwipeEnabled(event);
+        }
+        return true;
+    }
+
     /* */
 
     public GlassTabView[] tabs;
@@ -907,12 +931,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected boolean canScrollForward(MotionEvent ev) {
-        return canScrollInternal(ev, true);
+        return false;
     }
 
     @Override
     protected boolean canScrollBackward(MotionEvent ev) {
-        return canScrollInternal(ev, false);
+        return false;
     }
 
     private boolean canScrollInternal(MotionEvent ev, boolean forward) {
@@ -1187,38 +1211,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     }
 
 
-    private HintView2 accountSwitchHint;
-    private boolean accountSwitchHintShown;
-
-    private void showAccountChangeHint() {
-        if (accountSwitchHintShown) return;
-
-        if (accountSwitchHint == null && HintsController.Hint.AccountSwitchHint.show()) {
-            AndroidUtilities.runOnUIThread(() -> {
-                if (getContext() == null || tabs == null) return;
-
-                final View v = tabs[INDEX_PROFILE];
-                final float translate = (contentView.getWidth() - ((tabsView.getX() + v.getX()) + v.getWidth()) + v.getWidth() / 2f) / AndroidUtilities.density;
-
-                accountSwitchHint = new HintView2(getContext(), HintView2.DIRECTION_BOTTOM);
-                accountSwitchHint.setTranslationY(-navigationBarHeight + dp(4));
-                accountSwitchHint.setPadding(dp(7.33f), 0, dp(7.33f), 0);
-                accountSwitchHint.setMultilineText(false);
-                accountSwitchHint.setCloseButton(true);
-                accountSwitchHint.setText(getString(R.string.SwitchAccountHint));
-                accountSwitchHint.setJoint(1, -translate + 7.33f);
-                contentView.addView(accountSwitchHint, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 100, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS));
-                accountSwitchHint.setOnHiddenListener(() -> AndroidUtilities.removeFromParent(accountSwitchHint));
-                accountSwitchHint.setDuration(8000);
-                accountSwitchHint.show();
-
-                HintsController.Hint.AccountSwitchHint.increment();
-            }, 1500);
-        }
-
-        accountSwitchHintShown = true;
-    }
-
+    // [classic]: the bottom tabs do not advertise the account switcher. Upstream pops a
+    // "Long tap to switch accounts" HintView2 over the profile tab (up to 3 times, 1.5s after
+    // onResume); classic drops the tooltip, so showAccountChangeHint() and its HintView2 are gone.
+    // HintsController.Hint.AccountSwitchHint stays declared -- the long-tap handler still retires it.
 
     /* * */
 
