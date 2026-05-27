@@ -129,7 +129,6 @@ import java.util.Map;
 @SuppressLint("ViewConstructor")
 public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayout implements NotificationCenter.NotificationCenterDelegate {
 
-    private static final float RADIUS = 16f;
     private static final int VIEW_TYPE_AVATAR_CONSTRUCTOR = 4;
     private static final int SHOW_FAST_SCROLL_MIN_COUNT = 30;
     private final boolean needCamera;
@@ -747,8 +746,10 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             }
         };
         dropDownContainer.setSubMenuOpenSide(1);
-        FrameLayout.LayoutParams flp = LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, 60, 0, 40, 0);
-        flp.topMargin = AndroidUtilities.statusBarHeight;
+        FrameLayout.LayoutParams flp = LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, AndroidUtilities.isTablet() ? 64 : 56, 0, 40, 0);
+        // [classic] #3: the pinned 12.1.1 ChatAttachAlert action bar already offsets its children below
+        // the status bar, so the modern extra statusBarHeight top margin double-counted it and pushed the
+        // "Gallery" title down out of vertical centre. Baseline added no such margin — match it.
         parentAlert.actionBar.addView(dropDownContainer, 0, flp);
         dropDownContainer.setOnClickListener(view -> dropDownContainer.toggleSubMenu());
 
@@ -2470,7 +2471,9 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         cameraPanel.setTag(null);
         animateCameraValues[0] = 0;
         animateCameraValues[1] = itemSize;
-        animateCameraValues[2] = itemSize * 2 + dp(GAP);
+        // [classic] #3: the camera-open animation starts from the in-grid cell size — classic is a single
+        // itemSize square, not the redesign's two-tall (itemSize * 2 + GAP) cell.
+        animateCameraValues[2] = itemSize;
         additionCloseCameraY = 0;
         cameraExpanded = true;
         if (cameraView != null) {
@@ -2582,7 +2585,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             cameraView.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
                 public void getOutline(View view, Outline outline) {
-                    int maxY = (int) Math.min(parentAlert.getCommentTextViewTop() - (parentAlert.mentionContainer != null ? parentAlert.mentionContainer.clipBottom() + dp(RADIUS) : 0) + currentPanTranslationY + parentAlert.getContainerView().getTranslationY() - cameraView.getTranslationY(), view.getMeasuredHeight());
+                    int maxY = (int) Math.min(parentAlert.getCommentTextViewTop() - (parentAlert.mentionContainer != null ? parentAlert.mentionContainer.clipBottom() + dp(8) : 0) /* [classic] #65: classic dp(8), not redesign dp(RADIUS) */ + currentPanTranslationY + parentAlert.getContainerView().getTranslationY() - cameraView.getTranslationY(), view.getMeasuredHeight());
                     if (cameraOpened) {
                         maxY = view.getMeasuredHeight();
                     } else if (cameraAnimationInProgress) {
@@ -2592,7 +2595,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                         AndroidUtilities.rectTmp.set(animationClipLeft + cameraViewOffsetX * (1f - cameraOpenProgress), animationClipTop + cameraViewOffsetY * (1f - cameraOpenProgress), animationClipRight, animationClipBottom);
                         outline.setRect((int) AndroidUtilities.rectTmp.left, (int) AndroidUtilities.rectTmp.top, (int) AndroidUtilities.rectTmp.right, Math.min(maxY, (int) AndroidUtilities.rectTmp.bottom));
                     } else if (!cameraAnimationInProgress && !cameraOpened) {
-                        int rad = dp(RADIUS);
+                        int rad = dp(8 * parentAlert.cornerRadius); // [classic] #65: classic media-picker corner radius (dp8 * sheet cornerRadius), not the redesign's fixed dp(16)
                         outline.setRoundRect((int) cameraViewOffsetX, (int) cameraViewOffsetY, view.getMeasuredWidth() + rad, Math.min(maxY, view.getMeasuredHeight()) + rad, rad);
                     } else {
                         outline.setRect(0, 0, view.getMeasuredWidth(), Math.min(maxY, view.getMeasuredHeight()));
@@ -2828,7 +2831,9 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             return;
         }
         animateCameraValues[1] = itemSize;
-        animateCameraValues[2] = itemSize * 2 + dp(GAP);
+        // [classic] #3: classic single-square in-grid camera cell (itemSize), not the redesign's two-tall
+        // (itemSize * 2 + GAP) cell — keep the camera-open animation start size in sync.
+        animateCameraValues[2] = itemSize;
         if (zoomControlHideRunnable != null) {
             AndroidUtilities.cancelRunOnUIThread(zoomControlHideRunnable);
             zoomControlHideRunnable = null;
@@ -3117,7 +3122,11 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 // cameraView.setTranslationY(cameraViewLocation[1] + currentPanTranslationY);
             }
             int finalWidth = itemSize;
-            int finalHeight = itemSize * 2 + dp(GAP);
+            // [classic] #3: restore the classic single-square in-grid camera cell. The redesign made the
+            // live camera preview span two grid rows (itemSize * 2 + GAP); classic (11.9.5.0) keeps it a
+            // single itemSize square with a camera icon. (See also hasCameraSpaceRow, kept off below, and
+            // the camera-open start size animateCameraValues[2].)
+            int finalHeight = itemSize;
 
             LayoutParams layoutParams;
             if (!cameraOpened) {
@@ -4330,10 +4339,10 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                             position++;
                         }
                         if (position == 0) {
-                            int rad = dp(RADIUS);
+                            int rad = dp(8 * parentAlert.cornerRadius); // [classic] #65: classic media-picker corner radius (dp8 * sheet cornerRadius), not the redesign's fixed dp(16)
                             outline.setRoundRect(0, 0, view.getMeasuredWidth() + rad, view.getMeasuredHeight() + rad, rad);
                         } else if (position == itemsPerRow - 1) {
-                            int rad = dp(RADIUS);
+                            int rad = dp(8 * parentAlert.cornerRadius); // [classic] #65: classic media-picker corner radius (dp8 * sheet cornerRadius), not the redesign's fixed dp(16)
                             outline.setRoundRect(-rad, 0, view.getMeasuredWidth(), view.getMeasuredHeight() + rad, rad);
                         } else {
                             outline.setRect(0, 0, view.getMeasuredWidth(), view.getMeasuredHeight());
@@ -4589,7 +4598,11 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             }
             photosEndRow = count;
 
-            if (hasCamera && count > itemsPerRow && !noCameraPermissions) {
+            // [classic] #3: the redesign reserved an extra full grid row (hasCameraSpaceRow) below the
+            // two-tall live-camera cell. Classic (11.9.5.0) has no such row — the camera is just the first
+            // single-square cell — so keep hasCameraSpaceRow off and don't add the spacer row. (Leaving it
+            // false also no-ops every `if (hasCameraSpaceRow && ...)` branch, restoring the classic grid.)
+            if (false && hasCamera && count > itemsPerRow && !noCameraPermissions) {
                 hasCameraSpaceRow = true;
                 count++;
             }
@@ -4762,7 +4775,10 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
 
             final int left = viewHolder.itemView.getLeft();
             final int right = left + itemSize;
-            final int bottom = top + itemSize * 2 + dp(GAP);
+            // [classic] #3: draw the live camera preview inside the single-square classic cell (itemSize),
+            // not the redesign's two-tall (itemSize * 2 + GAP) region. The camera icon below is then
+            // centered in this square (classic look).
+            final int bottom = top + itemSize;
 
             if (builder != null) {
                 builder.add(left);
@@ -4785,7 +4801,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
                 return;
             }
 
-            final float r = dp(RADIUS);
+            final float r = dp(8 * parentAlert.cornerRadius); // [classic] #65: match restored classic cell rounding (was redesign dp(16))
             clipPath.rewind();
             clipPath.addRoundRect(left, top , right + r, bottom + r, r, r, Path.Direction.CW);
             c.save();
@@ -4807,9 +4823,11 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
             }
 
             if (cameraDrawable != null) {
-                final int s = dp(24);
-                final int x = right - dp(7) - s;
-                final int y = top + dp(7);
+                // [classic] #3: center the camera icon in the single-square cell (classic look), instead of
+                // the redesign's small top-right corner button on the two-tall live-preview cell.
+                final int s = dp(44);
+                final int x = left + ((right - left) - s) / 2;
+                final int y = top + ((bottom - top) - s) / 2;
                 cameraDrawable.setBounds(x, y, x + s, y + s);
                 cameraDrawable.draw(c);
             }

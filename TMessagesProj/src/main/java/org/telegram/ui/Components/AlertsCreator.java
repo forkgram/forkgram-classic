@@ -1684,44 +1684,27 @@ public class AlertsCreator {
         final AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
         builder.setTitle(LocaleController.getString(R.string.OpenUrlTitle));
 
-        final TextView urlView = new TextView(context);
-        urlView.setText(urlFinal);
-        urlView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        urlView.setTextColor(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider));
-        urlView.setGravity(Gravity.CENTER);
-        urlView.setMaxLines(5);
-        urlView.setEllipsize(TextUtils.TruncateAt.END);
-        urlView.setPadding(dp(14), dp(12), dp(14), dp(12));
-        /*
-        urlView.setOnClickListener(v -> {
-            open.run();
-            if (dialog[0] != null) dialog[0].dismiss();
-        });
-        */
-
-        final GradientDrawable urlBackground = new GradientDrawable();
-        urlBackground.setCornerRadius(dp(22));
-        urlBackground.setColor(Theme.multAlpha(Theme.getColor(Theme.key_dialogTextBlack, resourcesProvider), 0.06f));
-        urlView.setBackground(urlBackground);
-
-        final LinearLayout container = new LinearLayout(context);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.addView(urlView, LayoutHelper.createLinear(
-                LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
-                22, 4, 22, 9
-        ));
-
-        if (WebPagePreviewView.hasPreview(webPage)) {
-            final WebPagePreviewView previewView = new WebPagePreviewView(context, resourcesProvider, UserConfig.selectedAccount);
-            previewView.setWebPage(webPage);
-            container.addView(previewView, LayoutHelper.createLinear(
-                    LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT,
-                    22, 3, 22, 7
-            ));
+        // [classic] #63: restore the 11.9.5.0 inline-link confirmation ("Do you want to open <url>?" with
+        // the URL a tappable blue link inside the message) instead of the 12.x redesign that put the URL in
+        // a gray rounded card (custom setView). The modern in-dialog WebPage preview is dropped to match the
+        // classic dialog.
+        final SpannableString link = new SpannableString(urlFinal);
+        link.setSpan(new URLSpan(urlFinal) {
+            @Override
+            public void onClick(View widget) {
+                open.run();
+                if (dialog[0] != null) {
+                    dialog[0].dismiss();
+                }
+            }
+        }, 0, link.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        final SpannableStringBuilder stringBuilder = new SpannableStringBuilder(LocaleController.getString(R.string.OpenUrlAlert2));
+        final int index = stringBuilder.toString().indexOf("%1$s");
+        if (index >= 0) {
+            stringBuilder.replace(index, index + 4, link);
         }
-
-        builder.setView(container);
-        builder.setWidth(Math.min(dp(320), AndroidUtilities.displaySize.x * 85 / 100));
+        builder.setMessage(stringBuilder);
+        builder.setMessageTextViewClickable(false);
         builder.setPositiveButton(LocaleController.getString(R.string.Open), (dialogInterface, i) -> open.run());
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
 
