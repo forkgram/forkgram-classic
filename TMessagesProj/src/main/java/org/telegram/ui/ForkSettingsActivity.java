@@ -59,7 +59,7 @@ public class ForkSettingsActivity extends BaseFragment {
         private TextPaint textPaint;
 
         private final int startStickerSize = 2;
-        private final int endStickerSize = (int)ChatMessageCell.MAX_STICKER_SIZE;
+        private final int endStickerSize = (int) ChatMessageCell.MAX_STICKER_SIZE;
         private final String option = "stickerSize";
 
         private float diff() {

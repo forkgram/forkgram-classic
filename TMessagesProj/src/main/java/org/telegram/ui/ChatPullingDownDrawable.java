@@ -82,6 +82,7 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
     float lastProgress;
     boolean emptyStub;
     float progressToBottomPanel;
+    boolean showBottomPanel;
     private final View fragmentView;
     public long lastShowingReleaseTime;
 
@@ -736,6 +737,13 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
     }
 
     public void drawBottomPanel(Canvas canvas, int top, int bottom, int width) {
+        if (showBottomPanel && progressToBottomPanel != 1f) {
+            progressToBottomPanel = Math.min(1f, progressToBottomPanel + 16f / 150f);
+            fragmentView.invalidate();
+        } else if (!showBottomPanel && progressToBottomPanel != 0f) {
+            progressToBottomPanel = Math.max(0f, progressToBottomPanel - 16f / 150f);
+            fragmentView.invalidate();
+        }
         textPaint2.setColor(getThemedColor(Theme.key_glass_defaultText));
         Paint composeBackgroundPaint = getThemedPaint(Theme.key_paint_chatComposeBackground);
         int oldAlpha = composeBackgroundPaint.getAlpha();
@@ -767,13 +775,14 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
     }
 
     public boolean needDrawBottomPanel() {
-        return (progressToBottomPanel > 0) && !emptyStub;
+        return (showBottomPanel || progressToBottomPanel > 0) && !emptyStub;
     }
 
-    // forkgram-classic: shim for 12.1.1 ChatActivity (pinned). Upstream removed
-    // the explicit show-bottom-panel control; drawBottomPanel/needDrawBottomPanel
-    // now drive visibility implicitly. Keep as a no-op to preserve the call sites.
+    // forkgram-classic: restored from 11.7. Drives the per-frame tween of
+    // progressToBottomPanel that drawBottomPanel already reads.
     public void showBottomPanel(boolean show) {
+        showBottomPanel = show;
+        fragmentView.invalidate();
     }
 
     public boolean animationIsRunning() {

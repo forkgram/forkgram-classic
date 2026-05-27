@@ -747,7 +747,9 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         };
         dropDownContainer.setSubMenuOpenSide(1);
         FrameLayout.LayoutParams flp = LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, AndroidUtilities.isTablet() ? 64 : 56, 0, 40, 0);
-        flp.topMargin = AndroidUtilities.statusBarHeight;
+        // [classic] #3: the pinned 12.1.1 ChatAttachAlert action bar already offsets its children below
+        // the status bar, so the modern extra statusBarHeight top margin double-counted it and pushed the
+        // "Gallery" title down out of vertical centre. Baseline added no such margin — match it.
         parentAlert.actionBar.addView(dropDownContainer, 0, flp);
         dropDownContainer.setOnClickListener(view -> dropDownContainer.toggleSubMenu());
 
