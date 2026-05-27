@@ -10,7 +10,6 @@ import static org.telegram.ui.Stories.StoriesController.STATE_LIVE;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PathMeasure;
@@ -129,7 +128,12 @@ public class StoriesUtilities {
         int state;
         int unreadState = 0;
         boolean showProgress = storiesController.isLoading(dialogId);
-        boolean isForum = (ChatObject.isForum(UserConfig.selectedAccount, dialogId) || AndroidUtilities.avatarCornersType() == AndroidUtilities.AVATAR_CORNERS_FORUM) && !params.isDialogStoriesCell;
+        // [classic] #87: upstream keeps the rounded (forum) ring out of the dialogs stories bar,
+        // because real forum chats never show up there. The fork's Avatar Shape must not be
+        // swallowed by that exclusion — it applies to every avatar the app draws, stories bar
+        // included, so the ring has to follow the shape the ImageReceiver already gave the avatar.
+        boolean isForum = AndroidUtilities.avatarCornersType() == AndroidUtilities.AVATAR_CORNERS_FORUM
+                || (ChatObject.isForum(UserConfig.selectedAccount, dialogId) && !params.isDialogStoriesCell);
         if (params.drawHiddenStoriesAsSegments) {
             hasStories = storiesController.hasHiddenStories();
         }
@@ -710,7 +714,13 @@ public class StoriesUtilities {
         if (isForum) {
             forumRect.set(rectTmp);
             forumRect.inset(dp(0.5f), dp(0.5f));
-            canvas.drawRoundRect(forumRect, dp(18), dp(18), paint);
+            // [classic] #87: upstream hardcoded dp(18) here, which is sized for the ~54dp dialog
+            // avatar; the stories bar shrinks its cells to dp(26.33) when collapsed, where
+            // drawRoundRect clamps that radius to half the height and the ring snaps back to a
+            // circle. Share the one ratio with drawSegment() instead, so the two ways of drawing
+            // the same ring cannot disagree.
+            final float radius = roundRectRingRadius(forumRect);
+            canvas.drawRoundRect(forumRect, radius, radius, paint);
             return;
         }
         if (params.progressToArc == 0) {
@@ -725,31 +735,138 @@ public class StoriesUtilities {
     }
 
     private static final Path forumRoundRectPath = new Path();
-    private static final Matrix forumRoundRectMatrix = new Matrix();
     private static final PathMeasure forumRoundRectPathMeasure = new PathMeasure();
     private static final Path forumSegmentPath = new Path();
+    private static final RectF roundRectCorner = new RectF();
+
+    // The ring is rounded with the same ratio AndroidUtilities.avatarCornerRadius() gives the
+    // avatar inside it, so the two stay concentric whatever size the cell is drawn at.
+    private static float roundRectRingRadius(RectF rect) {
+        return Math.min(rect.width(), rect.height()) * 0.32f;
+    }
+
+    // [classic] #87: exact segmentation of the rounded-square ring.
+    //
+    // Upstream maps an angle onto the outline linearly (fraction = (angle + 199) / 360, the 199
+    // being the angle at which addRoundRect happens to start its contour). That splits the outline
+    // into equal LENGTHS, which is only the same thing as equal ANGLES on a circle: on a rounded
+    // square the divider between two stories drifts from the angle it was asked for by up to ~2deg,
+    // and the whole mapping is tied to one specific corner-radius ratio.
+    //
+    // Here the outline is walked for real: it is built starting at 3 o'clock going clockwise, and
+    // an angle is converted to the matching distance along it — tan() along the four straight
+    // edges, a ray/circle intersection through the four corner arcs. Dividers then land exactly
+    // where the caller asked (2 stories -> halves, 3 -> 120deg, ...) at any radius, and r == 0
+    // (plain square) and r == size/2 (circle) both fall out of the same code.
+    private static void drawRoundRectSegment(Canvas canvas, RectF rect, Paint paint, float startAngle, float endAngle, float r) {
+        if (endAngle - startAngle <= 0) {
+            // The gap has eaten the whole segment (absurd story counts); upstream draws nothing here
+            // and so must we — a non-positive sweep would otherwise wrap into a full ring below.
+            return;
+        }
+        r = Math.min(r, Math.min(rect.width(), rect.height()) / 2f);
+        buildRoundRectOutline(rect, r);
+        forumRoundRectPathMeasure.setPath(forumRoundRectPath, false);
+        final float length = forumRoundRectPathMeasure.getLength();
+        final float from = roundRectFraction(startAngle, rect, r);
+        float to = roundRectFraction(endAngle, rect, r);
+        if (to <= from) {
+            to += 1f;
+        }
+        forumSegmentPath.reset();
+        forumRoundRectPathMeasure.getSegment(from * length, Math.min(to, 1f) * length, forumSegmentPath, true);
+        if (to > 1f) {
+            forumRoundRectPathMeasure.getSegment(0, (to - 1f) * length, forumSegmentPath, true);
+        }
+        forumSegmentPath.rLineTo(0, 0);
+        canvas.drawPath(forumSegmentPath, paint);
+    }
+
+    // The outline, starting at 3 o'clock and running clockwise so that distance along it and the
+    // angles the callers use share an origin.
+    private static void buildRoundRectOutline(RectF rect, float r) {
+        final float cy = rect.centerY();
+        forumRoundRectPath.rewind();
+        forumRoundRectPath.moveTo(rect.right, cy);
+        forumRoundRectPath.lineTo(rect.right, rect.bottom - r);
+        roundRectCorner.set(rect.right - 2 * r, rect.bottom - 2 * r, rect.right, rect.bottom);
+        forumRoundRectPath.arcTo(roundRectCorner, 0, 90);
+        forumRoundRectPath.lineTo(rect.left + r, rect.bottom);
+        roundRectCorner.set(rect.left, rect.bottom - 2 * r, rect.left + 2 * r, rect.bottom);
+        forumRoundRectPath.arcTo(roundRectCorner, 90, 90);
+        forumRoundRectPath.lineTo(rect.left, rect.top + r);
+        roundRectCorner.set(rect.left, rect.top, rect.left + 2 * r, rect.top + 2 * r);
+        forumRoundRectPath.arcTo(roundRectCorner, 180, 90);
+        forumRoundRectPath.lineTo(rect.right - r, rect.top);
+        roundRectCorner.set(rect.right - 2 * r, rect.top, rect.right, rect.top + 2 * r);
+        forumRoundRectPath.arcTo(roundRectCorner, 270, 90);
+        forumRoundRectPath.lineTo(rect.right, cy);
+    }
+
+    // Where the ray leaving the centre at `angle` crosses the outline, as a fraction of its length.
+    private static float roundRectFraction(float angle, RectF rect, float r) {
+        final float hx = rect.width() / 2f, hy = rect.height() / 2f;
+        final float ax = Math.max(0, hx - r), ay = Math.max(0, hy - r);
+        final float quarterArc = (float) (Math.PI * r / 2f);
+        final float total = 4 * (ax + ay + quarterArc);
+        if (total <= 0) {
+            return 0;
+        }
+        // Angles at which the outline changes from a straight edge to a corner arc and back.
+        final float b1 = (float) Math.toDegrees(Math.atan2(ay, hx));
+        final float b2 = (float) Math.toDegrees(Math.atan2(hy, ax));
+        // Distance along the outline at each of those handovers.
+        final float c1 = ay, c2 = c1 + quarterArc, c3 = c2 + 2 * ax, c4 = c3 + quarterArc;
+        final float c5 = c4 + 2 * ay, c6 = c5 + quarterArc, c7 = c6 + 2 * ax, c8 = c7 + quarterArc;
+
+        float a = angle % 360f;
+        if (a < 0) {
+            a += 360f;
+        }
+        final double rad = Math.toRadians(a);
+        final double cos = Math.cos(rad), sin = Math.sin(rad);
+        final float len;
+        if (a < b1) {
+            len = (float) (hx * Math.tan(rad));                              // right edge, downwards
+        } else if (a < b2) {
+            len = c1 + cornerArcLength(cos, sin, ax, ay, r, 0);              // bottom-right corner
+        } else if (a < 180 - b2) {
+            len = c2 + (ax - (float) (hy / Math.tan(rad)));                  // bottom edge
+        } else if (a < 180 - b1) {
+            len = c3 + cornerArcLength(cos, sin, -ax, ay, r, 90);            // bottom-left corner
+        } else if (a < 180 + b1) {
+            len = c4 + (ay + (float) (hx * Math.tan(rad)));                  // left edge
+        } else if (a < 180 + b2) {
+            len = c5 + cornerArcLength(cos, sin, -ax, -ay, r, 180);          // top-left corner
+        } else if (a < 360 - b2) {
+            len = c6 + (ax - (float) (hy / Math.tan(rad)));                  // top edge
+        } else if (a < 360 - b1) {
+            len = c7 + cornerArcLength(cos, sin, ax, -ay, r, 270);           // top-right corner
+        } else {
+            len = c8 + (ay + (float) (hx * Math.tan(rad)));                  // right edge, upwards
+        }
+        return Math.min(1f, Math.max(0f, len / total));
+    }
+
+    // How far into a corner arc of radius r, centred on (cx, cy) relative to the middle of the
+    // rect, the ray (cos, sin) lands. baseDegrees is where that arc starts.
+    private static float cornerArcLength(double cos, double sin, float cx, float cy, float r, float baseDegrees) {
+        final double dot = cos * cx + sin * cy;
+        final double discriminant = Math.max(0, dot * dot - (cx * cx + cy * cy - r * r));
+        final double t = dot + Math.sqrt(discriminant);
+        double phi = Math.toDegrees(Math.atan2(t * sin - cy, t * cos - cx)) - baseDegrees;
+        while (phi < 0) {
+            phi += 360;
+        }
+        while (phi > 360) {
+            phi -= 360;
+        }
+        return (float) (Math.toRadians(Math.min(90, phi)) * r);
+    }
 
     private static void drawSegment(Canvas canvas, RectF rectTmp, Paint paint, float startAngle, float endAngle, AvatarStoryParams params, boolean isForum) {
         if (isForum) {
-            float r = rectTmp.height() * 0.32f;
-            float rotateAngle = (((int)(startAngle)) / 90) * 90 + 90;
-            float pathAngleStart = -199 + rotateAngle;
-            float percentFrom = (startAngle - pathAngleStart) / 360;
-            float percentTo = (endAngle - pathAngleStart) / 360;
-            forumRoundRectPath.rewind();
-            forumRoundRectPath.addRoundRect(rectTmp, r, r, Path.Direction.CW);
-
-            forumRoundRectMatrix.reset();
-            forumRoundRectMatrix.postRotate(rotateAngle, rectTmp.centerX(), rectTmp.centerY());
-            forumRoundRectPath.transform(forumRoundRectMatrix);
-
-            forumRoundRectPathMeasure.setPath(forumRoundRectPath, false);
-            float length = forumRoundRectPathMeasure.getLength();
-
-            forumSegmentPath.reset();
-            forumRoundRectPathMeasure.getSegment(length * percentFrom, length * percentTo, forumSegmentPath, true);
-            forumSegmentPath.rLineTo(0, 0);
-            canvas.drawPath(forumSegmentPath, paint);
+            drawRoundRectSegment(canvas, rectTmp, paint, startAngle, endAngle, roundRectRingRadius(rectTmp));
             return;
         }
         if (params.useArcProgress) {

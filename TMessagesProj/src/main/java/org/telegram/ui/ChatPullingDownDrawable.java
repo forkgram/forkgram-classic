@@ -82,6 +82,7 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
     float lastProgress;
     boolean emptyStub;
     float progressToBottomPanel;
+    boolean showBottomPanel;
     private final View fragmentView;
     public long lastShowingReleaseTime;
 
@@ -736,13 +737,26 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
     }
 
     public void drawBottomPanel(Canvas canvas, int top, int bottom, int width) {
-        textPaint2.setColor(getThemedColor(Theme.key_glass_defaultText));
+        if (showBottomPanel && progressToBottomPanel != 1f) {
+            progressToBottomPanel = Math.min(1f, progressToBottomPanel + 16f / 150f);
+            fragmentView.invalidate();
+        } else if (!showBottomPanel && progressToBottomPanel != 0f) {
+            progressToBottomPanel = Math.max(0f, progressToBottomPanel - 16f / 150f);
+            fragmentView.invalidate();
+        }
+        // forkgram-classic: the bubble redesign uses key_glass_defaultText (a
+        // full-strength text color) and drops the background fill because the
+        // glass input bubble paints its own surface. The classic flat compose
+        // bar has none, so restore the 11.7 behaviour: paint the compose
+        // background over the bar (covering the bottomOverlayChat MUTE/UNMUTE
+        // button) and use the muted hint color for the swipe text.
+        textPaint2.setColor(getThemedColor(Theme.key_chat_messagePanelHint));
         Paint composeBackgroundPaint = getThemedPaint(Theme.key_paint_chatComposeBackground);
         int oldAlpha = composeBackgroundPaint.getAlpha();
         int oldAlphaText = textPaint2.getAlpha();
 
         composeBackgroundPaint.setAlpha((int) (oldAlpha * progressToBottomPanel));
-        // canvas.drawRect(0, top, width, bottom, composeBackgroundPaint);
+        canvas.drawRect(0, top, width, bottom, composeBackgroundPaint);
 
         if (layout1 != null && swipeToReleaseProgress < 1f) {
             textPaint2.setAlpha((int) (oldAlphaText * (1f - swipeToReleaseProgress) * progressToBottomPanel));
@@ -767,13 +781,14 @@ public class ChatPullingDownDrawable implements NotificationCenter.NotificationC
     }
 
     public boolean needDrawBottomPanel() {
-        return (progressToBottomPanel > 0) && !emptyStub;
+        return (showBottomPanel || progressToBottomPanel > 0) && !emptyStub;
     }
 
-    // forkgram-classic: shim for 12.1.1 ChatActivity (pinned). Upstream removed
-    // the explicit show-bottom-panel control; drawBottomPanel/needDrawBottomPanel
-    // now drive visibility implicitly. Keep as a no-op to preserve the call sites.
+    // forkgram-classic: restored from 11.7. Drives the per-frame tween of
+    // progressToBottomPanel that drawBottomPanel already reads.
     public void showBottomPanel(boolean show) {
+        showBottomPanel = show;
+        fragmentView.invalidate();
     }
 
     public boolean animationIsRunning() {
