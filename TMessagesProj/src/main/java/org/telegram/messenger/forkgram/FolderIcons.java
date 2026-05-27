@@ -24,6 +24,10 @@ public class FolderIcons {
 
     public static final int FLAG_EMOTICON = 1 << 25;
 
+    // [classic] #81: sizes of the tab icon, in dp.
+    private static final int ICON_SIZE = 24;
+    private static final int ICON_WITH_TEXT_SIZE = 20;
+
     public static final String PRIVATE = "👤";
     public static final String GROUP = "👥";
     public static final String CHANNELS = "📢";
@@ -184,7 +188,9 @@ public class FolderIcons {
         }
         SpannableStringBuilder result = new SpannableStringBuilder(" ");
         ColoredImageSpan span = new ColoredImageSpan(iconRes, ColoredImageSpan.ALIGN_CENTER);
-        span.setSize(dp(18));
+        // [classic] #81: the drawables are native 24dp, so draw them full size when an icon
+        // stands alone in the tab, and only a notch bigger when it sits next to the title.
+        span.setSize(dp(style == FOLDER_TABS_STYLE_ICON ? ICON_SIZE : ICON_WITH_TEXT_SIZE));
         result.setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         if (style == FOLDER_TABS_STYLE_ICON_TEXT && !TextUtils.isEmpty(name)) {
             result.append("  ");
