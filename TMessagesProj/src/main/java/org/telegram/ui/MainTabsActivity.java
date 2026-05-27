@@ -692,6 +692,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private DialogsActivity dialogsActivity;
 
     @Override
+    public boolean onBackPressed() {
+        return onBackPressed(true);
+    }
+
+    @Override
     public boolean onBackPressed(boolean invoked) {
         final boolean result = super.onBackPressed(invoked);
         if (result) {
@@ -757,6 +762,31 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         return dialogsActivity;
     }
 
+    @Override
+    public void setProgressToDrawerOpened(float v) {
+        // [classic] #4: this tabs wrapper is the top fragment the DrawerLayoutContainer drives, but the
+        // drawer-open parallax (slide + scale of the chat list) lives in the nested DialogsActivity.
+        // Forward the progress so the list actually moves — otherwise the call lands on the empty
+        // BaseFragment stub and the background stays static (the bug behind issue #4).
+        if (dialogsActivity != null) {
+            dialogsActivity.setProgressToDrawerOpened(v);
+        }
+    }
+
+    @Override
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        // [classic] #1: the DrawerLayoutContainer asks the TOP fragment (this tabs wrapper) whether a
+        // left-to-right swipe may open the drawer, but the folder-aware guard lives in the nested
+        // DialogsActivity. Forward it so that, with folders + "Change folder" swipe, a mid-screen L→R
+        // swipe switches folders instead of opening the drawer (the drawer stays reachable from the
+        // far-left edge / on the first tab). Without this the call hit BaseFragment's "return true"
+        // and the drawer always won — which is exactly what issue #1 reports.
+        if (dialogsActivity != null) {
+            return dialogsActivity.isDrawerOpenSwipeEnabled(event);
+        }
+        return true;
+    }
+
     /* */
 
     public GlassTabView[] tabs;
@@ -796,12 +826,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected boolean canScrollForward(MotionEvent ev) {
-        return canScrollInternal(ev, true);
+        return false;
     }
 
     @Override
     protected boolean canScrollBackward(MotionEvent ev) {
-        return canScrollInternal(ev, false);
+        return false;
     }
 
     private boolean canScrollInternal(MotionEvent ev, boolean forward) {
