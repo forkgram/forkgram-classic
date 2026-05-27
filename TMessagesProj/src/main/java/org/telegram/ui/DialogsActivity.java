@@ -516,7 +516,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private ActionBarMenuSubItem proxyMenuSubItem;
     private HintView2 storyHint;
     private HintView2 storyPremiumHint;
-    private HintView2 forkTitleHint;
     private boolean canShowStoryHint;
     private boolean storyHintShown;
     private FragmentFloatingButton floatingButton3;
@@ -568,6 +567,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private boolean updatePullAfterScroll;
 
     private BackDrawable backDrawable;
+    private MenuDrawable menuDrawable;
 
     private final Paint actionBarDefaultPaint = new Paint();
 
@@ -878,18 +878,28 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 h += storiesHeight * (1f - searchAnimationProgress) * (1f - rightSlidingProgress) * (1f - progressToActionMode);
             }
             h += storiesOverscroll;
-            h += dp(SEARCH_FIELD_HEIGHT) * (1f - progressToActionMode) * (1f - searchAnimationProgress) * (1f - rightSlidingProgress);
+            // [classic] #9: the inline search-field band only exists while a search is active
+            // (button-only search hides it at rest). Gate it on animatorSearchVisible so the header
+            // full height matches the list top padding — otherwise the header clip/fill covered the
+            // first dialog after the padding was removed. (In full search mode the (1 - searchAnimationProgress)
+            // factor already zeroes this, so search-mode layout is unchanged.)
+            h += dp(SEARCH_FIELD_HEIGHT) * (1f - progressToActionMode) * (1f - searchAnimationProgress) * (1f - rightSlidingProgress) * animatorSearchVisible.getFloatValue();
 
             return (int) h;
         }
 
         public int getActionBarTop() {
             float scrollY = scrollYOffset;
-            float rightSlidingProgress = 0f;
-            if (rightSlidingDialogContainer != null && rightSlidingDialogContainer.hasFragment()) {
-                rightSlidingProgress = rightSlidingDialogContainer.openedProgress;
+            // [classic] #29: 11.9.5.0 scales scrollY out only for the stories collapse; without
+            // stories the hidden bar is brought back explicitly (resetScroll / setOpenProgress),
+            // so scaling here would double-animate the header fill against those.
+            if (hasStories) {
+                float rightSlidingProgress = 0f;
+                if (rightSlidingDialogContainer != null && rightSlidingDialogContainer.hasFragment()) {
+                    rightSlidingProgress = rightSlidingDialogContainer.openedProgress;
+                }
+                scrollY *= (1f - progressToActionMode) * (1f - rightSlidingProgress);
             }
-            scrollY *= (1f - progressToActionMode) * (1f - rightSlidingProgress);
             return (int) (-getY() + scrollY * (1f - searchAnimationProgress));
         }
 
@@ -912,24 +922,44 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     canvas.clipRect(0, -getY() + getActionBarTop() + getActionBarFullHeight(), getMeasuredWidth(), getMeasuredHeight());
                 }
                 if (slideFragmentProgress != 1f) {
+                    // [classic] #4: direction-aware — drawer-open slides/scales the content to the
+                    // right (pivot at right edge); swipe-back keeps the original leftward motion
+                    // (isDrawerTransition == false reduces this to the upstream behavior exactly).
                     if (slideFragmentLite) {
-                        canvas.translate((-1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
+                        canvas.translate((isDrawerTransition ? 1 : -1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
                     } else {
                         final float s = 1f - 0.05f * (1f - slideFragmentProgress);
-                        canvas.translate((-dp(4)) * (1f - slideFragmentProgress), 0);
-                        canvas.scale(s, s, 0, -getY() + scrollYOffset + getActionBarFullHeight());
+                        canvas.translate((isDrawerTransition ? dp(4) : -dp(4)) * (1f - slideFragmentProgress), 0);
+                        canvas.scale(s, s, isDrawerTransition ? getMeasuredWidth() : 0, -getY() + scrollYOffset + getActionBarFullHeight());
                     }
                 }
                 result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
+            } else if (child == searchViewPager) {
+                // [classic] #45: clip the search results list to below the header (action bar + search
+                // tabs), the same way viewPages are clipped above. Without this, content scrolled up
+                // under the header is drawn OVER the opaque header fill with the modern top-fade alpha
+                // (~30%) — invisible in light theme (white over white) but a visible "ghost" of the list
+                // bleeding through the header in dark theme (the reported #45 regression). The clip line
+                // mirrors the search-pages content padding top from checkUi_searchPagesPaddings()
+                // (minus its ADDITIONAL_LIST_HEIGHT offset, which is the view's own -top in onLayout).
+                canvas.save();
+                final int searchClipTop = (int) searchViewPager.getTranslationY()
+                        + actionBar.getMeasuredHeight()
+                        + (searchTabsView != null ? dp(50) : 0)
+                        + (topPanelLayout != null ? (int) topPanelLayout.getAnimatedHeightWithPadding(dp(7)) : 0);
+                canvas.clipRect(0, searchClipTop, getMeasuredWidth(), getMeasuredHeight());
+                result = super.drawChild(canvas, child, drawingTime);
+                canvas.restore();
             } else if (child == actionBar && slideFragmentProgress != 1f) {
                 canvas.save();
+                // [classic] #4: direction-aware (see drawChild above); drawer-open pivots right.
                 if (slideFragmentLite) {
-                    canvas.translate((-1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
+                    canvas.translate((isDrawerTransition ? 1 : -1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress), 0);
                 } else {
                     float s = 1f - 0.05f * (1f - slideFragmentProgress);
-                    canvas.translate((-dp(4)) * (1f - slideFragmentProgress), 0);
-                    canvas.scale(s, s, 0, (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() / 2f);
+                    canvas.translate((isDrawerTransition ? dp(4) : -dp(4)) * (1f - slideFragmentProgress), 0);
+                    canvas.scale(s, s, isDrawerTransition ? getMeasuredWidth() : 0, (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() / 2f);
                 }
                 result = super.drawChild(canvas, child, drawingTime);
                 canvas.restore();
@@ -941,22 +971,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
         @Override
         public void drawBlurRect(Canvas canvas, float y, Rect rectTmp, Paint blurScrimPaint, boolean top) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !SharedConfig.chatBlurEnabled() || iBlur3SourceGlassFrosted == null || !BlurredBackgroundProviderImpl.checkBlurEnabled(currentAccount, resourceProvider)) {
-                canvas.drawRect(rectTmp, blurScrimPaint);
-                return;
-            }
-
-            final boolean isThemeLight = resourceProvider != null ? !resourceProvider.isDark() : !Theme.isCurrentThemeDark();
-            int blurAlpha = isThemeLight ? 216 : ChatActivity.ACTION_BAR_BLUR_ALPHA;
-            canvas.save();
-            canvas.translate(0, -y);
-            iBlur3SourceGlassFrosted.draw(canvas, rectTmp.left, rectTmp.top + y, rectTmp.right, rectTmp.bottom + y);
-            canvas.restore();
-
-            final int oldScrimAlpha = blurScrimPaint.getAlpha();
-            blurScrimPaint.setAlpha(blurAlpha);
+            // [classic] #8: paint the dialogs header as a flat opaque fill matching the opaque
+            // folder-tabs strip, instead of the modern frosted-blur + 216/180-alpha composite.
+            // This removes the visible seam between the header and the tabs. The paint passed in
+            // (actionBarDefaultPaint / actionBarSearchPaint) is opaque key_windowBackgroundWhite —
+            // the same color the tabs paint via setBackgroundColor.
             canvas.drawRect(rectTmp, blurScrimPaint);
-            blurScrimPaint.setAlpha(oldScrimAlpha);
         }
 
         @Override
@@ -965,7 +985,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 blur3_InvalidateBlur();
             }
 
-            if (invalidateScrollY && (rightSlidingDialogContainer == null || !rightSlidingDialogContainer.hasFragment()) && progressToActionMode == 0) {
+            // [classic] #29: gate on hasStories like 11.9.5.0 — without stories scrollYOffset is
+            // dy-driven from onScrolled (the action bar auto-hide), not recomputed from the list
+            // position here (which would snap the bar back unless the list sits at the very top).
+            if (invalidateScrollY && (rightSlidingDialogContainer == null || !rightSlidingDialogContainer.hasFragment()) && hasStories && progressToActionMode == 0) {
                 invalidateScrollY = false;
                 int firstItemPosition = hasHiddenArchive() && viewPages[0].dialogsType == DIALOGS_TYPE_DEFAULT ? 1 : 0;
                 DialogsRecyclerView recyclerView = viewPages[0].listView;
@@ -1028,15 +1051,25 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         fragmentSearchField.setTranslationY(scrollYOffset + getSearchFieldAdditionOffset());
                     }
                 }
-                blurBounds.set(0, top, getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress));
-                if (searchAnimationProgress < 0) {
-                    drawBlurRect(canvas, 0, blurBounds, searchAnimationProgress == 1f ? actionBarSearchPaint : actionBarDefaultPaint, true);
-                }
+                blurBounds.set(0, top, getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress) + (int) (dp(SEARCH_FIELD_HEIGHT) * searchAnimationProgress));
+                // [classic] #8: always paint the opaque header fill (11.9.5.0 drew it unconditionally
+                // here). Modern 12.4 gated it behind `searchAnimationProgress < 0` (never true) because
+                // it relies on the real frosted-blur pipeline instead; with that pipeline off in classic
+                // the header was left transparent over the wallpaper while the opaque folder-tabs strip
+                // below stayed solid — the reported header/tabs translucency seam.
+                // [classic] #45: at full search getActionBarFullHeight() collapses to the action-bar
+                // row (the SEARCH_FIELD_HEIGHT term is zeroed by (1 - searchAnimationProgress)), so the
+                // 48dp search-field/pill band below it was left unpainted — modern backs it with the
+                // (classic-disabled) liquid glass, not a flat fill. Extend the opaque fill by
+                // dp(SEARCH_FIELD_HEIGHT) * searchAnimationProgress so it meets the searchViewPager tabs
+                // gradient (top = actionBarHeight + dp(SEARCH_FIELD_HEIGHT) - 2) with no transparent gap.
+                drawBlurRect(canvas, 0, blurBounds, searchAnimationProgress == 1f ? actionBarSearchPaint : actionBarDefaultPaint, true);
                 if (searchAnimationProgress > 0 && searchAnimationProgress < 1f) {
                     actionBarSearchPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
                     if (searchIsShowed || !searchWasFullyShowed) {
                     } else {
-                        blurBounds.set(0, top, getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress));
+                        // [classic] #45: keep the search-field band covered during the open animation too.
+                        blurBounds.set(0, top, getMeasuredWidth(), top + actionBarHeight - dp(2 * searchAnimationProgress) + (int) (dp(SEARCH_FIELD_HEIGHT) * searchAnimationProgress));
                         drawBlurRect(canvas, 0, blurBounds, actionBarSearchPaint, true);
                     }
                     if (fragmentSearchField != null) {
@@ -1055,16 +1088,21 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             tabsYOffset = 0;
             storiesYOffset = 0;
-            tabsYOffset -= Math.min(
-                dp(hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + dp(SEARCH_FIELD_HEIGHT) + scrollYOffset,
-                progressToActionMode * (dp(hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + dp(SEARCH_FIELD_HEIGHT))
-            );
-            storiesYOffset = tabsYOffset;
+            // [classic] #29: 11.9.5.0 only collapses the stories row (plus an active search band,
+            // #9) above the tabs here. The unconditional modern math budgeted the 48dp search band
+            // even at rest, yanking the tabs up under the bar during the action-mode transition.
+            final float collapsibleHeaderPart = dp(hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue();
+            if (collapsibleHeaderPart > 0) {
+                tabsYOffset -= Math.min(collapsibleHeaderPart + scrollYOffset, progressToActionMode * collapsibleHeaderPart);
+                storiesYOffset = tabsYOffset;
+            }
             if ((rightSlidingDialogContainer != null && rightSlidingDialogContainer.hasFragment())) {
                 final float rightSlidingProgress = rightSlidingDialogContainer.openedProgress;
 
-                tabsYOffset -= rightSlidingProgress * (getMaxScrollYOffset() + scrollYOffset);
-                storiesYOffset = tabsYOffset;
+                if (hasStories) { // [classic] #29: 11.9.5.0 gate — without stories the scroll-away bar handles this via setOpenProgress
+                    tabsYOffset -= rightSlidingProgress * (getMaxScrollYOffset() + scrollYOffset);
+                    storiesYOffset = tabsYOffset;
+                }
                 if (dialogStoriesCellVisible) {
                     storiesAlpha = 1f - Utilities.clamp(rightSlidingProgress / 0.5f, 1f, 0f);
                 }
@@ -1188,9 +1226,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     if (actionBarColorAnimator == null) {
                         child.setTranslationY(0);
                     }
-                    int transitionPadding = ((isSlideBackTransition) ? (int) (h * 0.05f) : 0);
+                    int transitionPadding = ((isSlideBackTransition || isDrawerTransition) ? (int) (h * 0.05f) : 0); // [classic] #4: drawer-open also needs bottom room for the scale
                     h += transitionPadding;
-                    child.setPadding(child.getPaddingLeft(), child.getPaddingTop(), child.getPaddingRight(), transitionPadding);
+                    // [classic] #4: for the drawer-open scale let the list FILL the extra height instead of
+                    // leaving it as empty bottom padding — otherwise, once the content scales toward the top,
+                    // the bottommost dialog ended above the screen edge with an empty gap under it (looked cut
+                    // in half). With no bottom padding the rows fill down so the last one stays flush with the
+                    // screen bottom after the 0.95 scale. Swipe-back keeps the original padding behavior.
+                    int transitionBottomPadding = isDrawerTransition ? 0 : transitionPadding;
+                    child.setPadding(child.getPaddingLeft(), child.getPaddingTop(), child.getPaddingRight(), transitionBottomPadding);
                     child.measure(contentWidthSpec, View.MeasureSpec.makeMeasureSpec(Math.max(dp(10), h), View.MeasureSpec.EXACTLY));
                     child.setPivotX(child.getMeasuredWidth() / 2f);
                 } else if (child == searchViewPager) {
@@ -1215,7 +1259,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     }
                 } else if (child == rightSlidingDialogContainer) {
                     int h = View.MeasureSpec.getSize(heightMeasureSpec);
-                    int transitionPadding = ((isSlideBackTransition) ? (int) (h * 0.05f) : 0);
+                    int transitionPadding = ((isSlideBackTransition || isDrawerTransition) ? (int) (h * 0.05f) : 0); // [classic] #4: drawer-open also needs bottom room for the scale
                     h += transitionPadding;
                     rightSlidingDialogContainer.setTransitionPaddingBottom(transitionPadding);
                     child.measure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(Math.max(dp(10), h), View.MeasureSpec.EXACTLY));
@@ -1319,9 +1363,34 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     childTop = actionBar.getMeasuredHeight();
                 } else if (child instanceof ViewPage) {
                     childTop = 0;
+                } else if (commentView != null && commentView.isPopupView(child)) {
+                    // [classic] #11: the classic ChatActivityEnterView mounts its emoji/sticker popup in
+                    // the content root (sizeNotifierLayout) and its setViewParentForEmoji() is a no-op, so
+                    // the popup never reaches the modern input island. This ContentView (ported from
+                    // upstream) had no popup-positioning branch, so the panel fell through to TOP gravity
+                    // and rendered under the action bar, dragging the dialog list around. Pin it to the
+                    // bottom on-screen; the EmojiView slides itself in via its own translationY, and the
+                    // comment bubble is lifted above it in bottomPanelTranslationYChanged().
+                    // The popup is created with shouldDrawBackground=false (it expected the island to back
+                    // it), so it rendered transparent over the dialog list — give it a solid background.
+                    if (child.getBackground() == null) {
+                        child.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+                    }
+                    childTop = (b - t) - commentView.getEmojiPadding();
+                } else if (child == commentView && commentView.isPopupShowing()) {
+                    // [classic] #11: when the emoji/sticker panel is open, pin the comment bar statically
+                    // directly above it (don't rely on the slide animation firing) so the text field stays
+                    // visible and you can see what you type. getEmojiPadding() matches the popup branch
+                    // above, so they're flush. The open/close slide is layered on via translationY in
+                    // bottomPanelTranslationYChanged().
+                    childTop = (b - t) - commentView.getEmojiPadding() - height;
                 } else if (child == topPanelLayout || child == topBubblesFadeView || child == filterTabsView) {
                     childTop += actionBar.getMeasuredHeight();
-                    childTop += dp(SEARCH_FIELD_HEIGHT);
+                    // [classic] #9: button-only search has no inline field band at rest, so the folder
+                    // tabs / top panels sit directly under the action bar. Reserve the 48dp only while a
+                    // search is active (was unconditional, which left an empty 48dp band above the tabs
+                    // when folders were enabled).
+                    childTop += (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
                 } else if (dialogStoriesCell != null && dialogStoriesCell.getPremiumHint() == child) {
                     continue;
                 }
@@ -1366,7 +1435,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                             (
                                     ev == null ||
                                             startedTracking ||
-                                            ev.getY() > getActionBarTop() + getActionBarFullHeight() && (chatInputViewsContainer == null || chatInputViewsContainer.getVisibility() != VISIBLE || ev.getY() < chatInputViewsContainer.getY())
+                                            ev.getY() > getActionBarTop() + getActionBarFullHeight() && (commentView == null || commentView.getVisibility() != VISIBLE || ev.getY() < commentView.getY())
                             ) && (
                             initialDialogsType == DIALOGS_TYPE_FORWARD ||
                                     SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS ||
@@ -1670,7 +1739,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             containersAlpha = 1f - progressToDialogStoriesCell;
 
-            actionBar.setTranslationY(0);
+            // [classic] #29: 11.9.5.0 — without stories the whole action bar rides scrollYOffset,
+            // so scrolling down slides it (and the tabs below it) off-screen.
+            actionBar.setTranslationY(scrollYOffset);
         }
         containersAlpha *= (1f - factorSearch);
         if (containersAlpha != 1f) {
@@ -2077,15 +2148,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 t += dp(DialogStoriesCell.HEIGHT_IN_DP);
             }
             if (!actionModeFullyShowed) {
-                t += dp(SEARCH_FIELD_HEIGHT);
+                // [classic] #9: search is button-only, the inline field is hidden at rest, so only
+                // reserve its 48dp top padding while a search is actually active. Unconditionally
+                // adding it left an empty 48dp band between the action bar and the first dialog.
+                t += (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
             }
             additionalPadding = 0;
 
             final float filterTabsVisibility = getFilterTabsVisibilityFactor(false);
             final float topPanelsVisibility = topPanelLayout != null ? topPanelLayout.getMetadata().getTotalVisibility() : 0f;
 
-            t += (int) (dp(36 + 14) * filterTabsVisibility);
-            additionalPadding += (int) (dp(36 + 14) * filterTabsVisibility);
+            t += (int) (dp(44) * filterTabsVisibility);
+            additionalPadding += (int) (dp(44) * filterTabsVisibility);
 
             if (topPanelLayout != null) {
                 final int h = (int) topPanelLayout.getAnimatedHeightWithPadding(lerp((float) dp(14), dp(7), filterTabsVisibility));
@@ -2093,8 +2167,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 additionalPadding += h;
             }
 
-            t -= dp(5 * Math.max(filterTabsVisibility, topPanelsVisibility));
-            additionalPadding -= dp(5 * Math.max(filterTabsVisibility, topPanelsVisibility));
+            // [classic] #30: the 12.4 redesign tucked the list dp(5) under the folder tabs
+            // (t -= dp(5 * Math.max(filterTabsVisibility, topPanelsVisibility))), so the first
+            // dialog rested clipped behind the tab strip. Classic 11.9.5.0 starts the first cell
+            // exactly at the tabs bottom (status bar + action bar + dp(44), no overlap), so only
+            // keep the tuck for the modern top panels, never for the tabs.
+            t -= dp(5 * topPanelsVisibility);
+            additionalPadding -= dp(5 * topPanelsVisibility);
 
             final int b = calculateListViewPaddingBottom();
             if (t != topPadding || b != getPaddingBottom()) {
@@ -3035,6 +3114,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         Long emojiStatusId = UserObject.getEmojiStatusDocumentId(user);
         statusDrawableGiftId = null;
+        boolean hasStatus = true; // [classic] #96
         if (emojiStatusId != null) {
             final boolean isCollectible = user.emoji_status instanceof TLRPC.TL_emojiStatusCollectible;
             statusDrawable.set(emojiStatusId, animated);
@@ -3078,7 +3158,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             statusDrawable.set((Drawable) null, animated);
             statusDrawable.setParticles(false, animated);
             actionBar.setRightDrawableOnClick(null);
+            hasStatus = false; // [classic] #96
         }
+        // [classic] #96: the fork's custom title is applied with setTitle(CharSequence), which clears the
+        // right drawable, so the status has to be re-attached here. Attach it only when there is one: an
+        // empty SwapAnimatedEmojiDrawable still reports dp(26) as its intrinsic width and would eat that
+        // much room from the title.
+        actionBar.setTitleRightDrawable(hasStatus ? statusDrawable : null);
         statusDrawable.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
         if (animatedStatusView != null) {
             animatedStatusView.setColor(getThemedColor(Theme.key_profile_verifiedBackground));
@@ -3243,8 +3329,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         topPanelLayout = null;
 
         ActionBarMenu menu = actionBar.createMenu();
-        menu.setTranslationX(-dp(5));
-        searchItem = menu.addItem(0, R.drawable.outline_header_search).setIsSearchField(true, false);
+        searchItem = menu.addItem(0, R.drawable.msg_search).setIsSearchField(true, false); // [classic] #66: unify the dialogs search button on the genuine-classic msg_search glyph (the modern outline_header_search arrived in 12.4.0 and was never reverted); ChatActivity/Saved Messages already use msg_search.
         searchItem.setOnLongClickListener(v -> {
             Bundle args = new Bundle();
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
@@ -3481,7 +3566,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             optionsItem = menu.addItem(4, R.drawable.ic_ab_other);
             optionsItem.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
             optionsItem.setOnLongClickListener(v -> {
-                presentFragment(new SettingsActivity());
+                presentFragment(classicSettings()); // [classic] #108
                 return true;
             });
             optionsItem.setOnClickListener(v -> {
@@ -3537,6 +3622,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else {
             if (searchString != null || folderId != 0 || communityId != 0) {
                 actionBar.setBackButtonDrawable(backDrawable = new BackDrawable(false));
+            } else {
+                actionBar.setBackButtonDrawable(menuDrawable = new MenuDrawable());
+                menuDrawable.setRoundCap();
+                actionBar.setBackButtonContentDescription(getString(R.string.AccDescrOpenMenu));
             }
             if (folderId != 0) {
                 actionBar.setTitle(getString(R.string.ArchivedChats));
@@ -3955,6 +4044,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                         }
                     } else if (onlySelect || folderId != 0 || communityId != 0) {
                         finishFragment();
+                    } else if (parentLayout != null && parentLayout.getDrawerLayoutContainer() != null) {
+                        parentLayout.getDrawerLayoutContainer().openDrawer(false);
                     }
                 } else if (id == 1) {
                     if (getParentActivity() == null) {
@@ -4269,14 +4360,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                     viewsH += viewPage.dialogsAdapter.getItemHeight(i);
                                 }
                                 int canScrollDy = -(view.getTop() - pTop) + viewsH;
-                                if (!rightSlidingDialogContainer.hasFragment() && !(actionBar != null && actionBar.isActionModeShowed())) {
-                                    canScrollDy -= dp(SEARCH_FIELD_HEIGHT);
-                                }
+                                // [classic] #47: restore the 11.9.5.0 canScrollDy computation. The
+                                // 12.4 redesign reserved an extra dp(SEARCH_FIELD_HEIGHT) of upward
+                                // scroll room for the inline search band it scroll-reveals, then
+                                // re-added it while a programmatic scroll was running. Classic made
+                                // search button-only (#9) so that band never exists — the lone
+                                // `canScrollDy -= dp(SEARCH_FIELD_HEIGHT)` was an uncompensated 48dp
+                                // deficit on a manual finger drag, clipping the list 48dp short of
+                                // the top whenever the folder tabs / stories header was collapsed
+                                // (you "can't swipe to top" with chat folders). Only the stories
+                                // re-add belongs here, exactly as in 11.9.5.0.
                                 if (hasStories && (viewPage.scroller.isRunning() || dialogStoriesCell.isExpanded()) && !rightSlidingDialogContainer.hasFragment() && !fixScrollYAfterArchiveOpened) {
                                     canScrollDy += dp(DialogStoriesCell.HEIGHT_IN_DP);
-                                }
-                                if ((viewPage.scroller.isRunning() || dialogStoriesCell.isExpanded()) && !rightSlidingDialogContainer.hasFragment() && !fixScrollYAfterArchiveOpened && !(actionBar != null && actionBar.isActionModeShowed())) {
-                                    canScrollDy += dp(SEARCH_FIELD_HEIGHT);
                                 }
                                 int positiveDy = Math.abs(dy);
                                 if (canScrollDy < positiveDy) {
@@ -4569,7 +4664,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     viewPage.dialogsItemAnimator.onListScroll(-dy);
                     final int firstVisiblePosition = viewPage.layoutManager.findFirstVisibleItemPosition();
                     checkListLoad(viewPage);
-                    invalidateScrollY = true;
+                    if (hasStories) { // [classic] #29: without stories scrollYOffset is dy-driven below (11.9.5.0), not recomputed in dispatchDraw
+                        invalidateScrollY = true;
+                    }
                     if (fragmentView != null) {
                         fragmentView.invalidate();
                     }
@@ -4599,18 +4696,36 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                             }
                         }
                     }
-                    if (!hasStories && recyclerView == viewPages[0].listView && !searching && actionBar != null && !actionBar.isActionModeShowed() && !disableActionBarScrolling && !rightSlidingDialogContainer.hasFragment()) {
+                    // [classic] #29: restore the 11.9.5.0 scroll-driven action-bar auto-hide —
+                    // accumulate dy into scrollYOffset (clamped to the bar height) while the
+                    // folder tabs are visible; the bar slides away and the tabs take its place.
+                    if (!hasStories && (filterTabsView != null && filterTabsView.getVisibility() == View.VISIBLE && animatorFilterTabsVisible.getValue()) && recyclerView == viewPages[0].listView && !searching && actionBar != null && !actionBar.isActionModeShowed() && !disableActionBarScrolling && !rightSlidingDialogContainer.hasFragment()) {
                         if (dy > 0 && hasHiddenArchive() && viewPages[0].dialogsType == DIALOGS_TYPE_DEFAULT) {
                             View child = recyclerView.getChildAt(0);
                             if (child != null) {
                                 RecyclerView.ViewHolder holder = recyclerView.getChildViewHolder(child);
                                 if (holder.getAdapterPosition() == 0) {
                                     int visiblePartAfterScroll = child.getMeasuredHeight() + (child.getTop() - recyclerView.getPaddingTop());
-                                    if (visiblePartAfterScroll >= 0 && visiblePartAfterScroll + dy > 0) {
-                                        return;
+                                    if (visiblePartAfterScroll + dy > 0) {
+                                        if (visiblePartAfterScroll < 0) {
+                                            dy = -visiblePartAfterScroll;
+                                        } else {
+                                            return;
+                                        }
                                     }
                                 }
                             }
+                        }
+                        float currentTranslation = scrollYOffset;
+                        float newTranslation = currentTranslation - dy;
+                        int maxScrollYOffset = getMaxScrollYOffset();
+                        if (newTranslation < -maxScrollYOffset) {
+                            newTranslation = -maxScrollYOffset;
+                        } else if (newTranslation > 0) {
+                            newTranslation = 0;
+                        }
+                        if (newTranslation != currentTranslation) {
+                            setScrollY(newTranslation);
                         }
                     }
                     if (rightSlidingDialogContainer != null && rightSlidingDialogContainer.hasFragment() && viewPage.listView != null) {
@@ -4734,14 +4849,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         searchViewPagerIndex = contentView.getChildCount();
 
         searchTabsAndFiltersLayout = new SearchTabsAndFiltersLayout(getContext());
-        searchTabsAndFiltersLayout.setPadding(0, dp(7), 0, dp(7));
-        contentView.addView(searchTabsAndFiltersLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, SEARCH_TABS_HEIGHT, Gravity.TOP, 4, 0, 4, 0));
-
-        BlurredBackgroundDrawable searchTabsViewBackground = iBlur3FactoryLiquidGlass.create(searchTabsAndFiltersLayout, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
-        searchTabsViewBackground.setRadius(dp(18));
-        searchTabsViewBackground.setPadding(dp(6.666f));
-        searchTabsAndFiltersLayout.setPadding(0, dp(7), 0, dp(7));
-        searchTabsAndFiltersLayout.setBlurredBackground(searchTabsViewBackground);
+        searchTabsAndFiltersLayout.setPadding(0, 0, 0, 0);
+        contentView.addView(searchTabsAndFiltersLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, SEARCH_TABS_HEIGHT, Gravity.TOP));
 
         filtersView = new FiltersView(getParentActivity(), null);
         filtersView.setPadding(0, dp(3), 0, dp(3));
@@ -4799,24 +4908,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
-        if (!isArchive() && initialDialogsType == DIALOGS_TYPE_DEFAULT) {
-            if (MessagesController.getGlobalMainSettings().getBoolean("forktitlehint", true)) {
-                forkTitleHint = new HintView2(context, HintView2.DIRECTION_TOP)
-                    .setRounding(8)
-                    .setDuration(15_000)
-                    .setCloseButton(true)
-                    .setMaxWidth(260)
-                    .setMultilineText(true)
-                    .setText("Long-press the title to toggle the bottom tab bar.\nLong-press \u22EE to quickly open Settings.")
-                    .setJoint(0, 40)
-                    .setBgColor(getThemedColor(Theme.key_undo_background))
-                    .setOnHiddenListener(() -> MessagesController.getGlobalMainSettings().edit().putBoolean("forktitlehint", false).apply());
-                final int forkTitleHintTopPx = AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight() + AndroidUtilities.dp(8);
-                contentView.addView(forkTitleHint, LayoutHelper.createFrameMarginPx(LayoutHelper.MATCH_PARENT, AndroidUtilities.dp(100), Gravity.TOP | Gravity.FILL_HORIZONTAL, AndroidUtilities.dp(12), forkTitleHintTopPx, AndroidUtilities.dp(12), 0));
-                forkTitleHint.bringToFront();
-            }
-        }
-
         updateStoriesPosting();
 
         searchTabsView = null;
@@ -4840,13 +4931,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             });
 
-            BlurredBackgroundDrawable topPanelLayoutBackground = iBlur3FactoryLiquidGlass.create(topPanelLayout)
-                .setColorProvider(BlurredBackgroundProviderImpl.topPanel(resourceProvider))
-                .setPadding(dp(7));
-
-            topPanelLayout.setPadding(dp(11), dp(21), dp(11), dp(21));
-            topPanelLayout.setBlurredBackground(topPanelLayoutBackground);
-            topPanelLayout.setDefaultRadiusDp(communityId != 0 ? 18 : 24);
+            topPanelLayout.setSolidBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+            topPanelLayout.setPadding(0, 0, 0, 0);
 
             fragmentLocationContextViewWrapper = new FrameLayout(context);
             topPanelLayout.addView(fragmentLocationContextViewWrapper);
@@ -4878,7 +4964,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             topPanelLayout.setCallFragmentContextView(fragmentContextView);
 
             dialogsHintCell = new DialogsHintCell(context);
-            dialogsHintCell.setBackground(Theme.getSelectorDrawable(false));
+            dialogsHintCell.setPadding(dp(14), dp(8), dp(14), dp(8));
+            dialogsHintCell.setBackground(Theme.createSimpleSelectorRoundRectDrawable(0, getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector))));
             updateDialogsHint();
             CacheControlActivity.calculateTotalSize(size -> {
                 cacheSize = size;
@@ -4906,37 +4993,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 checkCommunityPendingRequestsVisible(false);
             }
         } else if (initialDialogsType == DIALOGS_TYPE_FORWARD || clickSelectsDialog()) {
-            chatInputViewsContainer = new ChatInputViewsContainer(context);
-            chatInputViewsContainer.setClipChildren(false);
-            chatInputViewsContainer.setWindowInsetsProvider(windowInsetsStateHolder);
-            chatInputViewsContainer.setInputIslandBubbleDrawable(
-                iBlur3FactoryLiquidGlass.create(chatInputViewsContainer, BlurredBackgroundProviderImpl.inputFieldDialogActivity(resourceProvider)));
-            chatInputViewsContainer.setUnderKeyboardBackgroundDrawable(
-                iBlur3FactoryFrostedLiquidGlass.create(chatInputViewsContainer, BlurredBackgroundProviderImpl.inputFieldDialogActivity(resourceProvider)));
-
-            BlurredBackgroundWithFadeDrawable fadeDrawable = new BlurredBackgroundWithFadeDrawable(
-                    iBlur3FactoryFade.create(chatInputViewsContainer, null));
-            if (!SharedConfig.chatBlurEnabled() || LiteMode.isEnabled(LiteMode.FLAG_LIQUID_GLASS)) {
-                fadeDrawable.setFadeHeight(dp(72), true);
-            }
-
-            chatInputViewsContainer.setBackgroundWithFadeDrawable(fadeDrawable);
-
-            chatInputBubbleContainer = chatInputViewsContainer.getInputIslandBubbleContainer();
-            chatInputBubbleContainer.setClipChildren(false);
-
-            chatInputInAppContainer = chatInputViewsContainer.getInAppKeyboardBubbleContainer();
-
+            // [classic] #11: the preservation fork does NOT use the modern floating "input island"
+            // (ChatInputViewsContainer) for the forward comment bar — it rendered as a translucent
+            // rounded bubble floating off the screen edges, which is the redesign look. Instead the
+            // commentView is added directly to contentView as a classic flat, full-width, edge-to-edge
+            // bar (see below). chatInputViewsContainer is left null on purpose; every island code path is
+            // null-guarded and no-ops.
             if (commentView != null) {
                 commentView.onDestroy();
             }
             commentView = new ChatActivityEnterView(getParentActivity(), contentView, null, false) {
                 @Override
                 protected void onChangedIslandTotalHeight(float h) {
-                    chatInputViewsContainer.setInputBubbleHeight(h);
-                    checkUi_chatListViewPaddingsBottom();
-                    blur3_InvalidateBlur();
-                    checkUi_fadeView();
+                    // [classic] #11: no input island in classic; this upstream hook is never invoked.
                 }
 
                 @Override
@@ -4968,7 +5037,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             };
             commentView.setInAppInsetsController(windowInsetsStateHolder);
-            commentView.shouldDrawBackground = false;
+            // [classic] #11: draw the classic opaque input-bar background (and an opaque emoji panel) —
+            // without the island there is nothing else backing them.
+            commentView.shouldDrawBackground = true;
             contentView.setClipChildren(false);
             contentView.setClipToPadding(false);
             commentView.allowBlur = false;
@@ -4977,11 +5048,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             commentView.setForceShowSendButton(true, false);
             commentView.textFieldContainer.setPadding(0, dp(1), dp(20), 0);
             commentView.getSendButton().setAlpha(0);
-
-            commentView.setViewParentForEmoji(chatInputInAppContainer);
-            chatInputBubbleContainer.addView(commentView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM, 7, 0, 7, 0));
-            contentView.addView(chatInputViewsContainer.getFadeView(), LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-            contentView.addView(chatInputViewsContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            // [classic] #11: add the comment bar directly to contentView as a classic flat, full-width,
+            // edge-to-edge bar pinned to the bottom (no island, no side margins, no floating gap). It
+            // draws its own opaque background (shouldDrawBackground=true above). The emoji popup mounts in
+            // contentView too and is positioned/animated by ContentView.onLayout + bottomPanelTranslationYChanged.
+            contentView.addView(commentView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.BOTTOM));
 
             if (hasSharedMediaEntries() || sharedLink != null || sharedTextSeed != null) {
                 attachShareTopView(pendingSharedCaption);
@@ -5013,7 +5084,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                 @Override
                 public void bottomPanelTranslationYChanged(float translation) {
-
+                    // [classic] #11: the classic emoji panel is a content-root child pinned to the bottom
+                    // (see ContentView.onLayout); lift the comment bar above it in sync as the panel slides
+                    // in/out so the field/send button stay visible. translation is the EmojiView's own
+                    // translationY (0 = fully shown, emojiPadding = hidden). The island self-manages the
+                    // bubble *container*'s translation, so move the commentView child directly and the
+                    // blurred bubble background via setInputBubbleTranslationY by the same amount.
+                    if (commentView != null) {
+                        // [classic] #11: onLayout pins the bar above the panel; here we only layer the
+                        // open/close slide (translation is the EmojiView's own translationY: 0 = fully
+                        // shown above the panel, emojiPadding = slid back down to the bottom).
+                        commentView.setTranslationY(commentView.isPopupShowing() ? translation : 0);
+                    }
                 }
 
                 @Override
@@ -5164,7 +5246,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             writeButton.setCircleSize(dp(52), dp(38));
             writeButton.setCirclePadding(dp(7), dp(8));
             writeButton.newCounterPos = true;
-            contentView.addView(writeButton, LayoutHelper.createFrame(110, 50, Gravity.RIGHT | Gravity.BOTTOM));
+            // [classic] #11: nudge the send button down (negative bottom margin) so its circle is
+            // vertically centered in the flat comment bar. translationY alone clamps and can't push it
+            // this low; the layout margin is a separate, reliable lever.
+            contentView.addView(writeButton, LayoutHelper.createFrame(110, 50, Gravity.RIGHT | Gravity.BOTTOM, 0, 0, 0, -6));
             writeButton.setScrimViewBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
             writeButton.setOnClickListener(v -> {
                 if (delegate == null || selectedDialogs.isEmpty()) {
@@ -5187,12 +5272,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         if (filterTabsView != null) {
-            BlurredBackgroundDrawable filterTabsViewBackground = iBlur3FactoryLiquidGlass.create(filterTabsView, BlurredBackgroundProviderImpl.topPanel(resourceProvider));
-            filterTabsViewBackground.setRadius(dp(18));
-            filterTabsViewBackground.setPadding(dp(6.666f));
-            filterTabsView.setPadding(0, dp(7), 0, dp(7));
-            filterTabsView.setBlurredBackground(filterTabsViewBackground);
-            contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 36 + 7 + 7, Gravity.TOP, 4, 0, 4, 0));
+            // [classic] #62: folder tabs share the action-bar band color (no seam, #8), not base.
+            filterTabsView.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault));
+            contentView.addView(filterTabsView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 44));
         }
 
         if (fragmentSearchField != null) {
@@ -5354,7 +5436,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         };
         dialogStoriesCell.setActionBar(actionBar);
-        dialogStoriesCell.setMenuItemsOffset(isArchive() ? dp(68) : dpf2(16.66f));
+        // [classic] #82: 11.9.5.0 lands the collapsed row at a flat dp(68) on both screens. The
+        // redesign narrowed the main-screen offset to 16.66dp to make room for the Telegram logo,
+        // which classic does not show (#80 restored the story-count title instead).
+        dialogStoriesCell.setMenuItemsOffset(dp(68));
         dialogStoriesCell.allowGlobalUpdates = false;
         dialogStoriesCell.setVisibility(View.GONE);
         animateToHasStories = false;
@@ -5417,7 +5502,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             contentView.addView(blurredView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         }
 
-        actionBarDefaultPaint.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        // [classic] #62: the dialogs header band follows the dedicated action-bar color
+        // (key_actionBarDefault), themeable independently of the base/background color, like
+        // 11.9.5.0. The 12.x "white header" redesign tied it to key_windowBackgroundWhite, so the
+        // header tracked the general base colour (issue #62).
+        actionBarDefaultPaint.setColor(getThemedColor(folderId == 0 ? Theme.key_actionBarDefault : Theme.key_actionBarDefaultArchived));
         /*
         if (inPreviewMode) {
             final TLRPC.User currentUser = getUserConfig().getCurrentUser();
@@ -5526,7 +5615,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     transitionPage.animationSupportListView.setAdapter(transitionPage.animationSupportDialogsAdapter);
                     transitionPage.addView(transitionPage.animationSupportListView);
                 }
-                if (!open) {
+                if (!open && hasStories) { // [classic] #29: 11.9.5.0 gate — without stories scrollY is lerped in setOpenProgress
                     invalidateScrollY = false;
                     DialogsActivity.this.setScrollY(-getMaxScrollYOffset());
                 }
@@ -5563,6 +5652,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 transitionPage.listView.setAnimationSupportView(null, 0, hasFragment(), backward);
                 rightFragmentTransitionInProgress = false;
                 contentView.requestLayout();
+                if (!hasStories) {
+                    DialogsActivity.this.setScrollY(0); // [classic] #29: 11.9.5.0 — bar fully shown once the right fragment settles
+                }
                 if (!hasFragment()) {
                     invalidateScrollY = true;
                     fixScrollYAfterArchiveOpened = true;
@@ -5588,6 +5680,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     fragmentView.invalidate();
                 }
 
+                if (!hasStories) {
+                    // [classic] #29: 11.9.5.0 — a scroll-hidden bar slides back in while the right fragment opens.
+                    DialogsActivity.this.setScrollY(lerp(fromScrollYProperty, 0, progress));
+                }
                 if (actionBar.getTitleTextView() != null) {
                     actionBar.getTitleTextView().setAlpha(1f - progress);
                     if (actionBar.getTitleTextView().getAlpha() > 0) {
@@ -5598,11 +5694,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     actionBar.getBackButton().setAlpha(progress == 1f ? 0f : 1f);
                 }
 
-                if (folderId != 0 || communityId != 0) {
+                if (folderId != 0) {
+                    // [classic] #62: blend archived -> default action-bar color (11.9.5.0); the
+                    // redesign blended windowBackgroundWhite -> windowBackgroundWhite (a no-op).
                     actionBarDefaultPaint.setColor(
                             ColorUtils.blendARGB(
-                                    getThemedColor(Theme.key_windowBackgroundWhite),
-                                    getThemedColor(Theme.key_windowBackgroundWhite),
+                                    getThemedColor(Theme.key_actionBarDefaultArchived),
+                                    getThemedColor(Theme.key_actionBarDefault),
                                     progress
                             )
                     );
@@ -5633,7 +5731,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         // contentView.addView(dialogsActivityStatusLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP));
 
         if (topPanelLayout != null) {
-            contentView.addView(topPanelLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, -14, 0, 0));
+            contentView.addView(topPanelLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.TOP, 0, 0, 0, 0));
         }
 
         if (communityId != 0 && initialDialogsType != DIALOGS_TYPE_FORWARD) {
@@ -5741,6 +5839,26 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean checkAutoscrollToStories(ViewPage viewPage) {
+        if (!hasStories) {
+            // [classic] #29: 11.9.5.0 snap — when a drag leaves the action bar half-hidden,
+            // scroll on so it ends up either fully shown or fully hidden (tabs at the top).
+            if (filterTabsView != null && filterTabsView.getVisibility() == View.VISIBLE && !rightSlidingDialogContainer.hasFragment()) {
+                int scrollY = (int) -scrollYOffset;
+                int actionBarHeight = getMaxScrollYOffset();
+                if (scrollY != 0 && scrollY != actionBarHeight) {
+                    if (scrollY < actionBarHeight / 2) {
+                        if (viewPage.listView.canScrollVertically(-1)) {
+                            viewPage.scroller.smoothScrollBy(-scrollY);
+                            return true;
+                        }
+                    } else if (viewPage.listView.canScrollVertically(1)) {
+                        viewPage.scroller.smoothScrollBy(actionBarHeight - scrollY);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
         if (!rightSlidingDialogContainer.hasFragment()) {
             int scrollY = (int) -scrollYOffset;
             int actionBarHeight = getMaxScrollYOffset();
@@ -5788,10 +5906,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private int getMaxScrollYOffset() {
+        // [classic] #9: search is button-only now — the inline search field is never
+        // scroll-revealed, so reserve its SEARCH_FIELD_HEIGHT in the scroll range ONLY while a
+        // search is actually active. At rest animatorSearchVisible is 0, so the field no longer
+        // leaves an empty 48dp gap above the dialogs on overscroll.
+        final int searchFieldPart = (int) (dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue());
         if (hasStories) {
-            return dp(DialogStoriesCell.HEIGHT_IN_DP) + dp(SEARCH_FIELD_HEIGHT);
+            return dp(DialogStoriesCell.HEIGHT_IN_DP) + searchFieldPart;
         } else {
-            return dp(SEARCH_FIELD_HEIGHT);
+            // [classic] #29: 11.9.5.0 — without stories the whole action bar is the
+            // scroll-collapsible header, so the scroll range is the bar height.
+            return ActionBar.getCurrentActionBarHeight() + searchFieldPart;
         }
     }
 
@@ -6647,7 +6772,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         if (filterTabsView != null) {
             filterTabsView.setTranslationY(totalOffset - searchOffset);
             filtersTabVisibility = filterTabsView.getAlpha();
-            filtersTabHeight = dp(36 + 7) * filtersTabVisibility;
+            filtersTabHeight = dp(44) * filtersTabVisibility;
             totalOffset += filtersTabHeight;
         }
 
@@ -6768,7 +6893,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         // actionMode.setBackgroundColor(Color.TRANSPARENT);
         // actionMode.drawBlur = false;
 
-        if (hasMainTabs) {
+        // [classic] multi-select: the classic hamburger back button morphs into the close X
+        // (MenuDrawable rotation), so the modern standalone close view would paint a second
+        // X on the same 54dp slot, overlapping the hamburger.
+        if (hasMainTabs && menuDrawable == null) {
             actionModeCloseView = new ImageView(getContext());
             actionModeCloseView.setScaleType(ImageView.ScaleType.CENTER);
             actionModeCloseView.setImageDrawable(new BackDrawable(true));
@@ -6783,7 +6911,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         selectedDialogsCountTextView.setTextSize(18);
         selectedDialogsCountTextView.setTypeface(AndroidUtilities.bold());
         selectedDialogsCountTextView.setTextColor(getThemedColor(Theme.key_actionBarActionModeDefaultIcon));
-        actionMode.addView(selectedDialogsCountTextView, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1.0f, hasMainTabs ? 18 : 72, 0, 0, 0));
+        actionMode.addView(selectedDialogsCountTextView, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1.0f, hasMainTabs && menuDrawable == null ? 18 : 72, 0, 0, 0));
         selectedDialogsCountTextView.setOnTouchListener((v, event) -> true);
 
         pinItem = actionMode.addItemWithWidth(pin, R.drawable.msg_pin, dp(48));
@@ -6843,6 +6971,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
 
+        // [classic] #79: tabId is a filter index; translate to the tab's actual list position, which
+        // differs from the filter index when the "All Chats" tab is hidden (do not pass an index as a position).
         int position = tabId >= 0 ? filterTabsView.getTabPositionById(tabId) : -1;
         FilterTabsView.Tab tab = position >= 0 ? filterTabsView.getTab(position) : null;
         if (tab != null) {
@@ -6930,10 +7060,10 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     selectWithStableId = true;
                 }
                 filterTabsView.removeTabs();
-                final boolean hideAllChatsTab = MessagesController.getGlobalMainSettings().getBoolean("hideAllChatsTab", false);
+                final boolean hideAllChatsTab = MessagesController.getGlobalMainSettings().getBoolean("hideAllChatsTab", false); // [classic] #79
                 for (int a = 0, N = filters.size(); a < N; a++) {
                     if (filters.get(a).isDefault()) {
-                        if (hideAllChatsTab) {
+                        if (hideAllChatsTab) { // [classic] #79: don't render the "All Chats" tab
                             continue;
                         }
                         filterTabsView.addTab(a, 0, LocaleController.getString(R.string.FilterAllChats), null, FolderIcons.getIconRes(filters.get(a)), false, true, filters.get(a).locked);
@@ -6953,6 +7083,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                             }
                         }
                     }
+                    // [classic] #79: derive the selected filter's stableId directly — getStableId() takes a
+                    // list position, which differs from selectedType (a filter index) when the All tab is hidden.
                     final int selType = viewPages[0].selectedType;
                     final int selectedStableId = (selType >= 0 && selType < filters.size())
                         ? (filters.get(selType).isDefault() ? 0 : filters.get(selType).localId)
@@ -6969,7 +7101,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     viewPages[a].listView.setScrollingTouchSlop(RecyclerView.TOUCH_SLOP_PAGING);
                 }
                 filterTabsView.finishAddingTabs(animatedUpdateItems);
-                if (applyDefaultFolderLanding(filters, stableId < 0)) {
+                if (applyClassicTabLanding(filters, stableId < 0)) { // [classic] #79
                     updateCurrentTab = true;
                 }
                 if (updateCurrentTab) {
@@ -6990,7 +7122,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     viewPages[0].setTranslationX(0);
                     viewPages[1].setTranslationX(viewPages[0].getMeasuredWidth());
                 }
-                int defaultTabId = filterTabsView.getDefaultTabId();
+                int defaultTabId = filterTabsView.getDefaultTabId(); // [classic] #79: -1 when the All tab is hidden
                 if (defaultTabId < 0) {
                     defaultTabId = 0;
                 }
@@ -7043,7 +7175,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
-    private boolean applyDefaultFolderLanding(ArrayList<MessagesController.DialogFilter> filters, boolean freshBuild) {
+    // [classic] #79: land on the configured default folder, or on the first folder when the "All Chats"
+    // tab is hidden. Returns true when it changed the selection (the caller then switches page content).
+    // On a rebuild that is not a fresh open we only redirect away from the now-hidden All tab, so editing
+    // folders never yanks the user off the tab they are currently on.
+    private boolean applyClassicTabLanding(ArrayList<MessagesController.DialogFilter> filters, boolean freshBuild) {
         if (filterTabsView == null || viewPages == null || viewPages.length == 0 || filters == null || filters.size() <= 1) {
             return false;
         }
@@ -7069,13 +7205,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         }
         if (landingIndex < 0) {
-            return false;
+            return false; // no override configured — keep upstream behaviour
         }
         if (!freshBuild) {
             final int current = viewPages[0].selectedType;
             final boolean currentHidden = current >= 0 && current < filters.size() && hideAllChatsTab && filters.get(current).isDefault();
             if (!currentHidden) {
-                return false;
+                return false; // only redirect when the current tab was the now-hidden All tab
             }
         }
         final MessagesController.DialogFilter target = filters.get(landingIndex);
@@ -7091,7 +7227,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         panTranslationY = y;
         if (commentView != null && commentView.isPopupShowing()) {
-            fragmentView.setTranslationY(y);
+            // [classic] #11: don't pan the whole fragment for the classic emoji panel — it is positioned
+            // on-screen at the bottom by ContentView.onLayout and animated by the EmojiView itself, with
+            // the comment bubble lifted in bottomPanelTranslationYChanged(). Panning here was what made
+            // the background dialog list "scroll around" when the panel opened. (was setTranslationY(y).)
+            fragmentView.setTranslationY(0);
             for (int a = 0; a < viewPages.length; a++) {
                 viewPages[a].setTranslationY(0);
             }
@@ -7375,6 +7515,40 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     @Override
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        // When folder tabs are shown and a horizontal swipe switches folders, opening the
+        // navigation drawer is limited to the far-left screen edge (dp(12)) so that swiping
+        // left-to-right elsewhere switches to the previous folder instead of opening the drawer.
+        // On the first (leftmost) tab there is nothing to switch left to, so the drawer is
+        // allowed from anywhere. See https://github.com/forkgram/forkgram-classic/issues/1
+        if (event != null && isFolderSwitchSwipeActive()) {
+            return event.getX() <= AndroidUtilities.dp(12)
+                    || (filterTabsView != null && filterTabsView.isFirstTab());
+        }
+        return true;
+    }
+
+    private boolean isFolderSwitchSwipeActive() {
+        return filterTabsView != null
+                && filterTabsView.getVisibility() == View.VISIBLE
+                && !filterTabsView.isEditing()
+                && !searching
+                && (rightSlidingDialogContainer == null || !rightSlidingDialogContainer.hasFragment())
+                && (
+                        initialDialogsType == DIALOGS_TYPE_FORWARD
+                                || SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_FOLDERS
+                                || SharedConfig.getChatSwipeAction(currentAccount) == SwipeGestureSettingsView.SWIPE_GESTURE_ARCHIVE
+                                        && viewPages != null && viewPages[0] != null && viewPages[0].dialogsAdapter != null
+                                        && (viewPages[0].dialogsAdapter.getDialogsType() == 7 || viewPages[0].dialogsAdapter.getDialogsType() == 8)
+                );
+    }
+
+    @Override
+    public boolean onBackPressed() {
+        return onBackPressed(true);
+    }
+
+    @Override
     public boolean onBackPressed(boolean invoked) {
         if (hasShownSheet()) {
             if (invoked) closeSheet();
@@ -7423,7 +7597,8 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         } else if (dialogStoriesCell.isFullExpanded() && dialogStoriesCell.scrollToFirst()) {
             return false;
         }
-        return super.onBackPressed(invoked);
+        if (closeSheet()) return false;
+        return true;
     }
 
     @Override
@@ -7444,10 +7619,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             int scrollY = (int) -scrollYOffset;
             int actionBarHeight = ActionBar.getCurrentActionBarHeight();
             if (scrollY != 0 && scrollY != actionBarHeight) {
+                // [classic] #29: re-enabled with the 11.9.5.0 auto-hide — settle a half-hidden bar.
                 if (scrollY < actionBarHeight / 2) {
-            //        setScrollY(0);
+                    setScrollY(0);
                 } else if (viewPages[0].listView.canScrollVertically(1)) {
-            //        setScrollY(-actionBarHeight);
+                    setScrollY(-actionBarHeight);
                 }
             }
         }
@@ -7483,11 +7659,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             storyHintShown = true;
             canShowStoryHint = false;
             storyHint.show();
-        }
-        if (forkTitleHint != null) {
-            final HintView2 hint = forkTitleHint;
-            forkTitleHint = null;
-            AndroidUtilities.runOnUIThread(hint::show, 1500);
         }
         AndroidUtilities.runOnUIThread(this::createSearchViewPager, 200);
     }
@@ -7611,7 +7782,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 searchFiltersWasShowed = true;
             }
             if (searchTabsView == null && searchViewPager != null && !onlyDialogsAdapter && communityId == 0) {
-                searchTabsView = searchViewPager.createTabsView(false, ViewPagerFixed.SELECTOR_TYPE_BUBBLE_STYLE);
+                searchTabsView = searchViewPager.createTabsView(false, 0);
                 searchTabsAndFiltersLayout.addView(searchTabsView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL));
             } else if (searchTabsAndFiltersLayout != null && onlyDialogsAdapter && communityId == 0) {
                 AndroidUtilities.removeFromParent(searchTabsView);
@@ -7660,7 +7831,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             setDialogsListFrozen(true);
             viewPages[0].listView.setVerticalScrollBarEnabled(false);
             if (searchViewPager != null) {
-                searchViewPager.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
+                searchViewPager.setBackgroundColor(0);
             }
             searchAnimator = new AnimatorSet();
             ArrayList<Animator> animators = new ArrayList<>();
@@ -7679,8 +7850,21 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (searchViewPager != null) {
                 animators.add(ObjectAnimator.ofFloat(searchViewPager, View.ALPHA, show ? 1.0f : 0.0f));
                 if (hasStories) {
-                    float translationY = dp(DialogStoriesCell.HEIGHT_IN_DP) + scrollYOffset + dp(SEARCH_FIELD_HEIGHT);
+                    // [classic] #83: no dp(SEARCH_FIELD_HEIGHT) term — this is the search-closed parking
+                    // offset, and the 12.x permanent search band under the action bar does not exist in
+                    // classic (it is scroll-revealed only while searching, see the #9 sites in
+                    // updateContextViewPosition/setScrollY). Budgeting it here parks the pager 48dp too
+                    // low, and searchTabsAndFiltersLayout follows searchViewPager's translationY, so the
+                    // tab row is carried down with it. 11.9.5.0 uses exactly this shorter form.
+                    float translationY = dp(DialogStoriesCell.HEIGHT_IN_DP) + scrollYOffset;
                     animators.add(ObjectAnimator.ofFloat(searchViewPager, SEARCH_TRANSLATION_Y, show ? translationY : 0, show ? 0 : translationY));
+                } else if (searchViewPagerTranslationY != 0) {
+                    // [classic] #83: the branch above is the only writer of this translation, so when the
+                    // stories row disappears between closing search and reopening it (they expire), the
+                    // parking offset left behind by the close animation is never cleared — the reported
+                    // "sometimes there's a gap between the search bar and the content". With no stories
+                    // there is nothing to park below, so drive it back to 0. Upstream has the same hole.
+                    animators.add(ObjectAnimator.ofFloat(searchViewPager, SEARCH_TRANSLATION_Y, searchViewPagerTranslationY, 0));
                 }
                 if (!budget) {
                     animators.add(ObjectAnimator.ofFloat(searchViewPager, View.SCALE_X, show ? 1.0f : 1.05f));
@@ -7841,6 +8025,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         if (searchIsShowed) {
             return;
+        }
+        // [classic] #29: when the tabs strip disappears nothing is left to replace a scroll-hidden
+        // action bar, so bring it back (11.9.5.0 lerped scrollY to 0 during the tabs-hide animation).
+        if (!canShowFilterTabsView && animatorFilterTabsVisible.getValue() && !hasStories && scrollYOffset != 0) {
+            resetScroll();
         }
         animatorFilterTabsVisible.setValue(canShowFilterTabsView, animated);
     }
@@ -8724,7 +8913,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
 
         final BaseFragment[] previewActivity = new BaseFragment[1];
-        previewMenu[0] = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert4, getResourceProvider(), flags);
+        previewMenu[0] = new ActionBarPopupWindow.ActionBarPopupWindowLayout(getParentActivity(), R.drawable.popup_fixed_alert2, getResourceProvider(), flags);
 
         if (hasFolders) {
             foldersMenu[0] = previewMenu[0].addViewToSwipeBack(foldersMenuView);
@@ -9134,11 +9323,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     private void hideActionMode(boolean animateCheck) {
         actionBar.hideActionMode();
         selectedDialogs.clear();
-        if (backDrawable != null) {
+        // [classic] multi-select: morph the close X back into the hamburger like 11.9.5.0.
+        if (menuDrawable != null) {
+            actionBar.setBackButtonContentDescription(getString(R.string.AccDescrOpenMenu));
+            menuDrawable.setRotation(0, true);
+        } else if (backDrawable != null) {
             backDrawable.setRotation(0, true);
         }
         if (filterTabsView != null) {
-            filterTabsView.animateColorsTo(Theme.key_actionBarTabLine, Theme.key_actionBarTabActiveText, Theme.key_actionBarTabUnactiveText, Theme.key_actionBarTabSelector, Theme.key_windowBackgroundWhite);
+            // [classic] #62: leaving action mode restores the tabs to the action-bar color (11.9.5.0), not base.
+            filterTabsView.animateColorsTo(Theme.key_actionBarTabLine, Theme.key_actionBarTabActiveText, Theme.key_actionBarTabUnactiveText, Theme.key_actionBarTabSelector, Theme.key_actionBarDefault);
         }
         if (actionBarColorAnimator != null) {
             actionBarColorAnimator.cancel();
@@ -9148,17 +9342,21 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         float translateListHeight = 0;
-        setScrollY(-getMaxScrollYOffset());
-        for (int i = 0; i < viewPages.length; i++) {
-            if (viewPages[i] != null) {
-                viewPages[i].listView.cancelClickRunnables(true);
+        if (hasStories) { // [classic] #29: 11.9.5.0 gates the stories-collapse bookkeeping; without stories the bar simply stays put
+            setScrollY(-getMaxScrollYOffset());
+            for (int i = 0; i < viewPages.length; i++) {
+                if (viewPages[i] != null) {
+                    viewPages[i].listView.cancelClickRunnables(true);
+                }
             }
+            translateListHeight = Math.max(0, dp(DialogStoriesCell.HEIGHT_IN_DP) + dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue() + scrollYOffset); // [classic] search band exists only while searching (#9)
         }
-        translateListHeight = Math.max(0, dp((hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + SEARCH_FIELD_HEIGHT) + scrollYOffset);
         float finalTranslateListHeight = translateListHeight;
         actionBarColorAnimator = ValueAnimator.ofFloat(progressToActionMode, 0);
         actionBarColorAnimator.addUpdateListener(valueAnimator -> {
-            viewPages[0].setTranslationY(finalTranslateListHeight * (1f - progressToActionMode));
+            if (hasStories) { // [classic] #29
+                viewPages[0].setTranslationY(finalTranslateListHeight * (1f - progressToActionMode));
+            }
             progressToActionMode = (float) valueAnimator.getAnimatedValue();
             for (int i = 0; i < actionBar.getChildCount(); i++) {
                 if (actionBar.getChildAt(i).getVisibility() == View.VISIBLE && actionBar.getChildAt(i) != actionBar.getActionMode() && actionBar.getChildAt(i) != actionBar.getBackButton()) {
@@ -9177,17 +9375,19 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 super.onAnimationEnd(animation);
                 actionBarColorAnimator = null;
                 actionModeFullyShowed = false;
-                invalidateScrollY = true;
-                fixScrollYAfterArchiveOpened = true;
-                fragmentView.invalidate();
-                scrollAdditionalOffset = -(dp((hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + SEARCH_FIELD_HEIGHT) - finalTranslateListHeight);
-                viewPages[0].setTranslationY(0);
-                for (int i = 0; i < viewPages.length; i++) {
-                    if (viewPages[i] != null) {
-                        viewPages[i].listView.requestLayout();
+                if (hasStories) { // [classic] #29: 11.9.5.0 gate — this bookkeeping belongs to the stories collapse
+                    invalidateScrollY = true;
+                    fixScrollYAfterArchiveOpened = true;
+                    fragmentView.invalidate();
+                    scrollAdditionalOffset = -(dp(DialogStoriesCell.HEIGHT_IN_DP) + dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue() - finalTranslateListHeight); // [classic] search band exists only while searching (#9)
+                    viewPages[0].setTranslationY(0);
+                    for (int i = 0; i < viewPages.length; i++) {
+                        if (viewPages[i] != null) {
+                            viewPages[i].listView.requestLayout();
+                        }
                     }
+                    fragmentView.requestLayout();
                 }
-                fragmentView.requestLayout();
                 if (fragmentSearchField != null && animatorSearchVisible.getValue()) {
                     fragmentSearchField.editText.requestFocus();
                     AndroidUtilities.showKeyboard(fragmentSearchField.editText);
@@ -10160,6 +10360,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             AndroidUtilities.hideKeyboard(fragmentView.findFocus());
             actionBar.setActionModeOverrideColor(getThemedColor(Theme.key_windowBackgroundWhite));
             actionBar.showActionMode();
+            if (!hasStories) {
+                // [classic] #29: 11.9.5.0 — a scroll-hidden action bar slides back in to host the action mode.
+                resetScroll();
+            }
+            if (menuDrawable != null) {
+                actionBar.setBackButtonContentDescription(getString(R.string.AccDescrGoBack));
+            }
             if (getPinnedCount() > 1) {
                 if (viewPages != null) {
                     for (int a = 0; a < viewPages.length; a++) {
@@ -10188,20 +10395,24 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
             actionBarColorAnimator = ValueAnimator.ofFloat(progressToActionMode, 1f);
             float translateListHeight = 0;
-            for (int i = 0; i < viewPages.length; i++) {
-                if (viewPages[i] != null) {
-                    viewPages[i].listView.cancelClickRunnables(true);
+            if (hasStories) { // [classic] #29: 11.9.5.0 gates the stories-collapse bookkeeping
+                for (int i = 0; i < viewPages.length; i++) {
+                    if (viewPages[i] != null) {
+                        viewPages[i].listView.cancelClickRunnables(true);
+                    }
                 }
-            }
-            translateListHeight = Math.max(0, dp((hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + SEARCH_FIELD_HEIGHT) + scrollYOffset);
-            if (translateListHeight != 0) {
-                actionModeAdditionalHeight = (int) translateListHeight;
-                fragmentView.requestLayout();
+                translateListHeight = Math.max(0, dp(DialogStoriesCell.HEIGHT_IN_DP) + dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue() + scrollYOffset); // [classic] search band exists only while searching (#9)
+                if (translateListHeight != 0) {
+                    actionModeAdditionalHeight = (int) translateListHeight;
+                    fragmentView.requestLayout();
+                }
             }
             float finalTranslateListHeight = translateListHeight;
             actionBarColorAnimator.addUpdateListener(valueAnimator -> {
                 progressToActionMode = (float) valueAnimator.getAnimatedValue();
-                viewPages[0].setTranslationY(-finalTranslateListHeight * progressToActionMode);
+                if (hasStories) { // [classic] #29
+                    viewPages[0].setTranslationY(-finalTranslateListHeight * progressToActionMode);
+                }
                 for (int i = 0; i < actionBar.getChildCount(); i++) {
                     if (actionBar.getChildAt(i).getVisibility() == View.VISIBLE && actionBar.getChildAt(i) != actionBar.getActionMode() && actionBar.getChildAt(i) != actionBar.getBackButton()) {
                         actionBar.getChildAt(i).setAlpha(1f - progressToActionMode);
@@ -10220,15 +10431,17 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     actionBarColorAnimator = null;
                     actionModeAdditionalHeight = 0;
                     actionModeFullyShowed = true;
-                    scrollAdditionalOffset = dp((hasStories ? DialogStoriesCell.HEIGHT_IN_DP : 0) + SEARCH_FIELD_HEIGHT) - finalTranslateListHeight;
-                    viewPages[0].setTranslationY(0);
-                    for (int i = 0; i < viewPages.length; i++) {
-                        if (viewPages[i] != null) {
-                            viewPages[i].listView.requestLayout();
+                    if (hasStories) { // [classic] #29: 11.9.5.0 gate — this bookkeeping belongs to the stories collapse
+                        scrollAdditionalOffset = dp(DialogStoriesCell.HEIGHT_IN_DP) + dp(SEARCH_FIELD_HEIGHT) * animatorSearchVisible.getFloatValue() - finalTranslateListHeight; // [classic] search band exists only while searching (#9)
+                        viewPages[0].setTranslationY(0);
+                        for (int i = 0; i < viewPages.length; i++) {
+                            if (viewPages[i] != null) {
+                                viewPages[i].listView.requestLayout();
+                            }
                         }
+                        dialogStoriesCell.setProgressToCollapse(1f, false);
+                        fragmentView.requestLayout();
                     }
-                    dialogStoriesCell.setProgressToCollapse(1f, false);
-                    fragmentView.requestLayout();
                 }
             });
             actionBarColorAnimator.setInterpolator(CubicBezierInterpolator.DEFAULT);
@@ -10238,7 +10451,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (filterTabsView != null) {
                 filterTabsView.animateColorsTo(Theme.key_profile_tabSelectedLine, Theme.key_profile_tabSelectedText, Theme.key_profile_tabText, Theme.key_profile_tabSelector, Theme.key_actionBarActionModeDefault);
             }
-            if (backDrawable != null) {
+            // [classic] multi-select: morph the hamburger into the close X like 11.9.5.0.
+            if (menuDrawable != null) {
+                menuDrawable.setRotateToBack(false);
+                menuDrawable.setRotation(1, true);
+            } else if (backDrawable != null) {
                 backDrawable.setRotation(1, true);
             }
         }
@@ -12192,7 +12409,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 //                }
 //            }
             if (dialogsHintCell != null) {
-                dialogsHintCell.setBackground(Theme.getSelectorDrawable(false));
+                dialogsHintCell.setBackground(Theme.createSimpleSelectorRoundRectDrawable(0, getThemedColor(Theme.key_windowBackgroundWhite), Theme.blendOver(getThemedColor(Theme.key_windowBackgroundWhite), getThemedColor(Theme.key_listSelector))));
             }
             if (filterOptions != null) {
                 filterOptions.updateColors();
@@ -12205,6 +12422,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
 
             if (filterTabsView != null) {
+                filterTabsView.setBackgroundColor(getThemedColor(Theme.key_actionBarDefault)); // [classic] #62: tabs follow action-bar color on theme change.
                 filterTabsView.updateColors();
             }
             if (filtersView != null) {
@@ -12233,6 +12451,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
             iBlur3SourceColor.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
             if (topPanelLayout != null) {
+                // forkgram-classic: re-resolve the solid background on theme change. The panel
+                // hosts the audio-player bar (isInsideBubble); its solid bg color was set once at
+                // creation and updateColors() only refreshes backgroundDrawable, so a day/night
+                // toggle left the player panel painted in the previous theme's windowBackgroundWhite.
+                topPanelLayout.setSolidBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
                 topPanelLayout.updateColors();
             }
             if (topBubblesFadeView != null) {
@@ -12277,7 +12500,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             if (onlySelect) {
                 arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundWhite));
             }
-            arrayList.add(new ThemeDescription(fragmentView, 0, null, actionBarDefaultPaint, null, null, Theme.key_windowBackgroundWhite));
+            arrayList.add(new ThemeDescription(fragmentView, 0, null, actionBarDefaultPaint, null, null, Theme.key_actionBarDefault)); // [classic] #62: header band repaints with action-bar color, not base.
             if (searchViewPager != null) {
                 arrayList.add(new ThemeDescription(searchViewPager.searchListView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_windowBackgroundWhite));
             }
@@ -12287,7 +12510,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SEARCH, null, null, null, null, Theme.key_actionBarDefaultSearch));
             arrayList.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SEARCHPLACEHOLDER, null, null, null, null, Theme.key_actionBarDefaultSearchPlaceholder));
         } else {
-            arrayList.add(new ThemeDescription(fragmentView, 0, null, actionBarDefaultPaint, null, null, Theme.key_windowBackgroundWhite));
+            arrayList.add(new ThemeDescription(fragmentView, 0, null, actionBarDefaultPaint, null, null, Theme.key_actionBarDefaultArchived)); // [classic] #62: archived header band uses the archived action-bar color, not base.
             if (searchViewPager != null) {
                 arrayList.add(new ThemeDescription(searchViewPager.searchListView, ThemeDescription.FLAG_LISTGLOWCOLOR, null, null, null, null, Theme.key_windowBackgroundWhite));
             }
@@ -12672,6 +12895,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     final int slideAmplitudeDp = 40;
     boolean slideFragmentLite;
     boolean isSlideBackTransition;
+    boolean isDrawerTransition; // [classic] #4: true while the navigation drawer is sliding open
     ValueAnimator slideBackTransitionAnimator;
 
     @Override
@@ -12763,18 +12987,24 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void setSlideTransitionProgress(float progress) {
-        if (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW && !BuildVars.DEBUG_PRIVATE_VERSION || slideFragmentProgress == progress) {
+        // [classic] #4: run the parallax for the drawer-open transition on all devices; for swipe-back
+        // keep upstream's low-perf skip. Always allow the reset to identity (progress == 1f) so the
+        // transforms never get stuck after a transition on a low-perf device.
+        if (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_LOW && !BuildVars.DEBUG_PRIVATE_VERSION
+                && !isDrawerTransition && progress != 1f
+                || slideFragmentProgress == progress) {
             return;
         }
 
-        slideFragmentLite = SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_AVERAGE || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_SCALE);
+        // [classic] #4: drawer-open always uses the full translate+scale path (not the lite translate-only).
+        slideFragmentLite = !isDrawerTransition && (SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_AVERAGE || !LiteMode.isEnabled(LiteMode.FLAG_CHAT_SCALE));
         slideFragmentProgress = progress;
         if (fragmentView != null) {
             fragmentView.invalidate();
         }
 
         if (slideFragmentLite) {
-            final float translationX = -dp(slideAmplitudeDp) * (1f - slideFragmentProgress);
+            final float translationX = (isDrawerTransition ? 1 : -1) * dp(slideAmplitudeDp) * (1f - slideFragmentProgress); // [classic] #4: direction-aware
             if (dialogStoriesCell != null) {
                 dialogStoriesCell.setTranslationX(translationX);
             }
@@ -12787,13 +13017,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         } else {
-            final float translationX = -dp(4) * (1f - slideFragmentProgress);
+            final float translationX = (isDrawerTransition ? dp(4) : -dp(4)) * (1f - slideFragmentProgress); // [classic] #4: direction-aware
             final float s = 1f - 0.05f * (1f - slideFragmentProgress);
             if (dialogStoriesCell != null) {
                 dialogStoriesCell.setScaleX(s);
                 dialogStoriesCell.setScaleY(s);
                 dialogStoriesCell.setTranslationX(translationX);
-                dialogStoriesCell.setPivotX(0);
+                dialogStoriesCell.setPivotX(isDrawerTransition ? dialogStoriesCell.getMeasuredWidth() : 0); // [classic] #4: pivot right on drawer-open
                 dialogStoriesCell.setPivotY(0);
             }
             if (fragmentSearchField != null) {
@@ -12807,10 +13037,39 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     rightSlidingDialogContainer.getFragmentView().setScaleY(s);
                     rightSlidingDialogContainer.getFragmentView().setTranslationX(translationX);
                 }
-                rightSlidingDialogContainer.getFragmentView().setPivotX(0);
+                rightSlidingDialogContainer.getFragmentView().setPivotX(isDrawerTransition ? rightSlidingDialogContainer.getMeasuredWidth() : 0); // [classic] #4: pivot right on drawer-open
                 rightSlidingDialogContainer.getFragmentView().setPivotY(0);
             }
         }
+    }
+
+    @Override
+    public void setProgressToDrawerOpened(float progress) {
+        // [classic] #4: restore the 12.1.1 drawer-open parallax. Modern Telegram dropped this
+        // override, so DrawerLayoutContainer's per-frame call landed on the empty BaseFragment
+        // stub and the chat list stayed static while the drawer slid over it. We drive the same
+        // slide/scale machinery used by swipe-back, but in the drawer (rightward) direction via
+        // isDrawerTransition; guarded off during swipe-back so the two never fight, and disabled
+        // while the search UI is shown (matching the baseline).
+        // [classic] #4: the drawer-open parallax (rightward translate + slight scale) should run on
+        // all devices to match the pre-12.1 look the issue asks for; upstream gated it out on
+        // low-perf. Keep only the swipe-back guard (the two transitions share the slide machinery).
+        if (isSlideBackTransition) {
+            return;
+        }
+        boolean drawerTransition = progress > 0;
+        if (searchIsShowed) {
+            drawerTransition = false;
+            progress = 0;
+        }
+        if (drawerTransition != isDrawerTransition) {
+            isDrawerTransition = drawerTransition;
+            setFragmentIsSliding(isDrawerTransition);
+            if (fragmentView != null) {
+                fragmentView.requestLayout();
+            }
+        }
+        setSlideTransitionProgress(1f - progress);
     }
 
     @Override
@@ -13769,6 +14028,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    // [classic] #108: the settings entry points must open the classic settings screen
+    // (ProfileActivity in its "settings" mode), never the 12.x redesigned SettingsActivity.
+    private BaseFragment classicSettings() {
+        final Bundle args = new Bundle();
+        args.putLong("user_id", getUserConfig().getClientUserId());
+        return new ProfileActivity(args);
+    }
+
     private void showItemOptions() {
         ItemOptions io = ItemOptions.makeOptions(this, optionsItem);
         io.setColors(getThemedColor(Theme.key_actionBarDefaultTitle), getThemedColor(Theme.key_actionBarDefaultTitle));
@@ -13862,19 +14129,14 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 presentFragment(new ThemeActivity(ThemeActivity.THEME_TYPE_NIGHT));
             });
         });
+        // [classic] #61: "New Message" moved to the drawer (hamburger) menu and the
+        // "Show/Hide bottom tabs" toggle moved to Forkgram Settings ("Show bottom tabs",
+        // default off) — both removed from this top-right overflow per issue #61.
         io.addGap();
         io.add(R.drawable.outline_saved_24, getString(R.string.SavedMessages), () -> {
             Bundle args = new Bundle();
             args.putLong("user_id", UserConfig.getInstance(currentAccount).getClientUserId());
             presentFragment(new ChatActivity(args));
-        });
-        io.add(R.drawable.outline_groups_24, getString(R.string.NewMessageTitle), () -> {
-            openWriteContacts();
-        });
-        final boolean mainTabsHiddenFork = UserConfig.getInstance(currentAccount).getMainTabsHiddenFork();
-        io.add(R.drawable.menu_add_tab_24, getString(mainTabsHiddenFork ? R.string.ShowBottomTabs : R.string.HideBottomTabs), () -> {
-            UserConfig.getInstance(currentAccount).setMainTabsHiddenFork(!mainTabsHiddenFork);
-            checkUi_mainTabsVisible();
         });
         if (MessagesController.getInstance(currentAccount).storiesEnabled()) {
             io.add(R.drawable.outline_fab_story_24, getString(R.string.RecorderNewStory), () -> {
@@ -13914,7 +14176,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
         if (getUserConfig().showCallsTab) {
             io.add(R.drawable.msg_settings_old, getString(R.string.Settings), () -> {
-                presentFragment(new SettingsActivity());
+                presentFragment(classicSettings()); // [classic] #108
             });
         }
 
@@ -14126,9 +14388,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private void checkUi_topPanelVisible() {
-        //final float factor1 = 1f - animatorSearchVisible.getFloatValue();
-        // final float factor2 = 1f - getRightSlidingProgress();
-        final float factor = 1f; // factor1; // * factor2;
+        final float factor1 = 1f - animatorSearchVisible.getFloatValue();
+        final float factor2 = 1f - getRightSlidingProgress();
+        final float factor = factor1 * factor2;
 
         if (topPanelLayout != null) {
             final float s = lerp(0.98f, 1f, factor);
@@ -14177,7 +14439,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         updateContextViewPosition();
     }
 
-    private void checkUi_mainTabsVisible() {
+    // [classic] #61: package-private so MainTabsActivity.onResume() can re-apply the
+    // "Show bottom tabs" preference when returning from Forkgram Settings (no restart needed).
+    void checkUi_mainTabsVisible() {
         final boolean mainTabsVisible = !searching && (blurredView == null || blurredView.getBackground() == null || blurredView.getAlpha() < 0.01f || blurredView.getVisibility() == View.GONE);
         if (mainTabsActivityController != null) {
             mainTabsActivityController.setTabsVisible(UserConfig.getInstance(currentAccount).getMainTabsHiddenFork() ? false : mainTabsVisible);
@@ -14189,15 +14453,16 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
 
-        final int maxScrollWithoutSearch = getMaxScrollYOffsetWithoutSearch();
-        final float alphaByScrollOffset = 1f - MathUtils.clamp((-scrollYOffset - maxScrollWithoutSearch) / dp(SEARCH_FIELD_HEIGHT), 0, 1);
-
         final float actionModeVisible = Math.max(progressToActionMode, animatorActionModeVisible.getFloatValue());
         final float searchFieldVisible = animatorSearchVisible.getFloatValue();
 
         final float factor0 = isSupportSearch() ? 1 : 0;
         final float factor1 = (1f - actionModeVisible) * (1f - animatorDoneButtonVisible.getFloatValue());
-        final float factor2 = Math.max(searchFieldVisible, alphaByScrollOffset * (1f - getRightSlidingProgress()));
+        // [classic] #9: the inline search field tracks ONLY the active-search state, never the
+        // scroll offset, so scrolling/overscrolling never reveals an inline Liquid-Glass search
+        // bar. Search is entered solely via the always-visible action-bar magnifier button (which
+        // stays visible because alpha is 0 at rest -> animatorSearchButtonVisible.setValue(true)).
+        final float factor2 = searchFieldVisible;
 
         final float alpha = factor0 * factor1 * factor2;
 
@@ -14373,7 +14638,13 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private int calculateListViewPaddingBottom() {
         if (commentView != null) {
-            return (int) (windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(9) + chatInputViewsContainer.getInputBubbleHeight() + dp(7) + dp(2));
+            // [classic] #11: no input island — reserve room for the flat comment bar (its own height) above
+            // the navigation bar so the dialog list isn't hidden behind it.
+            int barHeight = commentView.getMeasuredHeight();
+            if (barHeight <= 0) {
+                barHeight = dp(51);
+            }
+            return (int) (windowInsetsStateHolder.getAnimatedMaxBottomInset() + barHeight + dp(2));
         } else if (communityId != 0) {
             return navigationBarHeight + dp(12 + 48 + 12);
         } else {
@@ -14421,7 +14692,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         checkUi_fadeView();
 
         if (writeButton != null) {
-            writeButton.setTranslationY(-windowInsetsStateHolder.getAnimatedMaxBottomInset());
+            // [classic] #11: without the input island this external send button sat too high (its center
+            // above the flat comment bar's center). Lower it so the circle is vertically centered in the
+            // bar. (Measured: bar center ~ dp(15) below the "aligned-with-emoji" baseline on the test
+            // device; tuned empirically.)
+            writeButton.setTranslationY(-windowInsetsStateHolder.getAnimatedMaxBottomInset() + dp(9));
         }
     }
 
@@ -14444,6 +14719,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
     private void drawHeaderShadow(Canvas canvas, int sy) {
         if (parentLayout == null || actionBar == null /*|| !actionBar.getCastShadows()*/) {
+            return;
+        }
+        // [classic] #8: when the folder-tabs strip is shown it is a separate opaque child sitting
+        // directly below the header, so this shadow (drawn at the action-bar/search-field bottom)
+        // landed ON the tabs — the reported drop-shadow on the folder selection (visible on light
+        // themes). In 11.9.5.0 the tabs were part of getActionBarFullHeight(), so the shadow fell
+        // *below* the tabs and never bled onto them. Suppress it here to match that look; the tabs
+        // strip itself provides the header/list separation.
+        if (filterTabsView != null && filterTabsView.getVisibility() == View.VISIBLE && animatorFilterTabsVisible.getValue()) {
             return;
         }
 
