@@ -394,6 +394,15 @@ public class ApplicationLoader extends Application {
         org.osmdroid.config.Configuration.getInstance().setOsmdroidBasePath(new File(getCacheDir(),"osmdroid"));
     }
 
+    // [classic] The watchdog alarm has to target a BroadcastReceiver: a broadcast PendingIntent
+    // aimed at NotificationsService was never delivered anywhere. AppStartReceiver handles
+    // "org.telegram.start" and re-runs startPushService(), so the UnifiedPush check still applies.
+    private static PendingIntent getPushWatchdogIntent(int pendingIntentFlags) {
+        Intent intent = new Intent(applicationContext, AppStartReceiver.class);
+        intent.setAction("org.telegram.start");
+        return PendingIntent.getBroadcast(applicationContext, 0, intent, pendingIntentFlags);
+    }
+
     public static void startPushService() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
         boolean enabled;
@@ -429,9 +438,7 @@ public class ApplicationLoader extends Application {
                 try {
                     applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
                     AlarmManager alarm = (AlarmManager) applicationContext.getSystemService(Context.ALARM_SERVICE);
-                    if (pendingIntent != null) {
-                        alarm.cancel(pendingIntent);
-                    }
+                    alarm.cancel(getPushWatchdogIntent(pendingIntentFlags));
                 } catch (Throwable ignore) {
                 }
                 return;
@@ -439,9 +446,8 @@ public class ApplicationLoader extends Application {
             Log.d("TFOSS", "Trying to start push service every minute");
             // Telegram-FOSS: unconditionally enable push service
             AlarmManager am = (AlarmManager) applicationContext.getSystemService(Context.ALARM_SERVICE);
-            Intent i = new Intent(applicationContext, NotificationsService.class);
             try {
-            pendingIntent = PendingIntent.getBroadcast(applicationContext, 0, i, pendingIntentFlags);
+            pendingIntent = getPushWatchdogIntent(pendingIntentFlags);
 
             am.cancel(pendingIntent);
             am.setInexactRepeating(
@@ -466,7 +472,9 @@ public class ApplicationLoader extends Application {
         } else {
             applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
             try {
-            PendingIntent pintent = PendingIntent.getService(applicationContext, 0, new Intent(applicationContext, NotificationsService.class), PendingIntent.FLAG_MUTABLE);
+            // [classic] cancel by an equal PendingIntent, so a fresh process (pendingIntent == null)
+            // still clears the alarm instead of leaving it firing every 15 minutes.
+            PendingIntent pintent = getPushWatchdogIntent(pendingIntentFlags);
             AlarmManager alarm = (AlarmManager)applicationContext.getSystemService(Context.ALARM_SERVICE);
             alarm.cancel(pintent);
             if (pendingIntent != null) {

@@ -201,7 +201,10 @@ public class ChatAttachAlertAudioLayout extends ChatAttachAlert.AttachAlertLayou
             }
         };
         listView.adapter.setApplyBackground(false);
-        listView.setSections();
+        // [classic] #13: drop the redesign's inset rounded-card list (setSections() applies a
+        // dp(12) horizontal inset + card backgrounds to every row). Classic (11.9.5.0) used a plain
+        // edge-to-edge list, so the music rows sit tight to the left like the now-fixed Files tab.
+        // listView.setSections();
         iBlur3Capture = listView;
         iBlur3CaptureView = listView;
         occupyStatusBar = true;
