@@ -216,7 +216,8 @@ public class BusinessIntroActivity extends UniversalFragment implements Notifica
         greetingsView.setPreview("", "");
 
         super.createView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.adapter.setApplyBackground(false);
         actionBar.setAdaptiveBackground(listView);
 

@@ -3666,6 +3666,10 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         protected abstract TextView createTextView();
     }
 
+    // forkgram-classic: restore modern's tap-outside-to-dismiss. The profile playlist forces
+    // actionBar alpha to 1.0, which disables the inner containerView dismiss path (gated on
+    // alpha==0), and the full-height containerView means the base isTouchOutside (y < 0) never
+    // fires. Use the visible panel top (shadowDrawable bounds) instead.
     @Override
     protected boolean isTouchOutside(float x, float y) {
         if (topBulletinContainer != null && topBulletinContainer.getChildCount() > 0) {

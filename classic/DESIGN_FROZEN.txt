@@ -21,7 +21,9 @@ TMessagesProj/src/main/java/org/telegram/ui/Components/SideMenultItemAnimator.ja
 
 # ── Chat screen and input panels ──────────────────────────────────────────
 TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java
-TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java
+# Cells/ChatMessageCell.java: un-pinned 2026-05-27 — the pin also froze the
+# modern poll v2 display (attached media, click-to-open, countdown,
+# hide_results, shuffle, vote restrictions) for no redesign gain.
 TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java
 
 # New redesign files → delete (not present at baseline)
@@ -36,6 +38,9 @@ TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlertPollLayout
 # New redesign file → delete
 TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlertEmojiLayout.java
 
+# ── Share bottom sheet (pinned 2026-05-27 + Fast Forward 9497c3e88 re-applied) ─
+TMessagesProj/src/main/java/org/telegram/ui/Components/ShareAlert.java
+
 # ── Profile (legacy screen) ───────────────────────────────────────────────
 TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
 # ProfileActivity2.java, PollItemMenu.java, PollCreateCheckCell.java and
@@ -45,6 +50,12 @@ TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
 TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBar.java
 TMessagesProj/src/main/java/org/telegram/ui/ActionBar/ActionBarLayout.java
 TMessagesProj/src/main/java/org/telegram/ui/ActionBar/BaseFragment.java
+# ^ FREEZE HAZARD (#1): BaseFragment.java MUST retain the classic
+#   `isDrawerOpenSwipeEnabled(MotionEvent)` hook (line ~268) — a classic patch with
+#   0 occurrences at baseline. DialogsActivity @Override-s it and
+#   DrawerLayoutContainer calls it, so a restore-frozen.sh run drops the hook and
+#   breaks the DialogsActivity compile. Re-apply it (default `return true`) after
+#   any such restore.
 
 # ActionBarAnimatedSubtitleOverlayContainer.java — KEPT (Stories dependency):
 # DialogStoriesCell uses this overlay helper, and ui/Stories/ is kept per PLAN
@@ -85,3 +96,17 @@ TMessagesProj/src/main/java/org/telegram/ui/Cells/DialogCell.java
 # - AIEditorAlert.java and AiButtonDrawable.java are KEPT, gated by the existing
 #   toggle in dev.
 
+# ── Squared corners (#7) — informational, NOT active pins ─────────────────
+# Issue #7 restored classic squared corners by editing resource ids and radii in
+# files that carry heavy modern functionality and are deliberately not pinned
+# (pinning them would revert poll v2, modern alerts, and DialogsActivity is
+# explicitly not pinned above). They are listed only so an upstream merge
+# re-rounds nothing — do NOT add them as active freeze entries.
+# Rule to preserve on merge:
+#   - Popup / context / overflow menus use R.drawable.popup_fixed_alert2 (≈5dp),
+#     NOT popup_fixed_alert4 (≈10.5dp). Affected files:
+#       ActionBar/ActionBarMenuItem.java, Components/ItemOptions.java (x3),
+#       Components/SenderSelectPopup.java, Components/TranslateButton.java,
+#       ContentPreviewViewer.java, DialogsActivity.java (overflow previewMenu).
+#   - ActionBar/AlertDialog.java uses popup_fixed_alert3 (≈8.5dp), blur r=dp(10),
+#     and NO setOutlineProvider/setClipToOutline round-rect clip.

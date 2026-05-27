@@ -283,11 +283,19 @@ public class LinkManager {
         return false;
     }
 
+    // [classic] #108: tg://settings must land on the classic settings screen (ProfileActivity in its
+    // "settings" mode), never on the 12.x redesigned SettingsActivity.
+    private BaseFragment classicSettings() {
+        final Bundle args = new Bundle();
+        args.putLong("user_id", getUserConfig().getClientUserId());
+        return new ProfileActivity(args);
+    }
+
     // tg://settings/*
     private boolean handleSettings(final List<String> segments) {
         if (segments == null) return false;
         if (segments.isEmpty()) {
-            presentFragment(new SettingsActivity());
+            presentFragment(classicSettings()); // [classic] #108
             return true;
         }
 
@@ -1228,7 +1236,7 @@ public class LinkManager {
             return true;
         }
 
-        presentFragment(new SettingsActivity());
+        presentFragment(classicSettings()); // [classic] #108
         return true;
     }
 

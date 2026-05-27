@@ -1293,7 +1293,8 @@ public class CacheControlActivity extends BaseFragment implements NotificationCe
                 return child != cacheChart;
             }
         };
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.setVerticalScrollBarEnabled(false);
         listView.setPadding(0, AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight() / 2, 0, 0);
         listView.setClipToPadding(false);

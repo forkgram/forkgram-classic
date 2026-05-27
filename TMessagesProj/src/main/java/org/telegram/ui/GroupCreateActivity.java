@@ -352,6 +352,7 @@ public class GroupCreateActivity extends BaseFragment implements NotificationCen
         });
 
         searchField = new FragmentSearchField(context, resourceProvider);
+        searchField.setClassicFlat(); // [classic] #36: flat inline search field, no redesign pill
         FrameLayout contentView;
         fragmentView = contentView = new FrameLayout(context) {
             @Override

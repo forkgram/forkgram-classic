@@ -78,6 +78,8 @@ public class SenderSelectView extends View {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(MeasureSpec.makeMeasureSpec(getLayoutParams().width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(getLayoutParams().height, MeasureSpec.EXACTLY));
         avatarImage.setImageCoords(0, 0, getMeasuredWidth(), getMeasuredHeight());
+        // [classic] #86: this button is 32dp, so the dp(28) below is way past its half size and the
+        // Avatar Shape setting cannot bend it out of a circle — ask for the radius the size implies.
         avatarImage.setRoundRadius(Math.min(getMeasuredWidth(), getMeasuredHeight()) / 2);
     }
 
