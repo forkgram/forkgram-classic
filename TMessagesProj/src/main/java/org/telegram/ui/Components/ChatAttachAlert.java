@@ -159,13 +159,18 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     private int currentLimit;
     private int codepointCount;
 
+    public static final int LAYOUT_TYPE_PHOTO = 1;
+    public static final int LAYOUT_TYPE_MUSIC = 3;
+    public static final int LAYOUT_TYPE_DOCUMENTS = 4;
+    public static final int LAYOUT_TYPE_LOCATION = 6;
+    public static final int LAYOUT_TYPE_STICKERS = 13;
+    public static final int LAYOUT_TYPE_EMOJI = 14;
+
     public boolean canOpenPreview = false;
     private boolean isSoundPicker = false;
-    // forkgram-classic: upstream ChatAttachAlertDocumentLayout branches on
-    // a "poll attach" mode (opened from the poll editor to attach a file).
-    // Classic flow doesn't open the document layout from poll mode — keep
-    // the flag at its default so the upstream-only branches never fire.
     public boolean isPollAttach = false;
+    private int layoutToOpen;
+    private int pollAllowedLayouts;
     // forkgram-classic: upstream ChatAttachAlertPhotoLayout gates "live
     // photo" picker entries on this flag. Classic gallery picker doesn't
     // distinguish live photos — leave at default (treat as allowed).
@@ -182,6 +187,8 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     public boolean destroyed;
     public boolean allowEnterCaption;
     private ChatAttachAlertDocumentLayout.DocumentSelectActivityDelegate documentsDelegate;
+    private ChatAttachAlertAudioLayout.AudioSelectDelegate audioSelectDelegate;
+    private ChatAttachAlertLocationLayout.LocationActivityDelegate locationActivityDelegate;
     public long dialogId;
     private boolean overrideBackgroundColor;
 
@@ -2555,7 +2562,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else {
                         if (locationLayout == null) {
                             layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
-                            locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                            if (locationActivityDelegate != null) {
+                                locationLayout.setDelegate(locationActivityDelegate);
+                            } else {
+                                locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                            }
                         }
                         showLayout(locationLayout);
                     }
@@ -2569,8 +2580,8 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else {
                         if (pollLayout == null) {
                             layouts[1] = pollLayout = new ChatAttachAlertPollLayout(this, getContext(), false, resourcesProvider);
-                            pollLayout.setDelegate((poll, params, notify, scheduleDate, payStars) ->
-                                ((ChatActivity) baseFragment).sendPoll((TLRPC.TL_messageMediaPoll) poll, params, notify, scheduleDate, payStars)
+                            pollLayout.setDelegate((poll, params, caption, media, notify, scheduleDate, payStars) ->
+                                ((ChatActivity) baseFragment).sendPoll((TLRPC.TL_messageMediaPoll) poll, params, caption, media, notify, scheduleDate, payStars)
                             );
                         }
                         showLayout(pollLayout);
@@ -2587,7 +2598,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else {
                         if (todoLayout == null) {
                             layouts[1] = todoLayout = new ChatAttachAlertPollLayout(this, getContext(), true, resourcesProvider);
-                            todoLayout.setDelegate((poll, params, notify, scheduleDate, payStars) ->
+                            todoLayout.setDelegate((poll, params, caption, media, notify, scheduleDate, payStars) ->
                                 ((ChatActivity) baseFragment).sendTodo((TLRPC.TL_messageMediaToDo) poll, notify, scheduleDate, payStars)
                             );
                         }
@@ -4245,14 +4256,18 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         if (audioLayout == null) {
             layouts[3] = audioLayout = new ChatAttachAlertAudioLayout(this, getContext(), resourcesProvider);
             audioLayout.setDelegate((audios, caption, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars) -> {
-                if (baseFragment != null && baseFragment instanceof ChatActivity) {
+                if (audioSelectDelegate != null) {
+                    audioSelectDelegate.didSelectAudio(audios, caption, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars);
+                } else if (baseFragment != null && baseFragment instanceof ChatActivity) {
                     ((ChatActivity) baseFragment).sendAudio(audios, caption, notify, scheduleDate, effectId, invertMedia, payStars);
                 } else if (delegate != null) {
                     delegate.sendAudio(audios, caption, notify, scheduleDate, effectId, invertMedia, payStars);
                 }
             });
         }
-        if (baseFragment instanceof ChatActivity) {
+        if (isPollAttach) {
+            audioLayout.setMaxSelectedFiles(1);
+        } else if (baseFragment instanceof ChatActivity) {
             ChatActivity chatActivity = (ChatActivity) baseFragment;
             TLRPC.Chat currentChat = chatActivity.getCurrentChat();
             audioLayout.setMaxSelectedFiles(currentChat != null && !ChatObject.hasAdminRights(currentChat) && currentChat.slowmode_enabled || editingMessageObject != null ? 1 : -1);
@@ -4325,7 +4340,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                 }
             });
         }
-        if (baseFragment instanceof ChatActivity) {
+        if (isPollAttach) {
+            documentLayout.setMaxSelectedFiles(1);
+        } else if (baseFragment instanceof ChatActivity) {
             ChatActivity chatActivity = (ChatActivity) baseFragment;
             TLRPC.Chat currentChat = chatActivity.getCurrentChat();
             documentLayout.setMaxSelectedFiles(currentChat != null && !ChatObject.hasAdminRights(currentChat) && currentChat.slowmode_enabled || editingMessageObject != null ? 1 : -1);
@@ -5264,7 +5281,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         if (isStoryLocationPicker || isBizLocationPicker) {
             if (locationLayout == null) {
                 layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
-                locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, 0));
+                if (locationActivityDelegate != null) {
+                    locationLayout.setDelegate(locationActivityDelegate);
+                } else {
+                    locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, 0));
+                }
             }
             selectedId = 5;
             layoutToSet = locationLayout;
@@ -5276,6 +5297,31 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             openDocumentsLayout(false);
             layoutToSet = documentLayout;
             selectedId = 4;
+        } else if (isPollAttach) {
+            if (layoutToOpen == LAYOUT_TYPE_MUSIC) {
+                openAudioLayout(false);
+                layoutToSet = audioLayout;
+                selectedId = 3;
+            } else if (layoutToOpen == LAYOUT_TYPE_DOCUMENTS) {
+                openDocumentsLayout(false);
+                layoutToSet = documentLayout;
+                selectedId = 4;
+            } else if (layoutToOpen == LAYOUT_TYPE_LOCATION) {
+                if (locationLayout == null) {
+                    layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
+                    if (locationActivityDelegate != null) {
+                        locationLayout.setDelegate(locationActivityDelegate);
+                    } else {
+                        locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                    }
+                }
+                layoutToSet = locationLayout;
+                selectedId = 6;
+            } else {
+                layoutToSet = photoLayout;
+                selectedId = 1;
+            }
+            typeButtonsAvailable = true;
         } else if (editingMessageObject != null) {
             if (editType == EDITMEDIA_TYPE_ANY) {
                 typeButtonsAvailable = true;
@@ -5642,7 +5688,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         @Override
         public int getItemCount() {
             int count = buttonsCount;
-            if (editingMessageObject == null && baseFragment instanceof ChatActivity) {
+            if (editingMessageObject == null && baseFragment instanceof ChatActivity && !isPollAttach) {
                 count += MediaDataController.getInstance(currentAccount).inlineBots.size();
             }
             return count;
@@ -5661,7 +5707,18 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             locationButton = -1;
             attachBotsStartRow = -1;
             attachBotsEndRow = -1;
-            if (!(baseFragment instanceof ChatActivity)) {
+            if (isPollAttach) {
+                galleryButton = buttonsCount++;
+                if (pollAllowedLayouts == 0 || (pollAllowedLayouts & (1 << LAYOUT_TYPE_DOCUMENTS)) != 0) {
+                    documentButton = buttonsCount++;
+                }
+                if (pollAllowedLayouts == 0 || (pollAllowedLayouts & (1 << LAYOUT_TYPE_MUSIC)) != 0) {
+                    musicButton = buttonsCount++;
+                }
+                if (pollAllowedLayouts == 0 || (pollAllowedLayouts & (1 << LAYOUT_TYPE_LOCATION)) != 0) {
+                    locationButton = buttonsCount++;
+                }
+            } else if (!(baseFragment instanceof ChatActivity)) {
                 galleryButton = buttonsCount++;
                 documentButton = buttonsCount++;
                 if (allowEnterCaption) {
@@ -5931,6 +5988,27 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     public void setDocumentsDelegate(ChatAttachAlertDocumentLayout.DocumentSelectActivityDelegate documentsDelegate) {
         this.documentsDelegate = documentsDelegate;
+    }
+
+    public void setAudioSelectDelegate(ChatAttachAlertAudioLayout.AudioSelectDelegate delegate) {
+        this.audioSelectDelegate = delegate;
+        if (audioLayout != null && delegate != null) {
+            audioLayout.setDelegate(delegate);
+        }
+    }
+
+    public void setLocationActivityDelegate(ChatAttachAlertLocationLayout.LocationActivityDelegate delegate) {
+        this.locationActivityDelegate = delegate;
+        if (locationLayout != null && delegate != null) {
+            locationLayout.setDelegate(delegate);
+        }
+    }
+
+    public void enablePollAttachMode(int layoutToOpen, int allowedLayouts) {
+        isPollAttach = true;
+        pollAllowedLayouts = allowedLayouts;
+        this.layoutToOpen = layoutToOpen;
+        avatarPicker = 0;
     }
 
     private void replaceWithText(int start, int len, CharSequence text, boolean parseEmoji) {

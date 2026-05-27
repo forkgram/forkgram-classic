@@ -661,6 +661,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private DialogsActivity dialogsActivity;
 
     @Override
+    public boolean onBackPressed() {
+        return onBackPressed(true);
+    }
+
+    @Override
     public boolean onBackPressed(boolean invoked) {
         final boolean result = super.onBackPressed(invoked);
         if (result) {
@@ -765,12 +770,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected boolean canScrollForward(MotionEvent ev) {
-        return canScrollInternal(ev, true);
+        return false;
     }
 
     @Override
     protected boolean canScrollBackward(MotionEvent ev) {
-        return canScrollInternal(ev, false);
+        return false;
     }
 
     private boolean canScrollInternal(MotionEvent ev, boolean forward) {

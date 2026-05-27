@@ -5609,6 +5609,9 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
         if (view == null) {
             return;
         }
+        if (lineView == null) {
+            lineView = new View(getContext());
+        }
         topLineView = lineView;
         topLineView.setVisibility(GONE);
         topLineView.setAlpha(0.0f);
@@ -13231,15 +13234,22 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
         }
 
         private int circleSize = -1;
-        // forkgram-classic: upstream callers (ShareAlert) use a (w,h) overload
-        // and a newCounterPos flag. Keep the single-int classic behaviour;
-        // ignore the second size and the position flag.
+        private int circleHeight = -1;
         public boolean newCounterPos;
+        public int outlineColor = 0;
+        public float outlineWidth = 0;
         public void setCircleSize(int size) {
             this.circleSize = size;
+            this.circleHeight = size;
         }
         public void setCircleSize(int width, int height) {
             this.circleSize = width;
+            this.circleHeight = height;
+        }
+        public int getCircleHeight() {
+            if (circleHeight >= 0)
+                return circleHeight;
+            return getMeasuredHeight() - dp(8);
         }
         // forkgram-classic: PhotoViewer uses this to apply a frosted-glass
         // background under the send button. The classic button stays opaque.
@@ -13370,9 +13380,9 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
                 drawable.draw(canvas);
             }
             final float right = lerp(lerp(getMeasuredWidth() - getMeasuredHeight() / 2.0f, getMeasuredWidth() - dp(4), openProgress) - circlePadX, getMeasuredWidth() - dp(9), priceProgress);
-            final float cy = lerp(getMeasuredHeight() - circlePadY - dp(4) - getCircleSize() / 2, getMeasuredHeight() - dp(24), priceProgress);
+            final float cy = lerp(getMeasuredHeight() - circlePadY - dp(4) - getCircleHeight() / 2f, getMeasuredHeight() - dp(24), priceProgress);
             final float w = lerp(getCircleSize(), dp(11 + 11) + priceText.getCurrentWidth(), priceProgress) * openProgress;
-            final float h = lerp(getCircleSize(), dp(32), priceProgress) * openProgress;
+            final float h = lerp(getCircleHeight(), dp(32), priceProgress) * openProgress;
             setPivotX(right - w / 2.0f);
             setPivotY(cy);
 
@@ -13383,6 +13393,13 @@ public class ChatActivityEnterView extends BlurredFrameLayout implements Notific
                 AndroidUtilities.rectTmp.set(right - w, cy - h / 2.0f, right, cy + h / 2.0f);
                 path.addRoundRect(AndroidUtilities.rectTmp, r, r, Path.Direction.CW);
                 canvas.drawPath(path, backgroundPaint);
+                if (outlineWidth > 0 && outlineColor != 0) {
+                    final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                    outlinePaint.setStyle(Paint.Style.STROKE);
+                    outlinePaint.setColor(outlineColor);
+                    outlinePaint.setStrokeWidth(outlineWidth);
+                    canvas.drawPath(path, outlinePaint);
+                }
                 canvas.clipPath(path);
                 if (loadingShown > 0) {
                     loadingPaint.setColor(0xFFFFFFFF);

@@ -24,7 +24,10 @@ TMessagesProj/src/main/java/org/telegram/ui/Components/SideMenultItemAnimator.ja
 
 # ── Chat screen and input panels ──────────────────────────────────────────
 TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java
-TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java
+# Cells/ChatMessageCell.java: un-pinned 2026-05-27 — modern poll v2 display
+# (attached media, click-to-open, countdown, hide_results, shuffle, vote
+# restrictions) was unreachable while pinned at 12.1.1 baseline, and the
+# file has no significant redesign concerns that warrant freezing.
 TMessagesProj/src/main/java/org/telegram/ui/Components/ChatActivityEnterView.java
 
 # New redesign files → delete (not present at baseline)
@@ -38,6 +41,9 @@ TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlertPollLayout
 
 # New redesign file → delete
 TMessagesProj/src/main/java/org/telegram/ui/Components/ChatAttachAlertEmojiLayout.java
+
+# ── Share bottom sheet (pinned 2026-05-27 + Fast Forward 9497c3e88 re-applied) ─
+TMessagesProj/src/main/java/org/telegram/ui/Components/ShareAlert.java
 
 # ── Profile (legacy screen) ───────────────────────────────────────────────
 TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java

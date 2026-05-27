@@ -241,6 +241,7 @@ import org.telegram.ui.Cells.UserInfoCell;
 import org.telegram.ui.Components.*;
 import org.telegram.ui.Components.FloatingDebug.FloatingDebugController;
 import org.telegram.ui.Components.FloatingDebug.FloatingDebugProvider;
+import org.telegram.ui.Components.poll.PollUtils;
 import org.telegram.ui.Components.Forum.ForumUtilities;
 import org.telegram.ui.Components.Premium.GiftPremiumBottomSheet;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
@@ -314,6 +315,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     // when blending the action bar over scrolled content. Matches the
     // upstream value (alpha ~70%).
     public static final int ACTION_BAR_BLUR_ALPHA = 180;
+    public static final int SIDE_MENU_WIDTH = 64;
 
     // forkgram-classic: upstream LaunchActivity writes the poll option to
     // highlight (deep-linking to a vote). Classic chat doesn't run the
@@ -6820,7 +6822,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         searchUpButtonArrow.setScaleY(-1f);
         searchUpButtonArrow.setImageResource(R.drawable.pagedown);
         searchUpButtonArrow.setScaleType(ImageView.ScaleType.CENTER);
-        searchUpButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        searchUpButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButtonIcon), PorterDuff.Mode.MULTIPLY));
         searchUpButtonArrow.setPadding(0, AndroidUtilities.dp(2), 0, 0);
         searchUpButton.addView(searchUpButtonArrow, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
         ScaleStateListAnimator.apply(searchUpButton, .12f, 2f);
@@ -6852,7 +6854,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         searchDownButtonArrow = new ImageView(context);
         searchDownButtonArrow.setImageResource(R.drawable.pagedown);
         searchDownButtonArrow.setScaleType(ImageView.ScaleType.CENTER);
-        searchDownButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        searchDownButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButtonIcon), PorterDuff.Mode.MULTIPLY));
         searchDownButtonArrow.setPadding(0, AndroidUtilities.dp(2), 0, 0);
         searchDownButton.addView(searchDownButtonArrow, LayoutHelper.createFrame(46, 46, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
         ScaleStateListAnimator.apply(searchDownButton, .12f, 2f);
@@ -7329,7 +7331,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         pagedownButtonArrow = new ImageView(context);
         pagedownButtonArrow.setImageResource(R.drawable.pagedown);
         pagedownButtonArrow.setScaleType(ImageView.ScaleType.CENTER);
-        pagedownButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        pagedownButtonArrow.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButtonIcon), PorterDuff.Mode.MULTIPLY));
         pagedownButtonArrow.setPadding(0, AndroidUtilities.dp(2), 0, 0);
         pagedownButtonArrow.setPivotX(AndroidUtilities.dp(23));
         pagedownButtonArrow.setPivotY(AndroidUtilities.dp(33));
@@ -7337,7 +7339,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
 
         pagedownButtonLoading = new ImageView(context);
         pagedownButtonLoading.setScaleType(ImageView.ScaleType.CENTER);
-        pagedownButtonLoadingDrawable = new CircularProgressDrawable(AndroidUtilities.dp(18), AndroidUtilities.dp(1.7f), getThemedColor(Theme.key_chat_goDownButton));
+        pagedownButtonLoadingDrawable = new CircularProgressDrawable(AndroidUtilities.dp(18), AndroidUtilities.dp(1.7f), getThemedColor(Theme.key_chat_goDownButtonIcon));
         pagedownButtonLoadingDrawable.setAngleOffset(90);
         pagedownButtonLoading.setImageDrawable(pagedownButtonLoadingDrawable);
         pagedownButtonLoading.setAlpha(0f);
@@ -7359,7 +7361,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         mentiondownButtonImage = new ImageView(context);
         mentiondownButtonImage.setImageResource(R.drawable.mentionbutton);
         mentiondownButtonImage.setScaleType(ImageView.ScaleType.CENTER);
-        mentiondownButtonImage.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        mentiondownButtonImage.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButtonIcon), PorterDuff.Mode.MULTIPLY));
         mentiondownButtonImage.setPadding(0, AndroidUtilities.dp(2), 0, 0);
         if (Build.VERSION.SDK_INT >= 21) {
             pagedownButtonImage.setOutlineProvider(new ViewOutlineProvider() {
@@ -7438,7 +7440,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         reactionsMentiondownButtonImage = new ImageView(context);
         reactionsMentiondownButtonImage.setImageResource(R.drawable.reactionbutton);
         reactionsMentiondownButtonImage.setScaleType(ImageView.ScaleType.CENTER);
-        reactionsMentiondownButtonImage.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButton), PorterDuff.Mode.MULTIPLY));
+        reactionsMentiondownButtonImage.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_goDownButtonIcon), PorterDuff.Mode.MULTIPLY));
         if (Build.VERSION.SDK_INT >= 21) {
             reactionsMentiondownButtonImage.setOutlineProvider(new ViewOutlineProvider() {
                 @Override
@@ -9605,7 +9607,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         invalidateChatListViewTopPadding();
         topChatPanelView.setClickable(true);
         topChatPanelView.setVisibility(View.GONE);
-        topChatPanelView.setBackgroundResource(R.drawable.blockpanel_shadow);
+        topChatPanelView.setBackgroundResource(R.drawable.blockpanel);
         topChatPanelView.getBackground().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
         int index = 8;
         if (pinnedMessageView != null && pinnedMessageView.getParent() == contentView) {
@@ -9773,7 +9775,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         invalidateChatListViewTopPadding();
         topChatPanelView2.setClickable(true);
         topChatPanelView2.setVisibility(View.GONE);
-        topChatPanelView2.setBackgroundResource(R.drawable.blockpanel_shadow);
+        topChatPanelView2.setBackgroundResource(R.drawable.blockpanel);
         topChatPanelView2.getBackground().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
         int index = 8;
         if (pinnedMessageView != null && pinnedMessageView.getParent() == contentView) {
@@ -11380,7 +11382,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         pinnedMessageView.setTag(1);
         pinnedMessageEnterOffset = -AndroidUtilities.dp(50);
         pinnedMessageView.setVisibility(View.GONE);
-        pinnedMessageView.setBackgroundResource(R.drawable.blockpanel_shadow);
+        pinnedMessageView.setBackgroundResource(R.drawable.blockpanel);
         pinnedMessageView.backgroundColor = getThemedColor(Theme.key_chat_topPanelBackground);
         pinnedMessageView.backgroundPaddingBottom = AndroidUtilities.dp(2);
         pinnedMessageView.getBackground().mutate().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
@@ -15991,7 +15993,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 hasTopicSeparator = messageCell.topicSeparator != null;
 
                 messageCell.setParentBounds((SharedConfig.chatBlurEnabled() && contentView.DRAW_USING_RENDERNODE() ? 0 : chatListViewPaddingTop) - chatListViewPaddingVisibleOffset - dp(4), chatListView.getMeasuredHeight() - blurredViewBottomOffset);
-                messageCell.setVisiblePart(viewTop, viewBottom - viewTop, recyclerChatViewHeight, keyboardOffset, view.getY() + (isKeyboardVisible() ? chatListView.getTop() : actionBar.getMeasuredHeight()) - contentView.getBackgroundTranslationY() - (1f - contentPanTranslationT) * chatListViewPaddingTop, contentView.getMeasuredWidth(), contentView.getBackgroundSizeY(), blurredViewTopOffset, blurredViewBottomOffset);
+                messageCell.setVisiblePart(viewTop, viewBottom - viewTop, recyclerChatViewHeight, keyboardOffset, view.getY() + (isKeyboardVisible() ? chatListView.getTop() : actionBar.getMeasuredHeight()) - contentView.getBackgroundTranslationY() - (1f - contentPanTranslationT) * chatListViewPaddingTop, contentView.getMeasuredWidth(), contentView.getBackgroundSizeY(), blurredViewTopOffset, blurredViewBottomOffset, 0);
                 markSponsoredAsRead(messageObject);
                 if (!threadMessageVisible && messageStarter != null && (messageObject == messageStarter || isTopic && messageObject != null && messageObject.getId() == messageStarter.getId()) && messageCell.getBottom() > chatListViewPaddingTop) {
                     threadMessageVisible = true;
@@ -22932,7 +22934,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                         MessageObject playing = cell.getMessageObject();
                         if (playing != null && playing.getId() == mid) {
                             MessageObject player = MediaController.getInstance().getPlayingMessageObject();
-                            if (player != null && !cell.getSeekBar().isDragging()) {
+                            if (player != null && !cell.isDraggingdAnyMusicSeekBar()) {
                                 playing.audioProgress = player.audioProgress;
                                 playing.audioProgressSec = player.audioProgressSec;
                                 playing.audioPlayerDuration = player.audioPlayerDuration;
@@ -27763,7 +27765,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         alertView = new FrameLayout(getContext());
         alertView.setTag(1);
         alertView.setVisibility(View.GONE);
-        alertView.setBackgroundResource(R.drawable.blockpanel_shadow);
+        alertView.setBackgroundResource(R.drawable.blockpanel);
         alertView.getBackground().setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_topPanelBackground), PorterDuff.Mode.MULTIPLY));
         int index = 9;
         if (topChatPanelView != null && topChatPanelView.getParent() == contentView) {
@@ -35085,17 +35087,37 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         }
     }
 
-    public void sendPoll(TLRPC.TL_messageMediaPoll poll, HashMap<String, String> params, boolean notify, int scheduleDate, long payStars) {
-        if (checkSlowModeAlert()) {
-            final SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of(poll, dialog_id, replyingMessageObject, getThreadMessage(), null, params, notify, scheduleDate, 0);
-            params2.quick_reply_shortcut = quickReplyShortcut;
-            params2.quick_reply_shortcut_id = getQuickReplyId();
-            params2.payStars = payStars;
-            params2.monoForumPeer = getSendMonoForumPeerId();
-            params2.suggestionParams = messageSuggestionParams;
-            getSendMessagesHelper().sendMessage(params2);
-            afterMessageSend();
+    public void sendPoll(TLRPC.TL_messageMediaPoll poll, HashMap<String, String> params, CharSequence caption, org.telegram.ui.Components.poll.PollAttachedMediaPack media, boolean notify, int scheduleDate, long payStars) {
+        if (!checkSlowModeAlert()) {
+            return;
         }
+        String captionString = null;
+        ArrayList<TLRPC.MessageEntity> captionEntities = null;
+        if (!TextUtils.isEmpty(caption)) {
+            CharSequence[] msg = new CharSequence[]{caption};
+            captionEntities = MediaDataController.getInstance(currentAccount).getEntities(msg, true);
+            captionString = msg[0].toString();
+        }
+        if (media != null && media.medias.size() > 0) {
+            final long groupId = Utilities.random.nextLong();
+            final org.telegram.ui.Components.poll.PollSendParams pollSendParams = new org.telegram.ui.Components.poll.PollSendParams(
+                media, poll, groupId, captionString == null ? "" : captionString, captionEntities, null);
+            SendMessagesHelper.prepareSendingPoll(AccountInstance.getInstance(currentAccount), pollSendParams, dialog_id, replyingMessageObject, getThreadMessage(), null, null, notify, scheduleDate, quickReplyShortcut, getQuickReplyId(), payStars, getSendMonoForumPeerId(), messageSuggestionParams);
+            afterMessageSend();
+            return;
+        }
+        final SendMessagesHelper.SendMessageParams params2 = SendMessagesHelper.SendMessageParams.of(poll, dialog_id, replyingMessageObject, getThreadMessage(), null, params, notify, scheduleDate, 0);
+        if (captionString != null) {
+            params2.entities = captionEntities;
+            params2.caption = captionString;
+        }
+        params2.quick_reply_shortcut = quickReplyShortcut;
+        params2.quick_reply_shortcut_id = getQuickReplyId();
+        params2.payStars = payStars;
+        params2.monoForumPeer = getSendMonoForumPeerId();
+        params2.suggestionParams = messageSuggestionParams;
+        getSendMessagesHelper().sendMessage(params2);
+        afterMessageSend();
     }
 
     public void sendTodo(TLRPC.TL_messageMediaToDo todo, boolean notify, int scheduleDate, long payStars) {
@@ -39668,7 +39690,29 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
                 }
                 pollHintView.showForMessageCell(cell, showCount, x, y, true);
             } else {
-                getSendMessagesHelper().sendVote(cell.getMessageObject(), buttons, null);
+                MessageObject voteObject = cell.getMessageObject();
+                int restrictedFlags = PollUtils.getVoteRestrictedFlags(voteObject);
+                if (restrictedFlags != 0) {
+                    CharSequence toastText = PollUtils.getVoteRestrictedToastText(voteObject, restrictedFlags);
+                    if (toastText != null) {
+                        BulletinFactory.of(ChatActivity.this)
+                                .createSimpleBulletin(R.raw.chats_infotip, toastText)
+                                .show(true);
+                    }
+                    return;
+                }
+                TLRPC.MessageMedia voteMedia = MessageObject.getMedia(voteObject.messageOwner);
+                if (voteMedia instanceof TLRPC.TL_messageMediaPoll) {
+                    TLRPC.TL_messageMediaPoll voteMediaPoll = (TLRPC.TL_messageMediaPoll) voteMedia;
+                    if (voteMediaPoll.poll != null && voteMediaPoll.poll.revoting_disabled
+                            && !voteMediaPoll.poll.closed && voteObject.isVoted()) {
+                        BulletinFactory.of(ChatActivity.this)
+                                .createSimpleBulletin(R.raw.chats_infotip, "You can no longer change your vote in this poll.")
+                                .show(true);
+                        return;
+                    }
+                }
+                getSendMessagesHelper().sendVote(voteObject, buttons, null);
             }
         }
 
@@ -40270,6 +40314,36 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
 
             PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
             PhotoViewer.getInstance().openPhoto(messages, index, getDialogId(), 0, 0, photoViewerPaidMediaProvider);
+        }
+
+        @Override
+        public void didPressPollMedia(ChatMessageCell cell, ImageReceiver imageReceiver, TLRPC.PollAnswer answer, TLRPC.MessageMedia media, float x, float y, int unshuffledIndex) {
+            final MessageObject messageObject = cell.getMessageObject();
+            final TLRPC.MessageMedia messageMedia = MessageObject.getMedia(messageObject);
+            if (media == null || messageObject == null || !(messageMedia instanceof TLRPC.TL_messageMediaPoll)) {
+                return;
+            }
+            if (media.photo == null) {
+                return;
+            }
+            final TLRPC.Message omsg = messageObject.messageOwner;
+            final TLRPC.TL_message msg = new TLRPC.TL_message();
+            msg.id = omsg.id;
+            msg.from_id = omsg.from_id;
+            msg.peer_id = omsg.peer_id;
+            msg.date = omsg.date;
+            msg.dialog_id = omsg.dialog_id;
+            msg.media = media;
+            msg.message = answer != null && answer.text != null ? answer.text.text : "";
+            msg.attachPath = org.telegram.ui.Components.poll.PollAttachedMediaPack.getAttachPath(omsg, unshuffledIndex);
+            final MessageObject photoMessage = new MessageObject(currentAccount, msg, false, true) {
+                @Override
+                public boolean canDeleteMessage(boolean inScheduleMode, TLRPC.Chat chat) {
+                    return false;
+                }
+            };
+            PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
+            PhotoViewer.getInstance().openPhoto(photoMessage, ChatActivity.this, getDialogId(), 0, 0, photoViewerProvider);
         }
 
         @Override
