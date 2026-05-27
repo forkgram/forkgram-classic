@@ -4,6 +4,8 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
@@ -28,8 +30,19 @@ public class DialogsActivityTopPanelLayout extends AnimatedLinearLayout {
 
     BlurredBackgroundDrawable backgroundDrawable;
 
+    private final Paint solidBackgroundPaint = new Paint();
+    private boolean solidBackgroundEnabled;
+    private int solidBackgroundColor;
+
     public void setBlurredBackground(BlurredBackgroundDrawable background) {
         backgroundDrawable = background;
+    }
+
+    public void setSolidBackgroundColor(int color) {
+        solidBackgroundEnabled = true;
+        solidBackgroundColor = color;
+        solidBackgroundPaint.setColor(color);
+        invalidate();
     }
 
     @Override
@@ -58,16 +71,27 @@ public class DialogsActivityTopPanelLayout extends AnimatedLinearLayout {
         final float bgHeight = getMetadata().getTotalHeight();
         final float bgAlpha = getMetadata().getTotalVisibility();
 
-        clipRectF.set(getPaddingLeft(), getPaddingTop(), getMeasuredWidth() - getPaddingRight(), getPaddingTop() + bgHeight);
+        clipRectF.set(0, 0, getMeasuredWidth(), getPaddingTop() + bgHeight);
 
-        final float r = Math.min(dp(defaultRadiusDp), Math.min(clipRectF.width(), clipRectF.height()) / 2f);
         clipPath.rewind();
-        clipPath.addRoundRect(clipRectF, r, r, Path.Direction.CW);
+        clipPath.addRect(clipRectF, Path.Direction.CW);
 
         if (backgroundDrawable != null) {
             backgroundDrawable.setAlpha((int) (bgAlpha * 255));
-            backgroundDrawable.setBounds(dp(4), dp(14), getMeasuredWidth() - dp(4), getPaddingTop() + getPaddingBottom() + (int) bgHeight - dp(14));
-            backgroundDrawable.setRadius(Math.min(dp(defaultRadiusDp), bgHeight / 2));
+            // [classic] #97: dispatchTouchEvent() claims every ACTION_DOWN inside these bounds, so
+            // they must match what is actually painted (clipRectF: the top padding plus the panel
+            // content — the bottom padding is transparent and the list already shows through it).
+            // The flat rework had them span the full padded height (modern insets them by dp(14)),
+            // which made an EMPTY panel a 42dp strip of dead touch: SharedMediaLayout parks it at
+            // 48-14dp under the tab strip, right over the top 28dp of the Members tab's first row —
+            // your own row, since self always sorts first — and its tag label with it. With a panel
+            // up, the same bottom-padding strip sat over the first row under the bar.
+            if (bgHeight > 0) {
+                backgroundDrawable.setBounds(0, 0, getMeasuredWidth(), getPaddingTop() + (int) bgHeight);
+            } else {
+                backgroundDrawable.setBounds(0, 0, 0, 0);
+            }
+            backgroundDrawable.setRadius(0);
         }
     }
 
@@ -100,7 +124,10 @@ public class DialogsActivityTopPanelLayout extends AnimatedLinearLayout {
     protected void dispatchDraw(@NonNull Canvas canvas) {
         if (getMetadata().getTotalVisibility() == 0) return;
 
-        if (backgroundDrawable != null) {
+        if (solidBackgroundEnabled) {
+            solidBackgroundPaint.setAlpha((int) (Color.alpha(solidBackgroundColor) * getMetadata().getTotalVisibility()));
+            canvas.drawRect(clipRectF, solidBackgroundPaint);
+        } else if (backgroundDrawable != null) {
             backgroundDrawable.draw(canvas);
         }
 

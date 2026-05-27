@@ -262,7 +262,8 @@ public class ChatReactionsEditActivity extends BaseFragment implements Notificat
             cell.setChecked(nc, true);
         });
         ll.addView(listView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 0, 1f));
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         fragmentView = contentView = ll;
 

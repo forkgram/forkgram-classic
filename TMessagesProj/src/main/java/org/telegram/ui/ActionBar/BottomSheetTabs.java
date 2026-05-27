@@ -578,7 +578,12 @@ public class BottomSheetTabs extends FrameLayout {
         }
 
         backgroundPaint.setColor(backgroundColorAnimated.set(backgroundColor));
-        // canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
+        // [classic] #101: 12.x commented this fill out because the redesign backs the minimized-tab
+        // strip with a liquid-glass layer. Classic has no such layer, so the strip's own area was
+        // never painted and whatever the compositor had there last showed through — a flickering
+        // ghost of the tab and of the chat behind it while minimizing the in-app browser. Restore
+        // the 11.9.5.0 opaque fill.
+        canvas.drawRect(0, 0, getWidth(), getHeight(), backgroundPaint);
         super.dispatchDraw(canvas);
 
         final int tabColor = tabColorAnimated.set(this.tabColor);
@@ -595,7 +600,7 @@ public class BottomSheetTabs extends FrameLayout {
                 getTabBounds(rect, position);
                 drawable.setExpandProgress(0f);
                 drawable.setBackgroundColor(tabColor, tabIsDark > .5f);
-                drawable.draw(canvas, rect, dp(18), alpha, 1f);
+                drawable.draw(canvas, rect, dp(10), alpha, 1f); // [classic] #101: classic dp(10) tab corners, not the redesign's dp(18) capsule
             }
         }
     }

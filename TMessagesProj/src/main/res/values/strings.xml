@@ -40,6 +40,7 @@
     <string name="DisableSlideToNextChannelInfo">Do not slide to the next channel when scrolling past the end.</string>
     <string name="FormatWithSecondsInfo">Show seconds in message timestamps and other times.</string>
     <string name="HideAiEditorInfo">Hide the AI rewrite button in message and caption fields.</string>
+    <string name="ShowAiSummaryInfo">Show the AI summary button next to long incoming messages.</string>
     <string name="FormattingMenuInfo">Hold and drag an option to reorder it. Unchecked options are hidden from the text selection menu.</string>
     <string name="DisableQuickReactionInfo">Do not send a reaction when a message is double-tapped.</string>
     <string name="HideMessageReactionsInfo">Do not draw reaction bubbles under messages.</string>
@@ -124,6 +125,12 @@
     <string name="HideContactsInDialogs">Hide contacts in chats list</string>
     <string name="MainTabsHiddenHint">Tabs hidden. Long-press the title to show them again.</string>
     <string name="ShowBottomTabs">Show bottom tabs</string>
+    <string name="ForkDrawerItems">Side menu items</string>
+    <string name="ForkDrawerItemsHeader">Menu items</string>
+    <string name="ForkDrawerItemsBots">Bots</string>
+    <string name="ForkDrawerItemsAllShown">All shown</string>
+    <string name="ForkDrawerItemsHidden">%1$d hidden</string>
+    <string name="ForkDrawerItemsInfo">Uncheck an entry to remove it from the side menu. My Profile and Settings always stay, so there is always a way back into the app.</string>
     <string name="HideBottomTabs">Hide bottom tabs</string>
     <string name="DisableTabletMode">Disable tablet mode</string>
     <string name="DisableQuickReaction">Disable quick reaction</string>
@@ -134,6 +141,7 @@
     <string name="ForceBlockScreenshots">Block screenshots</string>
     <string name="ForceBlockScreenshotsInfo">Prevent screenshots and screen recording across the app, even without a passcode.</string>
     <string name="HideAiEditor">Hide AI Editor button</string>
+    <string name="ShowAiSummary">Show AI Summary button</string>
     <string name="FormattingMenu">Formatting menu</string>
     <string name="DisableLockedAnimatedEmoji">Hide locked animated emoji in panel</string>
     <string name="DisableParametersFromBotLinks">Disable parameters from bot links</string>
@@ -2888,6 +2896,10 @@
     <string name="UseProxyTelegramInfo">MTProto proxy settings.</string>
     <string name="UseProxyTelegramInfo2">This proxy may display a sponsored channel in your chat list. This doesn\'t reveal any of your Telegram traffic.</string>
     <string name="UseProxyWebInfo">WEB proxy uses an HTTPS page inside a private WebView. Enter a hostname without a scheme or path and a 16-byte MTProxy secret. This proof of concept requires a current Android System WebView and is intended for foreground testing.</string>
+    <!-- [classic] #125: English text for the classic "Use proxy for calls" settings row; upstream dropped
+         the default-locale strings in 12.10.4 but kept every translation. -->
+    <string name="UseProxyForCalls">Use proxy for calls</string>
+    <string name="UseProxyForCallsInfo">Proxy servers may degrade the quality of your calls.</string>
     <string name="ConnectingToProxyEnable">Enable</string>
     <string name="LowDiskSpaceTitle">Attention</string>
     <string name="LowDiskSpaceMessage">Your device is almost out of disk space. To free some space, you can set up Telegram to cache only recent media.</string>
@@ -10710,6 +10722,7 @@
     <string name="AudioSearchChats">Shared Music</string>
     <string name="AudioSearchProfile">Profile Music</string>
     <string name="AudioSearchGlobal">Global Search</string>
+    <string name="AudioAutoRefresh">Auto-refresh</string>
 
     <string name="GiftOfferToBuyMenu">Offer to buy</string>
     <string name="GiftOfferToBuyTitle">Offer to Buy</string>

@@ -605,6 +605,8 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 				final CallCell cell = (CallCell) view;
 				cell.set(row, item.clickCallback);
 				cell.setChecked(item.checked, false);
+				// [classic] #18: restore the row separator between call entries (old flat list look).
+				cell.profileSearchCell.useSeparator = divider;
 			}
 
 			public static UItem of(CallLogRow row, View.OnClickListener onImageClick) {
@@ -752,7 +754,8 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 
 		listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
 		listView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray, resourceProvider));
-		listView.setSections();
+		// [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+		listView.setSections(0, 0, false);
 		listView.adapter.setApplyBackground(false);
 		contentView = new SizeNotifierFrameLayout(context) {
 			@Override
