@@ -24,6 +24,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.drawable.ColorDrawable; // [classic] #27: classic flat section shadows.
+import android.graphics.drawable.Drawable; // [classic] #27: classic flat section shadows.
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Vibrator;
@@ -87,6 +89,7 @@ import org.telegram.ui.Components.AnimatedEmojiDrawable;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.BulletinFactory;
+import org.telegram.ui.Components.CombinedDrawable; // [classic] #27: classic flat section shadows.
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.EditTextEmoji;
@@ -98,7 +101,6 @@ import org.telegram.ui.Components.RLottieDrawable;
 import org.telegram.ui.Components.RadialProgressView;
 import org.telegram.ui.Components.Reactions.ChatCustomReactionsEditActivity;
 import org.telegram.ui.Components.Reactions.ReactionsUtils;
-import org.telegram.ui.Components.SectionsScrollView;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.Components.UndoView;
 import org.telegram.ui.Stars.BotStarsActivity;
@@ -132,7 +134,6 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
     private ImageUpdater imageUpdater;
     private EditTextEmoji nameTextView;
     private LinearLayout linearLayout;
-    private SectionsScrollView scrollView;
 
     private LinearLayout settingsContainer;
     private EditTextBoldCursor descriptionTextView;
@@ -644,13 +645,12 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
         fragmentView = sizeNotifierFrameLayout;
         fragmentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
-        LinearLayout linearLayout1 = linearLayout = new SectionsScrollView.SectionsLinearLayout(context);
-
-        scrollView = new SectionsScrollView(context, linearLayout, resourceProvider, false);
+        // [classic] #27: plain scroll content per 11.9.5.0 — no SectionsScrollView card insets/rounding.
+        ScrollView scrollView = new ScrollView(context);
         scrollView.setFillViewport(true);
         sizeNotifierFrameLayout.addView(scrollView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        actionBar.setAdaptiveBackground(scrollView);
 
+        LinearLayout linearLayout1 = linearLayout = new LinearLayout(context);
         scrollView.addView(linearLayout1, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         linearLayout1.setOrientation(LinearLayout.VERTICAL);
@@ -780,6 +780,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
         settingsContainer = new LinearLayout(context);
         settingsContainer.setOrientation(LinearLayout.VERTICAL);
+        settingsContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite)); // [classic] #27: flat full-width section.
         linearLayout1.addView(settingsContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         if (currentUser != null || ChatObject.canChangeChatInfo(currentChat)) {
@@ -1160,7 +1161,13 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
         }
 
         if (locationCell != null || /*signCell != null ||*/ historyCell != null || typeCell != null || linkedCell != null || forumsCell != null) {
-            settingsSectionCell = new TextInfoPrivacyCell(context, 12, resourceProvider);
+            // [classic] #27: classic grey-divider shadow between sections instead of the transparent card gap.
+            settingsSectionCell = new TextInfoPrivacyCell(context);
+            Drawable shadowDrawable = Theme.getThemedDrawable(context, R.drawable.greydivider, Theme.getColor(Theme.key_windowBackgroundGrayShadow, getResourceProvider()));
+            Drawable background = new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray));
+            CombinedDrawable combinedDrawable = new CombinedDrawable(background, shadowDrawable, 0, 0);
+            combinedDrawable.setFullsize(true);
+            settingsSectionCell.setBackground(combinedDrawable);
             if (forumsCell != null) {
                 settingsSectionCell.setText(getString(R.string.ForumToggleDescription));
             } else if (/*signCell != null*/ false) {
@@ -1173,6 +1180,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
         infoContainer = new LinearLayout(context);
         infoContainer.setOrientation(LinearLayout.VERTICAL);
+        infoContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite)); // [classic] #27: flat full-width section.
         linearLayout1.addView(infoContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
         if (currentChat != null) {
@@ -1359,7 +1367,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                 linearLayout1.addView(infoSectionCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             }
         } else if (currentUser != null) {
-            botInfoCell = new TextInfoPrivacyCell(context, 12, resourceProvider);
+            botInfoCell = new TextInfoPrivacyCell(context); // [classic] #27: classic full-width info cell.
             String str = getString(R.string.BotManageInfo);
             SpannableString span = SpannableString.valueOf(str);
             int index = str.indexOf("@BotFather");
@@ -1377,6 +1385,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                     }
                 }, index, index + 10, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
+            botInfoCell.setBackground(Theme.getThemedDrawableByKey(getContext(), R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow)); // [classic] #27: classic shadow bg.
             botInfoCell.setText(span);
             linearLayout1.addView(botInfoCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
@@ -1387,8 +1396,9 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
             linearLayout1.addView(verifyCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
             verifyCell.setOnClickListener(v -> BotVerifySheet.openVerify(currentAccount, userId, userInfo.bot_info.verifier_settings));
 
-            verifyInfoCell = new TextInfoPrivacyCell(context, 12, resourceProvider);
+            verifyInfoCell = new TextInfoPrivacyCell(context); // [classic] #27: classic full-width info cell.
             verifyInfoCell.setFixedSize(12);
+            verifyInfoCell.setBackground(Theme.getThemedDrawableByKey(getContext(), R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow)); // [classic] #27: classic shadow bg.
             linearLayout1.addView(verifyInfoCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
             verifyCell.setVisibility(userInfo != null && userInfo.bot_info != null && userInfo.bot_info.verifier_settings != null ? View.VISIBLE : View.GONE);
@@ -1398,6 +1408,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
                 balanceContainer = new LinearLayout(context);
                 balanceContainer.setOrientation(LinearLayout.VERTICAL);
+                balanceContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite)); // [classic] #27: flat full-width section.
                 linearLayout1.addView(balanceContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
                 HeaderCell headerCell = new HeaderCell(context);
@@ -1457,7 +1468,8 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
                 }
                 starsBalanceCell.setVisibility(c.botHasStars(userId) ? View.VISIBLE : View.GONE);
 
-                TextInfoPrivacyCell gap = new TextInfoPrivacyCell(context, 12, getResourceProvider());
+                TextInfoPrivacyCell gap = new TextInfoPrivacyCell(context, getResourceProvider()); // [classic] #27: classic shadow gap.
+                gap.setBackground(Theme.getThemedDrawableByKey(context, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
                 gap.setTag(R.id.fit_width_tag, 1);
                 linearLayout1.addView(gap, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
 
@@ -1467,6 +1479,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
         if (currentChat != null && currentChat.creator) {
             deleteContainer = new FrameLayout(context);
+            deleteContainer.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite)); // [classic] #27: flat full-width section.
             linearLayout1.addView(deleteContainer, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
 
             deleteCell = new TextSettingsCell(context);
@@ -1493,6 +1506,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
             });
 
             deleteInfoCell = new ShadowSectionCell(context);
+            deleteInfoCell.setBackground(Theme.getThemedDrawableByKey(context, R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow)); // [classic] #27: classic shadow bg.
             linearLayout1.addView(deleteInfoCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         }
 
@@ -2523,7 +2537,7 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
         themeDescriptions.add(new ThemeDescription(fragmentView, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_windowBackgroundGray));
 
-//        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault));
+        themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_BACKGROUND, null, null, null, null, Theme.key_actionBarDefault)); // [classic] #27: classic flat action bar.
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_ITEMSCOLOR, null, null, null, null, Theme.key_actionBarDefaultIcon));
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_TITLECOLOR, null, null, null, null, Theme.key_actionBarDefaultTitle));
         themeDescriptions.add(new ThemeDescription(actionBar, ThemeDescription.FLAG_AB_SELECTORCOLOR, null, null, null, null, Theme.key_actionBarDefaultSelector));
@@ -2628,18 +2642,6 @@ public class ChatEditActivity extends BaseFragment implements ImageUpdater.Image
 
         return themeDescriptions;
     }
-
-    @Override
-    public boolean isSupportEdgeToEdge() {
-        return true;
-    }
-    @Override
-    public void onInsets(int left, int top, int right, int bottom) {
-        if (linearLayout != null) {
-            linearLayout.setPadding(dp(12), dp(4), dp(12), dp(12) + bottom);
-        }
-        if (undoView != null) {
-            undoView.setTranslationY(-bottom);
-        }
-    }
+    // [classic] #27: no edge-to-edge/onInsets card padding — classic fragments keep the
+    // BaseFragment defaults (system bars inset the window, content stays full-width flat).
 }

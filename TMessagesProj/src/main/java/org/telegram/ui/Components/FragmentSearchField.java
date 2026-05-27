@@ -237,9 +237,12 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
     }
 
     private void checkUi_editTextPaddings() {
+        // [classic] #36: flush-left at dp(16) with no icon gutter in flat mode (classic placeholder inset).
+        final int baseStart = isClassicFlat ? dp(16) : dp(48);
+        final int baseEnd = isClassicFlat ? dp(16) : dp(48);
         final int filtersWidth = (int) animatorSearchFiltersWidth.getFactor() + dp(6); //searchFilterLayout.getWidth();
-        final int pStart = Math.max(filtersWidth, dp(48));
-        final int pEnd = dp(48) + additionalIconsLayout.getMeasuredWidth();
+        final int pStart = Math.max(filtersWidth, baseStart);
+        final int pEnd = baseEnd + additionalIconsLayout.getMeasuredWidth();
 
         final int pLeft = LocaleController.isRTL ? pEnd : pStart;
         final int pRight = LocaleController.isRTL ? pStart : pEnd;
@@ -260,10 +263,24 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
         updateColors();
     }
 
+    // [classic] #36: flat classic search field — restore the pre-12.0 inline look used on
+    // Contacts / New Message / New Secret Chat / New Group: no rounded "pill" background, no
+    // leading magnifier icon, placeholder flush-left at dp(16). Opt-in so DialogsActivity (which
+    // keeps the redesign pill + blurred glass) is unaffected.
+    public boolean isClassicFlat;
+    public void setClassicFlat() {
+        isClassicFlat = true;
+        setPadding(0, 0, 0, 0);
+        searchIcon.setVisibility(GONE);
+        animatorSearchIconVisible.setValue(false, false);
+        checkUi_editTextPaddings();
+        updateColors();
+    }
+
     @Override
     public void updateColors() {
         final boolean isDark = resourcesProvider != null ? resourcesProvider.isDark() : Theme.isCurrentThemeDark();
-        bg = isSectionBackground ?
+        bg = isClassicFlat ? null : isSectionBackground ? // [classic] #36: no pill background in flat mode
             Theme.createRoundRectDrawableShadowed(dp(20), getThemedColor(Theme.key_windowBackgroundWhite)) :
             Theme.createRoundRectDrawable(dp(20), getThemedColor(Theme.key_windowBackgroundWhiteBlackText, isDark ? 0.07f : 0.05f));
         searchIcon.setColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteBlackText, 0.6f), PorterDuff.Mode.MULTIPLY);
@@ -325,7 +342,9 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
             FragmentFloatingButton.setAnimatedVisibility(closeIcon, factor);
             closeIcon.setRotation((1 - factor) * 90);
         } else if (id == ANIMATOR_ID_SEARCH_ICON_VISIBLE) {
-            FragmentFloatingButton.setAnimatedVisibility(searchIcon, factor);
+            if (!isClassicFlat) { // [classic] #36: leading icon stays GONE in flat mode
+                FragmentFloatingButton.setAnimatedVisibility(searchIcon, factor);
+            }
         } else if (id == ANIMATOR_ID_SEARCH_FILTERS_WIDTH) {
             checkUi_editTextPaddings();
         }
@@ -407,7 +426,9 @@ public class FragmentSearchField extends FrameLayout implements FactorAnimator.T
     private void onFiltersChanged() {
         final boolean visible = !currentSearchFilters.isEmpty();
 
-        animatorSearchIconVisible.setValue(!visible, true);
+        if (!isClassicFlat) { // [classic] #36: keep the leading icon hidden in flat mode
+            animatorSearchIconVisible.setValue(!visible, true);
+        }
 
 
         ArrayList<FiltersView.MediaFilterData> localFilters = new ArrayList<>(currentSearchFilters);

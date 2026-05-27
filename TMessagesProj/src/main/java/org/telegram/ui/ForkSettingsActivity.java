@@ -59,7 +59,7 @@ public class ForkSettingsActivity extends BaseFragment {
         private TextPaint textPaint;
 
         private final int startStickerSize = 2;
-        private final int endStickerSize = (int)ChatMessageCell.MAX_STICKER_SIZE;
+        private final int endStickerSize = (int) ChatMessageCell.MAX_STICKER_SIZE;
         private final String option = "stickerSize";
 
         private float diff() {
@@ -505,7 +505,7 @@ public class ForkSettingsActivity extends BaseFragment {
         disableGlobalSearch = rowCount++;
         enableLastSeenDots = rowCount++;
         customTitleRow = rowCount++;
-        updateCheckIntervalRow = rowCount++;
+        updateCheckIntervalRow = -1; // forkgram-classic: removed — F-Droid is the only update channel, so an in-app update-check interval is irrelevant.
 
         emptyRows.add(rowCount++);
         sectionRows.add(rowCount++);

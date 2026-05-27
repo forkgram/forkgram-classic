@@ -162,7 +162,6 @@ import org.telegram.ui.Stories.UserListPoller;
 import org.telegram.ui.Stories.ViewsForPeerStoriesRequester;
 import org.telegram.ui.Stories.bots.BotPreviewsEditContainer;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
-import org.telegram.ui.Stories.recorder.PreviewView;
 import org.telegram.ui.Stories.recorder.StoryRecorder;
 import org.telegram.ui.ThemeActivity;
 import org.telegram.ui.TopicsFragment;
@@ -708,6 +707,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
     private ArrayList<SharedAudioCell> audioCellCache = new ArrayList<>(10);
     private ArrayList<SharedAudioCell> audioCache = new ArrayList<>(10);
     public ScrollSlidingTextTabStripInner scrollSlidingTextTabStrip;
+    private View shadowLine; // [classic] #25: 11.9.5.0 divider under the tab strip
     //    public UniversalRecyclerView tabsListView;
     public SearchTagsList searchTagsList;
     private ChatActionCell floatingDateView;
@@ -3093,7 +3093,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             mediaPages[a].listView.setFastScrollEnabled(RecyclerListView.FastScroll.DATE_TYPE);
             mediaPages[a].listView.setScrollingTouchSlop(RecyclerView.TOUCH_SLOP_PAGING);
             mediaPages[a].listView.setPinnedSectionOffsetY(-dp(2));
-            mediaPages[a].listView.setPadding(0, dp(48 + 6), 0, 0);
+            mediaPages[a].listView.setPadding(0, dp(48), 0, 0); // [classic] #35: flush list to the 48dp tab strip (was dp(48 + 6) redesign gap)
             mediaPages[a].listView.setItemAnimator(null);
             mediaPages[a].listView.setClipToPadding(false);
             mediaPages[a].listView.setSectionsType(RecyclerListView.SECTIONS_TYPE_DATE);
@@ -3637,13 +3637,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 }
             };
             mediaPages[a].progressView.showDate(false);
-            mediaPages[a].progressView.setClipToOutline(true);
-            mediaPages[a].progressView.setOutlineProvider(new ViewOutlineProvider() {
-                @Override
-                public void getOutline(View view, Outline outline) {
-                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), dp(16));
-                }
-            });
+            // [classic] #35: no rounded-card clip on the empty/progress view (was dp(16) redesign corners)
             if (a != 0) {
                 mediaPages[a].setVisibility(View.GONE);
             }
@@ -3664,7 +3658,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             mediaPages[a].emptyView.button.setVisibility(View.GONE);
             mediaPages[a].emptyView.subtitle.setText(getString(R.string.SearchEmptyViewFilteredSubtitle2));
             mediaPages[a].emptyView.button.setVisibility(View.GONE);
-            mediaPages[a].emptyView.addView(mediaPages[a].progressView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL, 12, 48 + 12, 12, 12));
+            mediaPages[a].emptyView.addView(mediaPages[a].progressView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT)); // [classic] #35: edge-to-edge, no inset (was Gravity.FILL,12,48+12,12,12 redesign)
 
             mediaPages[a].listView.setEmptyView(mediaPages[a].emptyView);
             mediaPages[a].listView.setAnimateEmptyView(true, RecyclerListView.EMPTY_VIEW_ANIMATION_TYPE_ALPHA);
@@ -3739,19 +3733,8 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 setVisibleHeight(lastVisibleHeight);
             });
 
-            if (iBlur3FactoryLiquidGlass != null) {
-                BlurredBackgroundDrawable filterTabsViewBackground = iBlur3FactoryLiquidGlass.create(scrollSlidingTextTabStrip, BlurredBackgroundProviderImpl.topPanel(resourcesProvider));
-                filterTabsViewBackground.setRadius(dp(18));
-                filterTabsViewBackground.setPadding(dp(6.666f));
-                scrollSlidingTextTabStrip.setPadding(0, dp(7), 0, dp(7));
-                scrollSlidingTextTabStrip.setClipToPadding(false);
-                scrollSlidingTextTabStrip.setBackground(null);
-                scrollSlidingTextTabStrip.setBlurredBackground(filterTabsViewBackground);
-                scrollSlidingTextTabStrip.setOpen(false);
-                addView(scrollSlidingTextTabStrip, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 50, Gravity.CENTER_HORIZONTAL | Gravity.TOP, -2, 0, -2, 0));
-            } else {
-                addView(scrollSlidingTextTabStrip, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
-            }
+            // [classic] #25: 11.9.5.0 flat full-width tab strip — no floating liquid-glass pill card.
+            addView(scrollSlidingTextTabStrip, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
             searchTagsList = new SearchTagsList(getContext(), profileActivity, null, profileActivity.getCurrentAccount(), includeSavedDialogs() ? 0 : dialog_id, resourcesProvider, false) {
                 @Override
                 protected boolean setFilter(ReactionsLayoutInBubble.VisibleReaction reaction) {
@@ -3799,6 +3782,13 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             addView(searchTagsList, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.LEFT | Gravity.TOP, 0, 4, 0, 0));
             addView(actionModeLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48, Gravity.LEFT | Gravity.TOP));
         }
+
+        // [classic] #25: 11.9.5.0 divider line under the tab strip.
+        shadowLine = new View(context);
+        shadowLine.setBackgroundColor(getThemedColor(Theme.key_divider));
+        FrameLayout.LayoutParams shadowLayoutParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1);
+        shadowLayoutParams.topMargin = customTabs() ? 0 : dp(48) - 1;
+        addView(shadowLine, shadowLayoutParams);
 
         updateTabs(false);
         switchToCurrentSelectedMode(false);
@@ -4403,9 +4393,9 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
             scrollSlidingTextTabStrip.setInitialTabId(initialTab);
             initialTab = -1;
         }
-        scrollSlidingTextTabStrip.animationDuration = 320;
+        // [classic] #25: 11.9.5.0 strip — opaque background, full-width weighted tabs, default indicator timing.
+        scrollSlidingTextTabStrip.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
         scrollSlidingTextTabStrip.setColors(Theme.key_profile_tabSelectedLine, Theme.key_profile_tabSelectedText, Theme.key_profile_tabText, Theme.key_profile_tabSelector);
-        scrollSlidingTextTabStrip.setUseMinimalWidth(true);
         scrollSlidingTextTabStrip.setDelegate(new ScrollSlidingTextTabStrip.ScrollSlidingTabStripDelegate() {
             @Override
             public void onPageSelected(int id, boolean forward) {
@@ -7113,7 +7103,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
     }
 
     private void switchToCurrentSelectedMode(boolean animated) {
-        boolean sections = false;
+        boolean sections = false; // [classic] #35: intentionally unused — classic never enables rounded section cards (see disableSections() below); the per-tab assignments are left as harmless no-ops to keep the revert minimal.
         if (giftsContainer != null) {
             giftsContainer.resetReordering();
         }
@@ -7387,33 +7377,13 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                     mediaPages[a].emptyView.setVisibility(View.INVISIBLE);
                 }
             }
-            final boolean photos = mediaPages[a].selectedType == TAB_PHOTOVIDEO || isAnyStoryPageType(mediaPages[a].selectedType);
-            mediaPages[a].progressView.setLayoutParams(LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.FILL, photos ? 0 : 12, 48 + (photos ? 8 : 12), photos ? 0 : 12, photos ? 0 : 12));
-            if (sections) {
-                mediaPages[a].listView.setSections(false);
-            } else {
-                mediaPages[a].listView.disableSections();
-            }
-            if (mediaPages[a].selectedType == TAB_POLL) {
-                mediaPages[a].setBackground(
-                    PreviewView.getBackgroundDrawable(
-                        mediaPages[a].getBackground(),
-                        profileActivity.getCurrentAccount(),
-                        dialog_id,
-                        Theme.isCurrentThemeDark()
-                    )
-                );
-                mediaPages[a].setOutlineProvider(new ViewOutlineProvider() {
-                    @Override
-                    public void getOutline(View view, Outline outline) {
-                        outline.setRoundRect(0, dp(50), view.getWidth(), view.getHeight() + dp(24), dp(24));
-                    }
-                });
-                mediaPages[a].setClipToOutline(true);
-            } else {
-                mediaPages[a].setClipToOutline(false);
-                mediaPages[a].setBackground(null);
-            }
+            // [classic] #35: keep the progress/empty view flush under the 48dp tab strip and edge-to-edge (was Gravity.FILL,12,48+8/12,... redesign inset).
+            mediaPages[a].progressView.setLayoutParams(LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+            // [classic] #35: classic 11.9.5.0 had no rounded "section" cards — every list tab (Files/Links/Music/Voice/Groups/Members) is a flat, edge-to-edge list. The 'sections' flag drives the redesign's dp(12)-inset/dp(16)-rounded cards; ignore it and never enable sections.
+            mediaPages[a].listView.disableSections();
+            // [classic] #35: no rounded glass card behind the Poll tab either (classic had a plain page); clear the page background.
+            mediaPages[a].setClipToOutline(false);
+            mediaPages[a].setBackground(null);
             if (mediaPages[a].selectedType == TAB_SAVED_DIALOGS) {
                 mediaPages[a].listView.setItemAnimator(mediaPages[a].itemAnimator);
             } else {
@@ -11574,7 +11544,7 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
                 blurBounds.set(0, 0, getMeasuredWidth(), getMeasuredHeight());
                 canvas.save();
                 canvas.translate(getScrollX(), 0);
-                canvas.clipPath(clipPath);
+                // [classic] #25: full-rect background — no rounded pill clip (11.9.5.0 strip is a flat bar).
                 if (SharedConfig.chatBlurEnabled()) {
                     drawBackgroundWithBlur(canvas, getY(), blurBounds, backgroundPaint);
                 } else {
@@ -11931,9 +11901,9 @@ public class SharedMediaLayout extends FrameLayout implements NotificationCenter
     }
 
     private int getPagePaddingTop(int type) {
+        // [classic] #35: list content sits flush under the 48dp tab strip — dropped the redesign's extra dp(6) gap and the floating-bubble topLayoutPadding term. (Stories/archived offsets kept.)
         return (
-            dp(48 + 6) +
-            topLayoutPadding +
+            dp(48) +
             (int) (storiesContainer != null && (isStoryAlbumPageType(type) || type == TAB_STORIES) ? storiesContainer.getVisibilityFactor() * dp(40) : 0) +
             (type == TAB_ARCHIVED_STORIES ? dp(64) : 0)
         );

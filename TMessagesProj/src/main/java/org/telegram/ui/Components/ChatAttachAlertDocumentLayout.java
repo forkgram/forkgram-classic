@@ -338,7 +338,10 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
 
             }
         };
-        listView.setSections();
+        // [classic] #13: drop the redesign's inset rounded-card list (setSections() applies a
+        // dp(12) horizontal inset + card backgrounds to every row). Classic (11.9.5.0) and even
+        // upstream modern use a plain edge-to-edge list, so the attach-file rows sit tight to the left.
+        // listView.setSections();
         iBlur3Capture = listView;
         iBlur3CaptureView = listView;
         occupyNavigationBar = true;
@@ -922,7 +925,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
     }
 
     public void loadRecentFiles() {
-        if (MessagesController.getGlobalMainSettings().getBoolean("disableSlideToNextChannel", false)) {
+        if (MessagesController.getGlobalMainSettings().getBoolean("disableRecentFilesAttachment", false)) {
             listAdapter.recentItems.clear();
             return;
         }
@@ -1468,14 +1471,18 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                     view = new HeaderCell(mContext, resourcesProvider);
                     break;
                 case 1:
+                    // [classic] #13: restore the classic picker rows (VIEW_TYPE_PICKER) exactly as
+                    // 11.9.5.0; the redesign deviation used the narrower VIEW_TYPE_DEFAULT.
                     view = new SharedDocumentCell(mContext, SharedDocumentCell.VIEW_TYPE_PICKER, resourcesProvider);
                     break;
                 case 2:
+                    // [classic] #13: restore the classic greydivider shadow between the picker block
+                    // and the Recent files list (11.9.5.0); the redesign drew sections instead.
                     view = new ShadowSectionCell(mContext);
-                    // Drawable drawable = Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
-                    // CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
-                    // combinedDrawable.setFullsize(true);
-                    // view.setBackgroundDrawable(combinedDrawable);
+                    Drawable drawable = Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
+                    CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
+                    combinedDrawable.setFullsize(true);
+                    view.setBackgroundDrawable(combinedDrawable);
                     break;
                 case 3:
                 default:

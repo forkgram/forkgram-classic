@@ -259,10 +259,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
             if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                final int bottomSheetHeight = isKeyboardVisible ? 0 : getBottomTabsHeight(true);
+                // [classic] #32: upstream 12.7 removed this bottom-tabs early-return (modern keeps it commented out).
+                // With it active, a non-zero animated tabs height makes the container silently swallow every
+                // touch below the threshold — in chats that killed all poll taps (and any in-cell interaction).
+                /*final int bottomSheetHeight = isKeyboardVisible ? 0 : getBottomTabsHeight(true);
                 if (ev.getY() > getHeight() - bottomSheetHeight) {
                     return false;
-                }
+                }*/
             }
 //            processMenuButtonsTouch(ev);
             boolean passivePreview = inPreviewMode && previewMenu == null;

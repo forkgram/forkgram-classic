@@ -253,8 +253,10 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         // few base variants (msg_contacts, msg_invite). Collapse all event
         // branches to the icons that still ship.
         int newGroupIcon = R.drawable.msg_groups;
-        int newSecretIcon = 0;
-        int newChannelIcon = 0;
+        // [classic] #15: restore New Secret Chat / New Channel drawer items (click handlers
+        // for id 3/4 still exist in LaunchActivity; drawables msg_secret/msg_channel still ship).
+        int newSecretIcon = R.drawable.msg_secret;
+        int newChannelIcon = R.drawable.msg_channel;
         int contactsIcon = R.drawable.msg_contacts;
         int callsIcon = R.drawable.msg_calls;
         int savedIcon = R.drawable.msg_saved;
@@ -295,8 +297,8 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
             items.add(null); // divider
         }
         items.add(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
-        //items.add(new Item(3, LocaleController.getString(R.string.NewSecretChat), newSecretIcon));
-        //items.add(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
+        items.add(new Item(3, LocaleController.getString(R.string.NewSecretChat), newSecretIcon));
+        items.add(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
         items.add(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
         items.add(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
         items.add(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
