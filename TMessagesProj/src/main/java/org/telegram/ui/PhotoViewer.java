@@ -4762,6 +4762,20 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                             heightSize = AndroidUtilities.displaySize.y;
                         }
                         heightSize += AndroidUtilities.statusBarHeight;
+                    } else {
+                        // forkgram-classic: restored from the 11.7 / 12.2 baseline. Reconciles the
+                        // global displaySize.y (which display.getSize() reports unreliably on some
+                        // OEMs) with the photo viewer's real window height, so getContainerViewHeight()
+                        // (= displaySize.y + statusBar) matches the actual canvas. Was dropped while
+                        // unwrapping the old `if (SDK_INT >= 21)` guard; without it tall/narrow images
+                        // are fit-scaled taller than the canvas and clip at the bottom.
+                        int insetBottom = insets.bottom;
+                        if (insetBottom >= 0 && AndroidUtilities.statusBarHeight >= 0) {
+                            int newSize = heightSize - AndroidUtilities.statusBarHeight - insets.bottom;
+                            if (newSize > 0 && newSize < 4096) {
+                                AndroidUtilities.displaySize.y = newSize;
+                            }
+                        }
                     }
                 }
                 int bottomInsets = insets.bottom;
@@ -19139,7 +19153,6 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             height = containerView.getMeasuredHeight();
         } else {
             height = AndroidUtilities.displaySize.y;
-            height += AndroidUtilities.navigationBarHeight - insets.bottom;
             if ((mode == EDIT_MODE_NONE || mode == EDIT_MODE_STICKER_MASK || mode == EDIT_MODE_COVER) && sendPhotoType != SELECT_TYPE_AVATAR && isStatusBarVisible()) {
                 height += AndroidUtilities.statusBarHeight;
             }
