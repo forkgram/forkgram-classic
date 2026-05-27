@@ -83,6 +83,26 @@ public class ActionBar extends FrameLayout {
     // ignores it — accept and drop.
     public void setGlassDrawable(Object drawable) {}
 
+    // forkgram-classic: 12.8 ChatAvatarContainer asks the action bar to resize the centre
+    // "island" capsule as the avatar shows/hides. The classic flat bar has no capsule —
+    // accept and ignore (the islands chrome never activates).
+    public void checkAvatarContainerWidth(boolean animated) {}
+
+    // forkgram-classic: 12.9 "glass" action bar (floating blurred capsules). The new
+    // CommunityCreateActivity/CommunityEditActivity screens request it; the classic flat
+    // bar ignores the request and keeps its solid background — accept and drop.
+    public void setupGlass(org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory factory,
+                           org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProvider colorProvider) {}
+    public void setGlassOnlyBack() {}
+
+    // forkgram-classic: 12.9 ActionBarMenu asks the bar to re-animate the menu capsule
+    // width after items change; no capsule on the classic flat bar — accept and ignore.
+    public void checkMenuItemsWidth() {}
+
+    // forkgram-classic: 12.9 DialogsActivity offsets the additional title text for the
+    // new header layout; the classic title layout ignores the hint — accept and drop.
+    public void setAdditionalTextLeft(int x) {}
+
     public static class ActionBarMenuOnItemClick {
         public void onItemClick(int id) {
 
