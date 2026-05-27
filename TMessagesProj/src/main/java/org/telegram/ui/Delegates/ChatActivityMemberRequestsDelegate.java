@@ -34,6 +34,8 @@ public class ChatActivityMemberRequestsDelegate {
     private final BaseFragment fragment;
     private final TLRPC.Chat currentChat;
     private final int currentAccount;
+    @Nullable
+    private final Runnable onLayoutChanged;
 
     public FrameLayout root;
     private AvatarsImageView avatarsView;
@@ -49,16 +51,19 @@ public class ChatActivityMemberRequestsDelegate {
     private int closePendingRequestsCount = -1;
 
     public ChatActivityMemberRequestsDelegate(BaseFragment fragment, TLRPC.Chat currentChat) {
+        this(fragment, null, currentChat, null);
+    }
+
+    // forkgram-classic: the pinned 12.1.1 ChatActivity adds the bar straight to
+    // its content view — there is no upstream topPanelLayout container to host
+    // it or paint its background, and nothing wires a ChangeVisibilityDelegate.
+    // So we keep the onLayoutChanged callback and drive the bar's own
+    // visibility/background from it. The contentView parent is unused here.
+    public ChatActivityMemberRequestsDelegate(BaseFragment fragment, android.view.ViewGroup contentView, TLRPC.Chat currentChat, Runnable onLayoutChanged) {
         this.fragment = fragment;
         this.currentChat = currentChat;
         this.currentAccount = fragment.getCurrentAccount();
-    }
-
-    // forkgram-classic: pinned 12.1.1 ChatActivity constructs with a
-    // content-view parent and a top-padding invalidate callback. Upstream
-    // dropped both — accept and ignore them so the call compiles.
-    public ChatActivityMemberRequestsDelegate(BaseFragment fragment, android.view.ViewGroup contentView, TLRPC.Chat currentChat, Runnable onLayoutChanged) {
-        this(fragment, currentChat);
+        this.onLayoutChanged = onLayoutChanged;
     }
 
     private ChangeVisibilityDelegate delegate;
@@ -73,7 +78,8 @@ public class ChatActivityMemberRequestsDelegate {
     public View getView() {
         if (root == null) {
             root = new FrameLayout(fragment.getParentActivity());
-            root.setBackground(Theme.getSelectorDrawable(false));
+            root.setVisibility(View.GONE);
+            updateBackground();
             root.setOnClickListener((v) -> showBottomSheet());
             requestsDataLayout = new LinearLayout(fragment.getParentActivity());
             requestsDataLayout.setOrientation(LinearLayout.HORIZONTAL);
@@ -116,6 +122,15 @@ public class ChatActivityMemberRequestsDelegate {
             }
         }
         return root;
+    }
+
+    // forkgram-classic: in the classic layout each top panel paints its own
+    // solid background (the upstream topPanelLayout that used to do it is gone),
+    // otherwise the bar is a transparent click target over the message list.
+    private void updateBackground() {
+        if (root != null) {
+            root.setBackground(Theme.getSelectorDrawable(fragment.getThemedColor(Theme.key_listSelector), Theme.key_chat_topPanelBackground, fragment.getResourceProvider()));
+        }
     }
 
     public void setLeftMargin(float leftMargin) {
@@ -207,12 +222,23 @@ public class ChatActivityMemberRequestsDelegate {
 
         if (delegate != null) {
             delegate.setVisible(appear, animated);
+        } else {
+            root.setVisibility(appear ? View.VISIBLE : View.GONE);
+        }
+        if (onLayoutChanged != null) {
+            onLayoutChanged.run();
         }
     }
 
     public void fillThemeDescriptions(List<ThemeDescription> themeDescriptions) {
         themeDescriptions.add(new ThemeDescription(requestsCountTextView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_topPanelTitle));
         themeDescriptions.add(new ThemeDescription(closeView, ThemeDescription.FLAG_IMAGECOLOR, null, null, null, null, Theme.key_chat_topPanelClose));
+        themeDescriptions.add(new ThemeDescription(null, 0, null, null, null, new ThemeDescription.ThemeDescriptionDelegate() {
+            @Override
+            public void didSetColor() {
+                updateBackground();
+            }
+        }, Theme.key_chat_topPanelBackground));
     }
 
     // forkgram-classic: pinned ChatActivity reads an "enter offset" used to
