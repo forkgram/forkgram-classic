@@ -104,7 +104,8 @@ public class LiteModeSettingsActivity extends BaseFragment {
         contentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context));
         listView.setAdapter(adapter = new Adapter());

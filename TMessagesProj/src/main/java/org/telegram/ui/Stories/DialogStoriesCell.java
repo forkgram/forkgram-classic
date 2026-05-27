@@ -324,7 +324,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
 
         titleView = new AnimatedTextView(getContext(), true, true, false);
         titleView.setGravity(Gravity.LEFT);
-        titleView.setTextColor(getTextLogoColor());
+        titleView.setTextColor(getTextColor()); // [classic] #80: classic action-bar title color (11.9.5.0), not the logo color
         titleView.setTypeface(AndroidUtilities.bold());
         titleView.setPadding(0, dp(8), 0, dp(8));
         titleView.setTextSize(dp(!AndroidUtilities.isTablet() && getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE ? 18 : 20));
@@ -626,12 +626,12 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
                     currentTitle = str;
                 }
             } else {
-                currentTitle = menuItemsOffset < dp(50) ? null :
-                    LocaleController.getString(R.string.MyStory);
+                // [classic] #80: always show the story-count title like 11.9.5.0 (no logo-mode gate)
+                currentTitle = LocaleController.getString(R.string.MyStory);
             }
         } else {
-            currentTitle = menuItemsOffset < dp(50) ? null :
-                LocaleController.formatPluralString("Stories", totalCount);
+            // [classic] #80: always show the story-count title like 11.9.5.0 (no logo-mode gate)
+            currentTitle = LocaleController.formatPluralString("Stories", totalCount);
         }
 
         if (!hasOverlayText) {
@@ -687,8 +687,12 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         float maxY = getMeasuredHeight() - ActionBar.getCurrentActionBarHeight() - dp(4);
         float bottomY = AndroidUtilities.lerp(0, maxY, collapsedProgress1);
         recyclerListView.setTranslationY(bottomY);
+        // [classic] #82: 11.9.5.0 never slides the story row sideways. The redesign splits the
+        // collapsed landing into a dp(56) list slide plus a small per-cell menuItemsOffset, which
+        // only sums correctly at collapsedProgress == 1 — the two halves run on different
+        // interpolators, so mid-transition the row drifts right and then snaps into the mini row.
         listViewMini.setTranslationY(bottomY);
-        listViewMini.setTranslationX(menuItemsOffset);
+        listViewMini.setTranslationX(menuItemsOffset); // [classic] #82: 11.9.5.0 is a flat dp(68) here
 
         for (int i = 0; i < viewsDrawInParent.size(); i++) {
             viewsDrawInParent.get(i).drawInParent = false;
@@ -937,7 +941,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setScaleY(lerp(1f, 0.95f, subtitleOverlayContainer.getTotalVisibility()));
             titleView.setTranslationY(bottomY + dp(14) - offset + dp(FAKE_TOP_PADDING) - dp(6) * subtitleOverlayContainer.getTotalVisibility());
             int cellWidth = dp(72);
-            lastViewRight += -cellWidth + getAvatarRight(cellWidth, collapsedProgress) + dp(12);
+            lastViewRight += -cellWidth + dp(6) + getAvatarRight(cellWidth, collapsedProgress) + dp(12); // [classic] #80: restore the 11.9.5.0 dp(6) title gap
             titleView.setTranslationX(lastViewRight);
             titleView.getDrawable().setRightPadding(lastViewRight - dp(12) + actionBar.menu.getVisibleItemsMeasuredWidthWithAlpha() * progress);
 
@@ -1152,7 +1156,7 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         StoriesUtilities.updateColors();
         int color = getTextColor();
 
-        titleView.setTextColor(getTextLogoColor());
+        titleView.setTextColor(color); // [classic] #80: classic action-bar title color (11.9.5.0), not the logo color
         if (subtitleOverlayContainer != null) {
             subtitleOverlayContainer.updateColors();
         }
@@ -1302,7 +1306,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setText(currentTitle, !LocaleController.isRTL);
         }
 
-        animatorHasTitleText.setValue(hasOverlayText, true);
+        // [classic] #80: keep the story-count title visible after the overlay clears (mirror updateItems; modern brought the logo back here)
+        animatorHasTitleText.setValue(!TextUtils.isEmpty(currentTitle) || hasOverlayText, true);
         if (hasEllipsizedText) {
             ellipsizeSpanAnimator.addView(titleView);
         } else {
@@ -2217,8 +2222,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setVisibility(titleAlpha > 0 ? VISIBLE : GONE);
         }
         if (telegramLogoView != null) {
-            telegramLogoView.setAlpha(logoAlpha);
-            telegramLogoView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+            telegramLogoView.setAlpha(0);
+            telegramLogoView.setVisibility(GONE);
         }
         if (emojiStatusView != null) {
             emojiStatusView.setAlpha(logoAlpha);

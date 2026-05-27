@@ -307,6 +307,9 @@ public class SharedConfig {
     public static boolean noSoundHintShowed = false;
     public static boolean streamMedia = true;
     public static boolean streamAllVideo = false;
+    // forkgram-classic: 12.9 removed this constant; the design-pinned ActionBar,
+    // ActionBarLayout and ProfileActivity (12.1.1 baseline) still consult it.
+    public static final boolean noStatusBar = true;
     public static boolean streamMkv = false;
     public static boolean saveStreamMedia = true;
     public static boolean pauseMusicOnRecord = false;
