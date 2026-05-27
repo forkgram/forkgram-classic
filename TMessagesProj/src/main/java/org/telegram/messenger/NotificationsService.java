@@ -22,6 +22,8 @@ import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
 import android.util.Log;
 
+import org.telegram.ui.LauncherIconController;
+
 public class NotificationsService extends Service {
 
     @Override
@@ -46,7 +48,7 @@ public class NotificationsService extends Service {
                     .setContentIntent(explainPendingIntent)
                     .setShowWhen(false)
                     .setOngoing(true)
-                    .setSmallIcon(R.drawable.notification)
+                    .setSmallIcon(LauncherIconController.getNotificationIcon()) // [classic] #54: follow selected app icon
                     .setContentText("Push service: tap to learn more").build();
             startForeground(9999,notification);
             } catch (Throwable ignore) {

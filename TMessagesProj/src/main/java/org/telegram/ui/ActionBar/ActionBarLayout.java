@@ -93,6 +93,23 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         this.highlightActionButtons = highlightActionButtons;
     }
 
+    // forkgram-classic: 12.8 INavigationLayout adds the split "layers" presentation
+    // (iPad/large-screen rounded right pane). Classic ships the single-pane layout —
+    // report neither mode so the redesign code paths stay dormant.
+    @Override
+    public boolean isLayersLayout() {
+        return false;
+    }
+
+    @Override
+    public boolean isRightLayout() {
+        return false;
+    }
+
+    // forkgram-classic: 12.8 LaunchActivity tags the right split-pane via setIsRightLayout().
+    // Classic is single-pane — no-op.
+    public void setIsRightLayout() {}
+
     public boolean storyViewerAttached() {
         BaseFragment lastFragment = null;
         if (!fragmentsStack.isEmpty()) {
@@ -259,10 +276,13 @@ public class ActionBarLayout extends FrameLayout implements INavigationLayout, F
         @Override
         public boolean dispatchTouchEvent(MotionEvent ev) {
             if (ev.getAction() == MotionEvent.ACTION_DOWN) {
-                final int bottomSheetHeight = isKeyboardVisible ? 0 : getBottomTabsHeight(true);
+                // [classic] #32: upstream 12.7 removed this bottom-tabs early-return (modern keeps it commented out).
+                // With it active, a non-zero animated tabs height makes the container silently swallow every
+                // touch below the threshold — in chats that killed all poll taps (and any in-cell interaction).
+                /*final int bottomSheetHeight = isKeyboardVisible ? 0 : getBottomTabsHeight(true);
                 if (ev.getY() > getHeight() - bottomSheetHeight) {
                     return false;
-                }
+                }*/
             }
 //            processMenuButtonsTouch(ev);
             boolean passivePreview = inPreviewMode && previewMenu == null;
