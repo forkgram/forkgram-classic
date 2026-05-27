@@ -114,10 +114,12 @@ import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.ActionBarPopupWindow;
+import org.telegram.ui.ActionBar.AdjustPanLayoutHelper; // [classic] #28: classic keyboard pan (11.9.5.0)
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BackDrawable;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.BottomSheet;
+import org.telegram.ui.ActionBar.INavigationLayout; // [classic] #28: classic keyboard pan (11.9.5.0)
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.ActionBar.ThemeDescription;
@@ -154,15 +156,12 @@ import org.telegram.ui.Components.URLSpanUserMention;
 import org.telegram.ui.Components.UndoView;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
 import org.telegram.ui.Components.blur3.DownscaleScrollableNoiseSuppressor;
-import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSource;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceBitmap;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceRenderNode;
 import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceWrapped;
 import org.telegram.ui.Components.chat.ViewPositionWatcher;
 import org.telegram.ui.Components.chat.WallpaperBitmapProvider;
-import org.telegram.ui.Components.chat.layouts.ChatActivityChannelButtonsLayout;
-import org.telegram.ui.Components.chat.layouts.ChatActivityFadeView;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -204,7 +203,8 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
     private RecyclerAnimationScrollHelper chatScrollHelper;
     private ChatActivityAdapter chatAdapter;
     private TextView bottomOverlayChatText;
-    private ChatActivityChannelButtonsLayout bottomOverlayChat2;
+    private ImageView bottomOverlayImage; // [classic] #28: classic flat SETTINGS bottom bar (11.9.5.0)
+    private FrameLayout bottomOverlayChat; // [classic] #28: classic flat SETTINGS bottom bar (11.9.5.0)
     private FrameLayout emptyViewContainer;
     private ChatAvatarContainer avatarContainer;
     private LinearLayout emptyLayoutView;
@@ -229,7 +229,6 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
     public static int lastStableId = 10;
 
     private boolean checkTextureViewPosition;
-    private ChatActivityFadeView chatActivityFadeView;
     private ChatActivityFragmentView contentView;
 
     private MessageObject selectedObject;
@@ -925,8 +924,7 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
         Theme.createChatResources(context, false);
 
         actionBar.setAddToContainer(false);
-        actionBar.setCastShadows(false);
-        actionBar.setBackground(null);
+        // [classic] #28: classic opaque action bar (11.9.5.0) — no transparent glass bar, no back-arrow shift.
         actionBar.setOccupyStatusBar(!AndroidUtilities.isTablet());
         actionBar.setBackButtonDrawable(new BackDrawable(false));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
@@ -941,7 +939,7 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
         avatarContainer = new ChatAvatarContainer(context, null, false);
         avatarContainer.setGlassMode();
         avatarContainer.setOccupyStatusBar(!AndroidUtilities.isTablet());
-        actionBar.addView(avatarContainer, 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, 54, 0, 52, 0));
+        actionBar.addView(avatarContainer, 0, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT, 56, 0, 40, 0)); // [classic] #28: classic 56dp avatar inset (11.9.5.0)
 
         ActionBarMenu menu = actionBar.createMenu();
         searchItem = menu.addItem(0, R.drawable.outline_header_search).setIsSearchField(true).setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
@@ -984,6 +982,58 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
         avatarContainer.setChatAvatar(currentChat);
 
         fragmentView = new ChatActivityFragmentView(context) {
+            // [classic] #28: classic keyboard pan handling restored from 11.9.5.0.
+            final AdjustPanLayoutHelper adjustPanLayoutHelper = new AdjustPanLayoutHelper(this) {
+
+                @Override
+                protected void onTransitionStart(boolean keyboardVisible, int contentHeight) {
+                    wasManualScroll = true;
+                }
+
+                @Override
+                protected void onTransitionEnd() {
+
+                }
+
+                @Override
+                protected void onPanTranslationUpdate(float y, float progress, boolean keyboardVisible) {
+                    if (getParentLayout() != null && getParentLayout().isPreviewOpenAnimationInProgress()) {
+                        return;
+                    }
+                    contentPanTranslation = y;
+                    contentPanTranslationT = progress;
+                    actionBar.setTranslationY(y);
+                    if (emptyViewContainer != null) {
+                        emptyViewContainer.setTranslationY(y / 2);
+                    }
+                    progressView.setTranslationY(y / 2);
+                    contentView.setBackgroundTranslation((int) y);
+                    setFragmentPanTranslationOffset((int) y);
+                    chatListView.invalidate();
+                    if (AndroidUtilities.isTablet() && getParentActivity() instanceof LaunchActivity) {
+                        BaseFragment mainFragment = ((LaunchActivity) getParentActivity()).getActionBarLayout().getLastFragment();
+                        if (mainFragment instanceof DialogsActivity) {
+                            ((DialogsActivity) mainFragment).setPanTranslationOffset(y);
+                        }
+                    }
+                }
+
+                @Override
+                protected boolean heightAnimationEnabled() {
+                    INavigationLayout actionBarLayout = getParentLayout();
+                    if (inPreviewMode || inBubbleMode || AndroidUtilities.isInMultiwindow || actionBarLayout == null) {
+                        return false;
+                    }
+                    if (System.currentTimeMillis() - activityResumeTime < 250) {
+                        return false;
+                    }
+                    if ((ChannelAdminLogActivity.this == actionBarLayout.getLastFragment() && actionBarLayout.isTransitionAnimationInProgress()) || actionBarLayout.isPreviewOpenAnimationInProgress() || isPaused || !openAnimationEnded) {
+                        return false;
+                    }
+                    return true;
+                }
+            };
+
             @Override
             protected void onAttachedToWindow() {
                 super.onAttachedToWindow();
@@ -993,14 +1043,20 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                 }
             }
 
+            // [classic] #28: classic action-bar drop shadow (11.9.5.0).
             @Override
-            protected boolean isActionBarVisible() {
-                return false;
+            protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+                boolean result = super.drawChild(canvas, child, drawingTime);
+                if (child == actionBar && parentLayout != null) {
+                    parentLayout.drawHeaderShadow(canvas, actionBar.getVisibility() == VISIBLE ? actionBar.getMeasuredHeight() : 0);
+                }
+                return result;
             }
 
+            // [classic] #28: classic opaque action bar — wallpaper is clipped below it (11.9.5.0).
             @Override
-            protected boolean isStatusBarVisible() {
-                return false;
+            protected boolean isActionBarVisible() {
+                return actionBar.getVisibility() == VISIBLE;
             }
 
             @Override
@@ -1034,7 +1090,8 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                     }
                     if (child == chatListView || child == progressView) {
                         int contentWidthSpec = MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY);
-                        int contentHeightSpec = MeasureSpec.makeMeasureSpec(recommendedAdditionalSizeY * 2 + Math.max(dp(10), MeasureSpec.getSize(heightMeasureSpec)), MeasureSpec.EXACTLY);
+                        // [classic] #28: classic list height — content ends above the flat 51dp bottom bar (11.9.5.0).
+                        int contentHeightSpec = MeasureSpec.makeMeasureSpec(Math.max(dp(10), heightSize - dp(48 + 2)), MeasureSpec.EXACTLY);
                         child.measure(contentWidthSpec, contentHeightSpec);
                     } else if (child == emptyViewContainer) {
                         int contentWidthSpec = MeasureSpec.makeMeasureSpec(widthSize, MeasureSpec.EXACTLY);
@@ -1063,9 +1120,6 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                 // shouldHaveLightNavigationBarIcons = isDark;
 
                 navbarContentSourceWallpaper.setSource(source);
-                if (chatActivityFadeView != null) {
-                    chatActivityFadeView.invalidate();
-                }
             }
 
             @Override
@@ -1126,10 +1180,8 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
                         childTop -= dp(24) - (actionBar.getVisibility() == VISIBLE ? actionBar.getMeasuredHeight() / 2 : 0);
                     } else if (child == actionBar) {
                         childTop -= getPaddingTop();
-                    } else if (child == backgroundView || child == chatActivityFadeView) {
+                    } else if (child == backgroundView) {
                         childTop = 0;
-                    } else if (child == chatListView) {
-                        childTop = -recommendedAdditionalSizeY;
                     }
                     child.layout(childLeft, childTop, childLeft + width, childTop + height);
                 }
@@ -1161,7 +1213,7 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
 
         contentView.setOccupyStatusBar(!AndroidUtilities.isTablet());
         contentView.setBackgroundImage(Theme.getCachedWallpaper(), Theme.isWallpaperMotion());
-        actionBar.setupGlass(glassBackgroundDrawableFactory, BlurredBackgroundProviderImpl.topPanelChatActivity(resourceProvider));
+
         emptyViewContainer = new FrameLayout(context);
         emptyViewContainer.setVisibility(View.INVISIBLE);
         contentView.addView(emptyViewContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
@@ -1350,9 +1402,7 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
         chatListView.setVerticalScrollBarEnabled(true);
         chatListView.setAdapter(chatAdapter = new ChatActivityAdapter(context));
         chatListView.setClipToPadding(false);
-        chatListView.setPadding(0,
-            recommendedAdditionalSizeY + AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight() + dp(4), 0,
-            recommendedAdditionalSizeY + dp(44 + 9 + 7) + AndroidUtilities.navigationBarHeight);
+        chatListView.setPadding(0, dp(4), 0, dp(3)); // [classic] #28: classic list padding (11.9.5.0)
         chatListView.setItemAnimator(chatListItemAnimator = new ChatListItemAnimator(null, chatListView, resourceProvider) {
 
             int scrollAnimationIndex = -1;
@@ -1468,14 +1518,6 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
             scrollToPositionOnRecreate = -1;
         }
 
-        chatActivityFadeView = new ChatActivityFadeView(context);
-        chatActivityFadeView.setup(navbarContentDrawableFactory);
-        chatActivityFadeView.setFadeZoneTop(AndroidUtilities.statusBarHeight + ActionBar.getCurrentActionBarHeight() + dp(2));
-        chatActivityFadeView.setFadeHeightTop(dp(60));
-        chatActivityFadeView.setFadeZoneBottom(AndroidUtilities.navigationBarHeight + dp(9) + dp(44) + dp(7));
-        chatActivityFadeView.setFadeHeightBottom(dp(60));
-        contentView.addView(chatActivityFadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-
         progressView = new FrameLayout(context);
         progressView.setVisibility(View.INVISIBLE);
         contentView.addView(progressView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
@@ -1496,16 +1538,21 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
 
         contentView.addView(actionBar);
 
-        bottomOverlayChat2 = new ChatActivityChannelButtonsLayout(context, resourceProvider,
-            BlurredBackgroundProviderImpl.bottomPanelChatActivity(resourceProvider), glassBackgroundDrawableFactory);
-        bottomOverlayChat2.setTotalVisibilityFactor(1f);
-        bottomOverlayChat2.setTranslationY(-AndroidUtilities.navigationBarHeight);
-        bottomOverlayChat2.showButton(ChatActivityChannelButtonsLayout.BUTTON_RECENT_ACTIONS_INFO, true, false);
-        bottomOverlayChat2.setupDrawableForContainer();
-        contentView.addView(bottomOverlayChat2, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 56, Gravity.BOTTOM, 54, 0, 0, (44 - 56) / 2 + 9));
-
-        bottomOverlayChatText = new TextView(context);
-        bottomOverlayChatText.setOnClickListener(view -> {
+        // [classic] #28: classic flat SETTINGS bottom bar with inline help button (11.9.5.0)
+        // instead of the floating pill Settings button + floating round info button.
+        bottomOverlayChat = new FrameLayout(context) {
+            @Override
+            public void onDraw(Canvas canvas) {
+                int bottom = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                Theme.chat_composeShadowDrawable.setBounds(0, 0, getMeasuredWidth(), bottom);
+                Theme.chat_composeShadowDrawable.draw(canvas);
+                canvas.drawRect(0, bottom, getMeasuredWidth(), getMeasuredHeight(), Theme.chat_composeBackgroundPaint);
+            }
+        };
+        bottomOverlayChat.setWillNotDraw(false);
+        bottomOverlayChat.setPadding(0, dp(3), 0, 0);
+        contentView.addView(bottomOverlayChat, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 51, Gravity.BOTTOM));
+        bottomOverlayChat.setOnClickListener(view -> {
             if (getParentActivity() == null) {
                 return;
             }
@@ -1523,16 +1570,21 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
             });
             showDialog(adminLogFilterAlert);
         });
+
+        bottomOverlayChatText = new TextView(context);
         bottomOverlayChatText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         bottomOverlayChatText.setTypeface(AndroidUtilities.bold());
         bottomOverlayChatText.setTextColor(Theme.getColor(Theme.key_chat_fieldOverlayText));
-        bottomOverlayChatText.setText(getString(R.string.SETTINGS));
-        bottomOverlayChatText.setPadding(dp(24), 0, dp(24), 0);
-        bottomOverlayChat2.getContainer().addView(bottomOverlayChatText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
-        bottomOverlayChat2.makeViewWrapContent(bottomOverlayChatText);
-        bottomOverlayChat2.updateWrappingVisible(false);
+        bottomOverlayChatText.setText(getString(R.string.SETTINGS).toUpperCase());
+        bottomOverlayChat.addView(bottomOverlayChatText, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER));
 
-        bottomOverlayChat2.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_RECENT_ACTIONS_INFO, v -> {
+        bottomOverlayImage = new ImageView(context);
+        bottomOverlayImage.setImageResource(R.drawable.msg_help);
+        bottomOverlayImage.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_chat_fieldOverlayText), PorterDuff.Mode.MULTIPLY));
+        bottomOverlayImage.setScaleType(ImageView.ScaleType.CENTER);
+        bottomOverlayChat.addView(bottomOverlayImage, LayoutHelper.createFrame(48, 48, Gravity.RIGHT | Gravity.TOP, 3, 0, 0, 0));
+        bottomOverlayImage.setContentDescription(getString(R.string.BotHelp));
+        bottomOverlayImage.setOnClickListener(v -> {
             AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
             if (currentChat.megagroup) {
                 builder.setMessage(AndroidUtilities.replaceTags(getString(R.string.EventLogInfoDetail)));
@@ -1544,7 +1596,16 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
             showDialog(builder.create());
         });
 
-        searchContainer = new FrameLayout(context);
+        // [classic] #28: classic flat search panel background (11.9.5.0).
+        searchContainer = new FrameLayout(context) {
+            @Override
+            public void onDraw(Canvas canvas) {
+                int bottom = Theme.chat_composeShadowDrawable.getIntrinsicHeight();
+                Theme.chat_composeShadowDrawable.setBounds(0, 0, getMeasuredWidth(), bottom);
+                Theme.chat_composeShadowDrawable.draw(canvas);
+                canvas.drawRect(0, bottom, getMeasuredWidth(), getMeasuredHeight(), Theme.chat_composeBackgroundPaint);
+            }
+        };
         searchContainer.setWillNotDraw(false);
         searchContainer.setVisibility(View.INVISIBLE);
         searchContainer.setFocusable(true);
@@ -3896,6 +3957,10 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
         themeDescriptions.add(new ThemeDescription(chatListView, 0, new Class[]{ChatMessageCell.class}, null, new Drawable[]{Theme.chat_locationDrawable[0]}, null, Theme.key_chat_inLocationIcon));
         themeDescriptions.add(new ThemeDescription(chatListView, 0, new Class[]{ChatMessageCell.class}, null, new Drawable[]{Theme.chat_locationDrawable[1]}, null, Theme.key_chat_outLocationIcon));
 
+        // [classic] #28: classic flat bottom bar theming (11.9.5.0).
+        themeDescriptions.add(new ThemeDescription(bottomOverlayChat, 0, null, Theme.chat_composeBackgroundPaint, null, null, Theme.key_chat_messagePanelBackground));
+        themeDescriptions.add(new ThemeDescription(bottomOverlayChat, 0, null, null, new Drawable[]{Theme.chat_composeShadowDrawable}, null, Theme.key_chat_messagePanelShadow));
+
         themeDescriptions.add(new ThemeDescription(bottomOverlayChatText, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_fieldOverlayText));
 
         themeDescriptions.add(new ThemeDescription(emptyView, ThemeDescription.FLAG_TEXTCOLOR, null, null, null, null, Theme.key_chat_serviceText));
@@ -4353,16 +4418,8 @@ public class ChannelAdminLogActivity extends BaseFragment implements Notificatio
     }
 
 
-    @Override
-    public boolean isSupportEdgeToEdge() {
-        return true;
-    }
-
-    @Override
-    public boolean drawEdgeNavigationBar() {
-        return false;
-    }
-
+    // [classic] #28: edge-to-edge overrides removed — classic BaseFragment defaults (false)
+    // keep the fragment and its bottom sheets above the system navigation bar (11.9.5.0).
 
     private OnPostDrawView invalidateBlurredSourcesView;
 

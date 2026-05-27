@@ -89,6 +89,7 @@ public class BotKeyboardView extends LinearLayout implements InAppKeyboardInsetV
 
     public void updateColors() {
         AndroidUtilities.setScrollViewEdgeEffectColor(scrollView, getThemedColor(Theme.key_chat_emojiPanelBackground));
+        setBackgroundColor(getThemedColor(Theme.key_chat_emojiPanelBackground));
         for (int i = 0; i < buttonViews.size(); i++) {
             buttonViews.get(i).updateColors();
         }

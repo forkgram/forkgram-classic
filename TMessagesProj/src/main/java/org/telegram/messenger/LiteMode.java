@@ -278,6 +278,9 @@ public class LiteMode {
 
         int prevValue = value;
         value = preferences.getInt("lite_mode6", defaultValue);
+        // [classic] #107: Liquid Glass is a 12.x redesign effect classic does not ship. Keep it off
+        // whatever the stored value or the server-side preset says — its Power Saving row is gone.
+        value &= ~FLAG_LIQUID_GLASS;
         if (loaded) {
             onFlagsUpdate(prevValue, value);
         }
