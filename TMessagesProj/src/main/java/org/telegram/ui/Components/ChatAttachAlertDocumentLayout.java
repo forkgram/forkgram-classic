@@ -338,7 +338,10 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
 
             }
         };
-        listView.setSections();
+        // [classic] #13: drop the redesign's inset rounded-card list (setSections() applies a
+        // dp(12) horizontal inset + card backgrounds to every row). Classic (11.9.5.0) and even
+        // upstream modern use a plain edge-to-edge list, so the attach-file rows sit tight to the left.
+        // listView.setSections();
         iBlur3Capture = listView;
         iBlur3CaptureView = listView;
         occupyStatusBar = true;
@@ -683,7 +686,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
         }
         View child = listView.getChildAt(0);
         RecyclerListView.Holder holder = (RecyclerListView.Holder) listView.findContainingViewHolder(child);
-        int top = (int) child.getY() - AndroidUtilities.statusBarHeight - AndroidUtilities.dp(4) - AndroidUtilities.dp(8);
+        int top = (int) child.getY() - AndroidUtilities.dp(8); // [classic] #55: drop the redesign's status-bar top inset (matches 11.9.5.0).
         int newOffset = top > 0 && holder != null && holder.getAdapterPosition() == 0 ? top : 0;
         if (top >= 0 && holder != null && holder.getAdapterPosition() == 0) {
             newOffset = top;
@@ -725,7 +728,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
             }
             parentAlert.setAllowNestedScroll(true);
         }
-        padding += AndroidUtilities.statusBarHeight;
+        // [classic] #55: no status-bar top inset — classic doesn't draw the sheet behind the status bar (11.9.5.0).
         listView.setPaddingWithoutRequestLayout(0, padding, 0, listPaddingBottom);
         FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) filtersView.getLayoutParams();
         layoutParams.topMargin = ActionBar.getCurrentActionBarHeight();
@@ -927,7 +930,7 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
     }
 
     public void loadRecentFiles() {
-        if (MessagesController.getGlobalMainSettings().getBoolean("disableSlideToNextChannel", false)) {
+        if (MessagesController.getGlobalMainSettings().getBoolean("disableRecentFilesAttachment", false)) {
             listAdapter.recentItems.clear();
             return;
         }
@@ -1473,14 +1476,18 @@ public class ChatAttachAlertDocumentLayout extends ChatAttachAlert.AttachAlertLa
                     view = new HeaderCell(mContext, resourcesProvider);
                     break;
                 case 1:
+                    // [classic] #13: restore the classic picker rows (VIEW_TYPE_PICKER) exactly as
+                    // 11.9.5.0; the redesign deviation used the narrower VIEW_TYPE_DEFAULT.
                     view = new SharedDocumentCell(mContext, SharedDocumentCell.VIEW_TYPE_PICKER, resourcesProvider);
                     break;
                 case 2:
+                    // [classic] #13: restore the classic greydivider shadow between the picker block
+                    // and the Recent files list (11.9.5.0); the redesign drew sections instead.
                     view = new ShadowSectionCell(mContext);
-                    // Drawable drawable = Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
-                    // CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
-                    // combinedDrawable.setFullsize(true);
-                    // view.setBackgroundDrawable(combinedDrawable);
+                    Drawable drawable = Theme.getThemedDrawableByKey(mContext, R.drawable.greydivider, Theme.key_windowBackgroundGrayShadow);
+                    CombinedDrawable combinedDrawable = new CombinedDrawable(new ColorDrawable(getThemedColor(Theme.key_windowBackgroundGray)), drawable);
+                    combinedDrawable.setFullsize(true);
+                    view.setBackgroundDrawable(combinedDrawable);
                     break;
                 case 3:
                 default:

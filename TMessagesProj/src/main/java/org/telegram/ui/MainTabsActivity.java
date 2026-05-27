@@ -243,11 +243,21 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         blur3_updateColors();
         checkContactsTabBadge();
         checkUnreadCount(true);
+        // [classic] #61: re-apply the "Show bottom tabs" preference when returning to the home
+        // (e.g. after toggling it in Forkgram Settings) so the change takes effect without a restart.
+        if (dialogsActivity != null) {
+            dialogsActivity.checkUi_mainTabsVisible();
+        }
 
         Bulletin.Delegate delegate = new Bulletin.Delegate() {
             @Override
             public int getBottomOffset(int tag) {
-                return navigationBarHeight + dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN);
+                // [classic] #68: navigationBarHeight is the dispatched-inset value, which is 0/stale on the
+                // 12.8 edge-to-edge core (USE_LEGACY_SYSTEM_INSETS=false) — same root cause as #68. Floor it
+                // with the live nav-bar inset so the low-power bulletin (LaunchActivity.onPowerSaver) clears the bar.
+                // Verified on-device: the sibling DialogsActivity delegate reads navigationBarHeight=0 here too
+                // (same systemBars() listener), so this floor adds the missing 88px nav-bar term above the tabs.
+                return Math.max(navigationBarHeight, getBottomInset()) + dp(DialogsActivity.MAIN_TABS_HEIGHT + DialogsActivity.MAIN_TABS_MARGIN);
             }
         };
 
@@ -692,6 +702,11 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private DialogsActivity dialogsActivity;
 
     @Override
+    public boolean onBackPressed() {
+        return onBackPressed(true);
+    }
+
+    @Override
     public boolean onBackPressed(boolean invoked) {
         final boolean result = super.onBackPressed(invoked);
         if (result) {
@@ -757,6 +772,31 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         return dialogsActivity;
     }
 
+    @Override
+    public void setProgressToDrawerOpened(float v) {
+        // [classic] #4: this tabs wrapper is the top fragment the DrawerLayoutContainer drives, but the
+        // drawer-open parallax (slide + scale of the chat list) lives in the nested DialogsActivity.
+        // Forward the progress so the list actually moves — otherwise the call lands on the empty
+        // BaseFragment stub and the background stays static (the bug behind issue #4).
+        if (dialogsActivity != null) {
+            dialogsActivity.setProgressToDrawerOpened(v);
+        }
+    }
+
+    @Override
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        // [classic] #1: the DrawerLayoutContainer asks the TOP fragment (this tabs wrapper) whether a
+        // left-to-right swipe may open the drawer, but the folder-aware guard lives in the nested
+        // DialogsActivity. Forward it so that, with folders + "Change folder" swipe, a mid-screen L→R
+        // swipe switches folders instead of opening the drawer (the drawer stays reachable from the
+        // far-left edge / on the first tab). Without this the call hit BaseFragment's "return true"
+        // and the drawer always won — which is exactly what issue #1 reports.
+        if (dialogsActivity != null) {
+            return dialogsActivity.isDrawerOpenSwipeEnabled(event);
+        }
+        return true;
+    }
+
     /* */
 
     public GlassTabView[] tabs;
@@ -796,12 +836,12 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
 
     @Override
     protected boolean canScrollForward(MotionEvent ev) {
-        return canScrollInternal(ev, true);
+        return false;
     }
 
     @Override
     protected boolean canScrollBackward(MotionEvent ev) {
-        return canScrollInternal(ev, false);
+        return false;
     }
 
     private boolean canScrollInternal(MotionEvent ev, boolean forward) {

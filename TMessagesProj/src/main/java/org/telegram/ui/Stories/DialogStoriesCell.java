@@ -687,8 +687,9 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
         float maxY = getMeasuredHeight() - ActionBar.getCurrentActionBarHeight() - dp(4);
         float bottomY = AndroidUtilities.lerp(0, maxY, collapsedProgress1);
         recyclerListView.setTranslationY(bottomY);
+        recyclerListView.setTranslationX(AndroidUtilities.lerp(0, dp(56), collapsedProgress));
         listViewMini.setTranslationY(bottomY);
-        listViewMini.setTranslationX(menuItemsOffset);
+        listViewMini.setTranslationX(menuItemsOffset + dp(56));
 
         for (int i = 0; i < viewsDrawInParent.size(); i++) {
             viewsDrawInParent.get(i).drawInParent = false;
@@ -2217,8 +2218,8 @@ public class DialogStoriesCell extends FrameLayout implements NotificationCenter
             titleView.setVisibility(titleAlpha > 0 ? VISIBLE : GONE);
         }
         if (telegramLogoView != null) {
-            telegramLogoView.setAlpha(logoAlpha);
-            telegramLogoView.setVisibility(logoAlpha > 0 ? VISIBLE : GONE);
+            telegramLogoView.setAlpha(0);
+            telegramLogoView.setVisibility(GONE);
         }
         if (emojiStatusView != null) {
             emojiStatusView.setAlpha(logoAlpha);

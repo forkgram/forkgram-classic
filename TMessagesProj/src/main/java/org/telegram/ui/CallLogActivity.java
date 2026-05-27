@@ -605,6 +605,8 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 				final CallCell cell = (CallCell) view;
 				cell.set(row, item.clickCallback);
 				cell.setChecked(item.checked, false);
+				// [classic] #18: restore the row separator between call entries (old flat list look).
+				cell.profileSearchCell.useSeparator = divider;
 			}
 
 			public static UItem of(CallLogRow row, View.OnClickListener onImageClick) {
@@ -752,7 +754,8 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 
 		listView = new UniversalRecyclerView(this, this::fillItems, this::onClick, this::onLongClick);
 		listView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray, resourceProvider));
-		listView.setSections();
+		// [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+		listView.setSections(0, 0, false);
 		listView.adapter.setApplyBackground(false);
 		contentView = new SizeNotifierFrameLayout(context) {
 			@Override
@@ -937,7 +940,10 @@ public class CallLogActivity extends BaseFragment implements NotificationCenter.
 
 			@Override
 			public int getBottomOffset(int tag) {
-				return navigationBarHeight + additionFloatingButtonOffset;
+				// [classic] #68: floor the nav-clearance term with the live inset so the low-power/snackbar
+				// bulletin clears the nav bar. In classic navigationBarHeight stays 0
+				// (USE_LEGACY_SYSTEM_INSETS=false), so this collapsed to ~0 and the toast hid under the nav buttons.
+				return Math.max(navigationBarHeight, getBottomInset()) + additionFloatingButtonOffset;
 			}
 		});
 		if (hasMainTabs) {

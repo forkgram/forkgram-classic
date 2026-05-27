@@ -16,7 +16,6 @@ import android.graphics.Color;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
 import android.graphics.Matrix;
-import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
@@ -28,18 +27,14 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.text.Editable;
 import android.text.SpannableStringBuilder;
 import android.text.TextPaint;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.RoundedCorner;
 import android.view.View;
-import android.view.ViewOutlineProvider;
 import android.view.ViewParent;
-import android.view.WindowInsets;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
@@ -81,10 +76,6 @@ import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.SizeNotifierFrameLayout;
 import org.telegram.ui.Components.Text;
 import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
-import org.telegram.ui.Components.blur3.StrokeDrawable;
-import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
-import org.telegram.ui.Components.blur3.drawable.color.BlurredBackgroundColorProviderThemed;
-import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
 import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.Stories.DarkThemeResourceProvider;
 
@@ -93,8 +84,7 @@ public class CaptionContainerView extends FrameLayout {
     protected Theme.ResourcesProvider resourcesProvider;
     private final FrameLayout containerView;
 
-    protected final StrokeDrawable strokeDrawable = new StrokeDrawable();
-    protected final StrokeDrawable strokeDrawableEmoji = new StrokeDrawable();
+    // [classic] #24: liquid-glass stroke drawables removed — classic caption has no glass outline.
     protected final Paint backgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     public final EditTextEmoji editText;
     private Drawable applyButtonCheck;
@@ -154,23 +144,6 @@ public class CaptionContainerView extends FrameLayout {
         replyBackgroundBlur = new BlurringShader.StoryBlurDrawer(blurManager, this, BlurringShader.StoryBlurDrawer.BLUR_TYPE_REPLY_BACKGROUND);
         replyTextBlur = new BlurringShader.StoryBlurDrawer(blurManager, this, BlurringShader.StoryBlurDrawer.BLUR_TYPE_REPLY_TEXT_XFER);
 
-        strokeDrawable.nonRound = true;
-        strokeDrawable.setColorProvider(new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite, 0) {
-            @Override
-            public boolean isDark() {
-                return true;
-            }
-        });
-        strokeDrawable.setBackgroundColor(0);
-        strokeDrawableEmoji.nonRound = true;
-        strokeDrawableEmoji.setColorProvider(new BlurredBackgroundColorProviderThemed(resourcesProvider, Theme.key_windowBackgroundWhite, 0) {
-            @Override
-            public boolean isDark() {
-                return true;
-            }
-        });
-        strokeDrawableEmoji.setBackgroundColor(0);
-
         backgroundPaint.setColor(0x80000000);
 
         keyboardNotifier = new KeyboardNotifier(rootView, this::updateKeyboard);
@@ -218,59 +191,20 @@ public class CaptionContainerView extends FrameLayout {
                     }
                     emojiView.updateColors();
                 }
-                if (emojiView != null) {
-                    emojiView.customOutline = true;
-                    emojiView.setClipToOutline(true);
-                    emojiView.setOutlineProvider(new ViewOutlineProvider() {
-                        @Override
-                        public void getOutline(View view, Outline outline) {
-                            outline.setRoundRect(0, 0, view.getWidth(), view.getHeight() + dp(29), dp(29));
-                        }
-                    });
-                }
             }
 
             private BlurringShader.StoryBlurDrawer blurDrawer;
-            private BlurredBackgroundDrawable blurredBackgroundDrawable;
 
             @Override
             protected void drawEmojiBackground(Canvas canvas, View view) {
-                rectF.set(0, 0, view.getWidth(), view.getHeight() + dp(29));
-
-                if (factoryForMentions != null) {
-                    if (blurredBackgroundDrawable == null) {
-                        int leftBottomRadius = 0;
-                        int rightBottomRadius = 0;
-                        if (Build.VERSION.SDK_INT >= 31) {
-                            final WindowInsets insets = getRootWindowInsets();
-                            if (insets != null) {
-                                final RoundedCorner bottomLeft = insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT);
-                                final RoundedCorner bottomRight = insets.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_RIGHT);
-                                leftBottomRadius = bottomLeft == null ? 0 : bottomLeft.getRadius();
-                                rightBottomRadius = bottomRight == null ? 0 : bottomRight.getRadius();
-                            }
-                        }
-
-                        blurredBackgroundDrawable = factoryForMentions.create(view)
-                            .setColorProvider(BlurredBackgroundProviderImpl.photoViewer(resourcesProvider));
-                        blurredBackgroundDrawable.setRadius(dp(29), dp(29), rightBottomRadius, leftBottomRadius, true);
-                        blurredBackgroundDrawable.enableInAppKeyboardOptimization();
-                        blurredBackgroundDrawable.setThickness(dp(32));
-                        blurredBackgroundDrawable.setIntensity(0.4f);
-                    }
-                    rectF.round(AndroidUtilities.rectTmp2);
-                    blurredBackgroundDrawable.setBounds(AndroidUtilities.rectTmp2);
-                    blurredBackgroundDrawable.draw(canvas);
-                } else if (customBlur()) {
+                // [classic] #24: restored the 11.9.5.0 flat emoji-panel background
+                // (no rounded liquid-glass sheet, no glass stroke).
+                rectF.set(0, 0, view.getWidth(), view.getHeight());
+                if (customBlur()) {
                     if (blurDrawer == null) {
                         blurDrawer = new BlurringShader.StoryBlurDrawer(blurManager, view, BlurringShader.StoryBlurDrawer.BLUR_TYPE_EMOJI_VIEW);
                     }
-                    drawBlur(blurDrawer, canvas, rectF, dp(29), false, 0, -view.getY(), false, 1.0f);
-                    strokeDrawableEmoji.radius = dp(29);
-                    strokeDrawableEmoji.setBounds(
-                            (int) rectF.left, (int) rectF.top,
-                            (int) rectF.right, (int) rectF.bottom + dp(29));
-                    strokeDrawableEmoji.draw(canvas);
+                    drawBlur(blurDrawer, canvas, rectF, 0, false, 0, -view.getY(), false, 1.0f);
                 } else {
                     drawBackground(canvas, rectF, 0, .95f, view);
                 }
@@ -314,7 +248,7 @@ public class CaptionContainerView extends FrameLayout {
                 CaptionContainerView.this.onLineCountChanged(oldLineCount, newLineCount);
             }
         };
-        editText.glassDesignForEmojiView = true;
+        // [classic] #24: no glassDesignForEmojiView — keep the classic flat emoji panel.
         editText.getEditText().addTextChangedListener(new EditTextSuggestionsFix());
         editText.setFocusable(true);
         editText.setFocusableInTouchMode(true);
@@ -325,13 +259,11 @@ public class CaptionContainerView extends FrameLayout {
         editText.getEditText().setHintColor(0xffffffff);
         editText.getEditText().setHintText(LocaleController.getString(R.string.AddCaption), false);
         hintTextBitmapPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
-        editText.getEditText().setTranslationX(AndroidUtilities.dp(-44 + 18));
+        editText.getEditText().setTranslationX(AndroidUtilities.dp(-40 + 18)); // [classic] #24: classic 11.9.5.0 offset
         if (isAtTop()) {
             editText.getEditText().setGravity(Gravity.TOP);
         }
         editText.getEmojiButton().setAlpha(0f);
-        editText.getEmojiButton().setTranslationY(dp(isAtTop() ? 1 : -1));
-        editText.setTranslationY(dp(isAtTop() ? 1 : -1));
         editText.getEditText().addTextChangedListener(new TextWatcher() {
 
             @Override
@@ -394,20 +326,21 @@ public class CaptionContainerView extends FrameLayout {
             }
         });
         editText.getEditText().setLinkTextColor(Color.WHITE);
-        addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, (isAtTop() ? Gravity.TOP : Gravity.BOTTOM) | Gravity.FILL_HORIZONTAL, 12, 8, 12 + additionalRightMargin(), 8));
+        addView(editText, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, (isAtTop() ? Gravity.TOP : Gravity.BOTTOM) | Gravity.FILL_HORIZONTAL, 12, 12, 12 + additionalRightMargin(), 12)); // [classic] #24: classic 12dp paddings
 
         applyButton = new BounceableImageView(context);
         ScaleStateListAnimator.apply(applyButton, 0.05f, 1.25f);
         applyButtonCheck = context.getResources().getDrawable(R.drawable.input_done).mutate();
         applyButtonCheck.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_dialogFloatingIcon), PorterDuff.Mode.SRC_IN));
-        applyButtonDrawable = new CombinedDrawable(Theme.createCircleDrawable(AndroidUtilities.dp(18), Theme.getColor(Theme.key_chat_editMediaButton, resourcesProvider)), applyButtonCheck, 0, AndroidUtilities.dp(1));
-        applyButtonDrawable.setCustomSize(AndroidUtilities.dp(36), AndroidUtilities.dp(36));
+        applyButtonDrawable = new CombinedDrawable(Theme.createCircleDrawable(AndroidUtilities.dp(16), Theme.getColor(Theme.key_chat_editMediaButton, resourcesProvider)), applyButtonCheck, 0, AndroidUtilities.dp(1)); // [classic] #24: classic 32dp apply button
+        applyButtonDrawable.setCustomSize(AndroidUtilities.dp(32), AndroidUtilities.dp(32));
         applyButton.setImageDrawable(applyButtonDrawable);
         applyButton.setScaleType(ImageView.ScaleType.CENTER);
         applyButton.setAlpha(0f);
         applyButton.setVisibility(View.GONE);
         applyButton.setOnClickListener(e -> done());
-        addView(applyButton, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | (isAtTop() ? Gravity.TOP : Gravity.BOTTOM), 8, 8, 8, 8));
+        applyButton.setTranslationY(-AndroidUtilities.dp(1)); // [classic] #24: classic placement, no glass insets
+        addView(applyButton, LayoutHelper.createFrame(44, 44, Gravity.RIGHT | (isAtTop() ? Gravity.TOP : Gravity.BOTTOM)));
 
         limitTextView = new AnimatedTextView(context, false, true, true);
         limitTextView.setGravity(Gravity.CENTER);
@@ -543,13 +476,11 @@ public class CaptionContainerView extends FrameLayout {
         scrollAnimator.start();
     }
 
-    protected @Nullable BlurredBackgroundDrawableViewFactory factoryForMentions;
-    private BlurredBackgroundDrawable backgroundForCaptionField;
-
+    // [classic] #24: upstream PhotoViewer installs a frosted liquid-glass factory here to
+    // skin the caption box, mentions list and emoji panel. The classic caption paints its
+    // own blur/dim rounded rect, so the factory is ignored.
     public void setBlurredBackgroundDrawableForMentions(BlurredBackgroundDrawableViewFactory factoryForMentions) {
-        this.factoryForMentions = factoryForMentions;
     }
-
 
     private void createMentionsContainer() {
         mentionContainer = new MentionsContainerView(getContext(), dialogId, 0, LaunchActivity.getLastFragment(), new DarkThemeResourceProvider()) {
@@ -586,9 +517,6 @@ public class CaptionContainerView extends FrameLayout {
                 return editText.getEditText().getPaint().getFontMetricsInt();
             }
         });
-        if (factoryForMentions != null) {
-            mentionContainer.setBackgroundDrawable(factoryForMentions.create(mentionContainer).setColorProvider(BlurredBackgroundProviderImpl.photoViewer(resourcesProvider)));
-        }
         containerView.addView(mentionContainer, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.LEFT | Gravity.BOTTOM));
         setupMentionContainer();
     }
@@ -699,7 +627,7 @@ public class CaptionContainerView extends FrameLayout {
     }
 
     protected void updateEditTextLeft() {
-        editText.getEditText().setTranslationX(lerp(dp(-44 + 18) + getEditTextLeft(), dp(2), keyboardT));
+        editText.getEditText().setTranslationX(lerp(dp(-40 + 18) + getEditTextLeft(), dp(2), keyboardT)); // [classic] #24
     }
 
     public float keyboardT;
@@ -730,9 +658,10 @@ public class CaptionContainerView extends FrameLayout {
             keyboardAnimator = ValueAnimator.ofFloat(keyboardT, show ? 1 : 0);
             keyboardAnimator.addUpdateListener(anm -> {
                 keyboardT = (float) anm.getAnimatedValue();
-                editText.getEditText().setTranslationX(lerp(dp(-44 + 18) + getEditTextLeft(), dp(2), keyboardT));
-                // editText.setTranslationX(lerp(0, dp(-8), keyboardT));
-                // editText.setTranslationY(lerp(0, dp(isAtTop() ? -10 : 10), keyboardT));
+                // [classic] #24: classic keyboard slide — the caption expands to a flat full-width bar.
+                editText.getEditText().setTranslationX(lerp(dp(-40 + 18) + getEditTextLeft(), dp(2), keyboardT));
+                editText.setTranslationX(lerp(0, dp(-8), keyboardT));
+                editText.setTranslationY(lerp(0, dp(isAtTop() ? -10 : 10), keyboardT));
                 limitTextContainer.setTranslationX(lerp(-dp(8), dp(2), keyboardT));
                 limitTextContainer.setTranslationY(lerp(-dp(8), 0, keyboardT));
                 editText.getEmojiButton().setAlpha(keyboardT);
@@ -772,9 +701,10 @@ public class CaptionContainerView extends FrameLayout {
             keyboardAnimator.start();
         } else {
             keyboardT = show ? 1 : 0;
-            editText.getEditText().setTranslationX(lerp(AndroidUtilities.dp(-44 + 18) + getEditTextLeft(), AndroidUtilities.dp(2), keyboardT));
-            // editText.setTranslationX(lerp(0, AndroidUtilities.dp(-8), keyboardT));
-            // editText.setTranslationY(lerp(0, AndroidUtilities.dp(isAtTop() ? -10 : 10), keyboardT));
+            // [classic] #24: classic keyboard slide — the caption expands to a flat full-width bar.
+            editText.getEditText().setTranslationX(lerp(AndroidUtilities.dp(-40 + 18) + getEditTextLeft(), AndroidUtilities.dp(2), keyboardT));
+            editText.setTranslationX(lerp(0, AndroidUtilities.dp(-8), keyboardT));
+            editText.setTranslationY(lerp(0, AndroidUtilities.dp(isAtTop() ? -10 : 10), keyboardT));
             limitTextContainer.setTranslationX(lerp(-dp(8), dp(2), keyboardT));
             limitTextContainer.setTranslationY(lerp(-dp(8), 0, keyboardT));
             editText.getEmojiButton().setAlpha(keyboardT);
@@ -991,7 +921,7 @@ public class CaptionContainerView extends FrameLayout {
     }
 
     protected float forceRound() {
-        return 1.0f;
+        return 0.0f; // [classic] #24: classic — the caption flattens to a full-width bar over the keyboard
     }
 
     @Override
@@ -1000,11 +930,11 @@ public class CaptionContainerView extends FrameLayout {
             return;
         }
         int height = editText.getHeight();
-        // height = Math.max(dp(44), height);
+        // [classic] #24: classic 11.9.5.0 caption heights
         if (collapsed) {
-            height = dp(44);
+            height = dp(40);
         } else if (keyboardShown) {
-            height = Math.max(dp(44), height);
+            height = Math.max(dp(46), height);
         } else {
             height = Math.min(dp(82), height);
         }
@@ -1021,37 +951,32 @@ public class CaptionContainerView extends FrameLayout {
         }
         updateMentionsLayoutPosition();
 
-        // final float pad = lerp(dp(12), 0, keyboardT * (1.0f - forceRound()));
-        final int padH = dp(7);
-        final int padV = dp(8);
+        // [classic] #24: classic 11.9.5.0 bounds — 12dp inset bubble that expands edge-to-edge
+        // with the keyboard, instead of the floating liquid-glass island.
+        final float pad = lerp(dp(12), 0, keyboardT * (1.0f - forceRound()));
         if (isAtTop()) {
-            if (!collapsed) {
-                final float heightTranslation = lerp(dpf2(-1), dpf2(1), keyboardT);
-                editText.getEditText().setTranslationY(lastHeightTranslation = heightTranslation);
-            }
-
             bounds.set(
-                padH,
-                padV,
-                getWidth() - padH,
-                padV + heightAnimated
+                pad,
+                pad,
+                getWidth() - pad,
+                pad + heightAnimated
             );
             clickBounds.set(
-                padH,
-                padV,
-                getWidth() - padH,
-                padV + heightAnimated + dp(24)
+                pad,
+                pad,
+                getWidth() - pad,
+                pad + heightAnimated + dp(24)
             );
         } else {
-            final float heightTranslation = lerp(dpf2(1), dpf2(-1), keyboardT) + height - heightAnimated;
+            final float heightTranslation = dpf2(-1) * keyboardT + height - heightAnimated;
             if (Math.abs(lastHeightTranslation - heightTranslation) >= 1 && !collapsed) {
                 editText.getEditText().setTranslationY(lastHeightTranslation = heightTranslation);
             }
             bounds.set(
-                padH,
-                getHeight() - padV - heightAnimated,
-                getWidth() - padH,
-                getHeight() - padV
+                pad,
+                getHeight() - pad - heightAnimated,
+                getWidth() - pad,
+                getHeight() - pad
             );
             clickBounds.set(
                 0,
@@ -1066,19 +991,7 @@ public class CaptionContainerView extends FrameLayout {
         canvas.scale(s, s, bounds.centerX(), bounds.centerY());
 
         final float r = lerp(dp(21), 0, keyboardT * (1.0f - forceRound()));
-        if (factoryForMentions != null) {
-            if (backgroundForCaptionField == null) {
-                backgroundForCaptionField = factoryForMentions.create(this)
-                    .setColorProvider(BlurredBackgroundProviderImpl.photoViewer(resourcesProvider))
-                    .setPadding(dp(5))
-                    .setRadius(dp(22));
-            }
-
-            bounds.round(AndroidUtilities.rectTmp2);
-            AndroidUtilities.rectTmp2.inset(-lerp(dp(1), dp(5), keyboardT), -dp(5));
-            backgroundForCaptionField.setBounds(AndroidUtilities.rectTmp2);
-            backgroundForCaptionField.draw(canvas);
-        } else if (customBlur()) {
+        if (customBlur()) { // [classic] #24: classic blur/dim bubble, no liquid-glass drawable
             drawBlur(backgroundBlur, canvas, bounds, r, false, 0, 0, true, 1.0f);
             backgroundPaint.setAlpha((int) (lerp(0x26, 0x40, keyboardT)));
             canvas.drawRoundRect(bounds, r, r, backgroundPaint);
@@ -1165,22 +1078,8 @@ public class CaptionContainerView extends FrameLayout {
         }
 
         canvas.restore();
-
-        if (factoryForMentions == null) {
-            clipPath.rewind();
-            clipPath.addRoundRect(bounds, r, r, Path.Direction.CW);
-            canvas.save();
-            canvas.clipPath(clipPath);
-            strokeDrawable.radius = r;
-            strokeDrawable.setBounds(
-                    (int) bounds.left, (int) bounds.top,
-                    (int) bounds.right, (int) bounds.bottom);
-            strokeDrawable.draw(canvas);
-            canvas.restore();
-        }
+        // [classic] #24: no liquid-glass highlight stroke around the caption bubble.
     }
-
-    private final Path clipPath = new Path();
 
     public void drawOver(Canvas canvas, RectF bounds) {
 

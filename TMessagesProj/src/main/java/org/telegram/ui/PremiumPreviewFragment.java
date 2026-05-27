@@ -2165,7 +2165,9 @@ public class PremiumPreviewFragment extends BaseFragment implements Notification
         Bulletin.addDelegate(this, new Bulletin.Delegate() {
             @Override
             public int getBottomOffset(int tag) {
-                return AndroidUtilities.navigationBarHeight;
+                // [classic] #68: floor with the live inset; classic navigationBarHeight stays 0
+                // (USE_LEGACY_SYSTEM_INSETS=false) so bulletins here rendered under the nav bar.
+                return Math.max(AndroidUtilities.navigationBarHeight, getBottomInset());
             }
         });
     }

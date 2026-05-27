@@ -3902,7 +3902,9 @@ public class TopicsFragment extends BaseFragment implements NotificationCenter.N
         Bulletin.addDelegate(this, new Bulletin.Delegate() {
             @Override
             public int getBottomOffset(int tag) {
-                return bottomOverlayContainer != null && bottomOverlayContainer.getVisibility() == View.VISIBLE ? bottomOverlayContainer.getMeasuredHeight() : 0;
+                // [classic] #68: floor with the live inset so the bulletin clears the nav bar when there is
+                // no bottom overlay (navigationBarHeight is 0 in classic edge-to-edge, so the 0 branch hid it).
+                return Math.max(bottomOverlayContainer != null && bottomOverlayContainer.getVisibility() == View.VISIBLE ? bottomOverlayContainer.getMeasuredHeight() : 0, getBottomInset());
             }
         });
         if (inPreviewMode && !getMessagesController().isForum(-chatId)) {

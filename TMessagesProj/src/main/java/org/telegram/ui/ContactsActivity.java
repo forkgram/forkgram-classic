@@ -299,7 +299,7 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         }
 
         searchField = new FragmentSearchField(context, resourceProvider);
-        searchField.setSectionBackground();
+        searchField.setClassicFlat(); // [classic] #36: flat inline search field, no redesign pill
         searchField.setPivotY(0);
         final ActionBarMenu actionMode = actionBar.createActionMode(false, null);
         actionMode.setBackgroundColor(0);
@@ -535,8 +535,10 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
         listView.addEdgeEffectListener(() -> listView.postOnAnimation(() -> {
             blur3_InvalidateBlur();
         }));
-        listView.setSections(true);
-        contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+        // [classic] #17: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
+        // [classic] #36: white search-field/header background (classic), not the redesign grey strip.
+        contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite));
 
         FlickerLoadingView flickerLoadingView = new FlickerLoadingView(context);
         flickerLoadingView.setViewType(FlickerLoadingView.PROFILE_SEARCH_CELL);
@@ -978,7 +980,12 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
 
             @Override
             public int getBottomOffset(int tag) {
-                return navigationBarHeight + additionFloatingButtonOffset;
+                // [classic] #68: keep the low-power / snackbar bulletin above the nav bar. In classic
+                // navigationBarHeight stays 0 (USE_LEGACY_SYSTEM_INSETS=false), so this collapsed to
+                // additionFloatingButtonOffset (~0) and the toast rendered under the nav buttons. Floor
+                // the nav-clearance term with the live inset (getBottomInset), like the #68 DialogsActivity/
+                // MainTabsActivity delegates. Math.max keeps modern behaviour where navigationBarHeight is set.
+                return Math.max(navigationBarHeight, getBottomInset()) + additionFloatingButtonOffset;
             }
         });
         if (LaunchActivity.instance != null) {
@@ -1453,7 +1460,7 @@ public class ContactsActivity extends BaseFragment implements FactorAnimator.Tar
                 actionBar.updateColors();
             }
             if (contentView != null) {
-                contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
+                contentView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundWhite)); // [classic] #36
             }
         };
 
