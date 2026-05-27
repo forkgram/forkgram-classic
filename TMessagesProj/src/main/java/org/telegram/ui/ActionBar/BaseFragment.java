@@ -262,6 +262,13 @@ public abstract class BaseFragment {
         return true;
     }
 
+    // Whether a swipe at this touch position is allowed to open the left navigation drawer.
+    // Fragments that consume horizontal swipes themselves (e.g. folder switching) can restrict
+    // drawer opening to the left screen edge so the rest of the area stays free for their gesture.
+    public boolean isDrawerOpenSwipeEnabled(MotionEvent event) {
+        return true;
+    }
+
     public void setInBubbleMode(boolean value) {
         inBubbleMode = value;
     }
@@ -1160,15 +1167,34 @@ public abstract class BaseFragment {
 
     // forkgram-classic: upstream BaseFragment owns these accessors:
     // - getBulletinLayoutContainer() returns the container Bulletin should
-    //   anchor itself to. Classic fragments use fragmentView.
+    //   anchor itself to.
     // - getBottomInset() returns the keyboard/system-bar bottom inset.
-    //   Classic doesn't track this — return 0.
+    //
+    // [classic] #68: anchor bulletins to the fragment view's PARENT (the
+    // ActionBarLayout container), exactly like upstream. Classic used to hand
+    // Bulletin the fragmentView itself, which broke two ways:
+    //  - ChatActivity's fragmentView is a custom SizeNotifierFrameLayout whose
+    //    onLayout places unknown children well below its own bottom edge (the
+    //    bulletin was laid out at y=2492..2660 inside a 0..2361 container), so
+    //    even a correct bottom offset landed the toast under the navigation bar;
+    //  - fragments whose fragmentView is a ScrollView (e.g. IntroActivity) threw
+    //    "ScrollView can host only one direct child" when a bulletin was shown.
+    // The parent is a plain FrameLayout that lays the bulletin out normally,
+    // which is the geometry every Bulletin.Delegate offset is written against.
     public android.widget.FrameLayout getBulletinLayoutContainer() {
-        return fragmentView instanceof android.widget.FrameLayout ? (android.widget.FrameLayout) fragmentView : null;
+        return getLayoutContainer();
     }
 
     public int getBottomInset() {
-        return 0;
+        // [classic] #68: do NOT add the live navigation-bar inset here. Classic keeps the
+        // ActionBarLayout container that hosts fragment views inset-fitted, so its bottom edge
+        // already sits at the top of the navigation bar (measured: container 0..2361 on a
+        // 2424px screen with a 63px gesture inset) -- unlike upstream, whose container extends
+        // behind the bar and therefore has to add the inset back. Bulletin offsets are measured
+        // from that container, so returning the inset here double-counts it and floats toasts a
+        // nav-bar height above the input bar. Keep the dispatched value (0 in classic, since
+        // USE_LEGACY_SYSTEM_INSETS is false).
+        return AndroidUtilities.navigationBarHeight;
     }
 
     public void setNavigationBarColor(int color) {
@@ -1433,6 +1459,18 @@ public abstract class BaseFragment {
         public Runnable onOpenAnimationFinished;
         public Runnable onPreFinished;
         public boolean occupyNavigationBar;
+    }
+
+    // forkgram-classic: 12.9 Bulletin stores its delegate on the fragment instead of a
+    // static map; carry the pair on the pinned BaseFragment so Bulletin keeps working.
+    private org.telegram.ui.Components.Bulletin.Delegate bulletinDelegate;
+
+    public void setBulletinDelegate(org.telegram.ui.Components.Bulletin.Delegate bulletinDelegate) {
+        this.bulletinDelegate = bulletinDelegate;
+    }
+
+    public org.telegram.ui.Components.Bulletin.Delegate getBulletinDelegate() {
+        return bulletinDelegate;
     }
 
 }

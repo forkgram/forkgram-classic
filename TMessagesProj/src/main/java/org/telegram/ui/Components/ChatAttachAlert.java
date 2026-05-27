@@ -133,6 +133,7 @@ import org.telegram.ui.Stars.StarsIntroActivity;
 import org.telegram.ui.Stars.MessageSuggestionOfferSheet;
 import org.telegram.ui.Stories.recorder.StoryEntry;
 import org.telegram.ui.WebAppDisclaimerAlert;
+import org.telegram.ui.iv.ChatAttachAlertRichLayout;
 import org.telegram.ui.web.BotWebViewContainer;
 import org.telegram.ui.bots.BotWebViewMenuContainer;
 import org.telegram.ui.bots.ChatAttachAlertBotWebViewLayout;
@@ -159,13 +160,22 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     private int currentLimit;
     private int codepointCount;
 
+    public static final int LAYOUT_TYPE_PHOTO = 1;
+    public static final int LAYOUT_TYPE_MUSIC = 3;
+    public static final int LAYOUT_TYPE_DOCUMENTS = 4;
+    public static final int LAYOUT_TYPE_LOCATION = 6;
+    public static final int LAYOUT_TYPE_STICKERS = 13;
+    public static final int LAYOUT_TYPE_EMOJI = 14;
+    // [classic] #78: article (IV 2.0) editor tab. Same id as upstream.
+    public static final int LAYOUT_TYPE_RICH = 16;
+
     public boolean canOpenPreview = false;
     private boolean isSoundPicker = false;
-    // forkgram-classic: upstream ChatAttachAlertDocumentLayout branches on
-    // a "poll attach" mode (opened from the poll editor to attach a file).
-    // Classic flow doesn't open the document layout from poll mode — keep
-    // the flag at its default so the upstream-only branches never fire.
     public boolean isPollAttach = false;
+    // [classic] #78: 12.9 rich (article) editor opens this sheet as a bare location picker.
+    public boolean isLocationPicker = false;
+    private int layoutToOpen;
+    private int pollAllowedLayouts;
     // forkgram-classic: upstream ChatAttachAlertPhotoLayout gates "live
     // photo" picker entries on this flag. Classic gallery picker doesn't
     // distinguish live photos — leave at default (treat as allowed).
@@ -182,6 +192,8 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     public boolean destroyed;
     public boolean allowEnterCaption;
     private ChatAttachAlertDocumentLayout.DocumentSelectActivityDelegate documentsDelegate;
+    private ChatAttachAlertAudioLayout.AudioSelectDelegate audioSelectDelegate;
+    private ChatAttachAlertLocationLayout.LocationActivityDelegate locationActivityDelegate;
     public long dialogId;
     private boolean overrideBackgroundColor;
 
@@ -656,6 +668,13 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         protected final Theme.ResourcesProvider resourcesProvider;
         protected ChatAttachAlert parentAlert;
 
+        // forkgram-classic: 12.9 layout hook (ChatAttachAlertRichLayout overrides it);
+        // the classic sheet never fades the bottom row, so the default keeps
+        // the pre-12.9 behaviour.
+        public boolean disableBottomFade() {
+            return false;
+        }
+
         // forkgram-classic: upstream layouts capture themselves into the
         // bottom-sheet's animated blur (blur3) and opt into occupying the
         // navigation bar inset. The classic sheet doesn't run that blur or
@@ -892,6 +911,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     private ChatAttachAlertPhotoLayoutPreview photoPreviewLayout;
     public ChatAttachAlertColorsLayout colorsLayout;
     private ChatAttachAlertQuickRepliesLayout quickRepliesLayout;
+    private ChatAttachAlertRichLayout richLayout; // [classic] #78
     private AttachAlertLayout[] layouts = new AttachAlertLayout[8];
     private LongSparseArray<ChatAttachAlertBotWebViewLayout> botAttachLayouts = new LongSparseArray<>();
     private AttachAlertLayout currentAttachLayout;
@@ -1147,6 +1167,20 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         }
     }
 
+    // [classic] #88: msg_instant is the dp(13) link-preview badge, so the Article button drew its
+    // glyph about half the size of its neighbours — those use Theme.chat_attachButtonDrawables,
+    // lotties rendered into a dp(26) box. Scale the glyph into that same box, keeping its aspect,
+    // so every attach icon is optically the same size.
+    private Drawable createRichButtonIcon() {
+        Drawable icon = getContext().getResources().getDrawable(R.drawable.msg_instant).mutate();
+        int iconHeight = dp(26);
+        int iconWidth = Math.round(iconHeight * icon.getIntrinsicWidth() / (float) icon.getIntrinsicHeight());
+        CombinedDrawable drawable = new CombinedDrawable(new ColorDrawable(Color.TRANSPARENT), icon);
+        drawable.setCustomSize(dp(26), dp(26));
+        drawable.setIconSize(iconWidth, iconHeight);
+        return drawable;
+    }
+
     private class AttachBotButton extends FrameLayout {
         private BackupImageView imageView;
         private TextView nameTextView;
@@ -1378,7 +1412,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
     private ArrayList<android.graphics.Rect> exclusionRects = new ArrayList<>();
     private android.graphics.Rect exclustionRect = new Rect();
 
-    float currentPanTranslationY;
+    public float currentPanTranslationY; // forkgram-classic: 12.9 ChatAttachAlertRichLayout reads it
 
     public ChatAttachAlert(Context context, final BaseFragment parentFragment, boolean forceDarkTheme, boolean showingFromDialog) {
         this(context, parentFragment, forceDarkTheme, showingFromDialog, true, null);
@@ -2555,7 +2589,11 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else {
                         if (locationLayout == null) {
                             layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
-                            locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                            if (locationActivityDelegate != null) {
+                                locationLayout.setDelegate(locationActivityDelegate);
+                            } else {
+                                locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                            }
                         }
                         showLayout(locationLayout);
                     }
@@ -2569,8 +2607,8 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else {
                         if (pollLayout == null) {
                             layouts[1] = pollLayout = new ChatAttachAlertPollLayout(this, getContext(), false, resourcesProvider);
-                            pollLayout.setDelegate((poll, params, notify, scheduleDate, payStars) ->
-                                ((ChatActivity) baseFragment).sendPoll((TLRPC.TL_messageMediaPoll) poll, params, notify, scheduleDate, payStars)
+                            pollLayout.setDelegate((poll, params, caption, media, notify, scheduleDate, payStars) ->
+                                ((ChatActivity) baseFragment).sendPoll((TLRPC.TL_messageMediaPoll) poll, params, caption, media, notify, scheduleDate, payStars)
                             );
                         }
                         showLayout(pollLayout);
@@ -2587,11 +2625,24 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else {
                         if (todoLayout == null) {
                             layouts[1] = todoLayout = new ChatAttachAlertPollLayout(this, getContext(), true, resourcesProvider);
-                            todoLayout.setDelegate((poll, params, notify, scheduleDate, payStars) ->
+                            todoLayout.setDelegate((poll, params, caption, media, notify, scheduleDate, payStars) ->
                                 ((ChatActivity) baseFragment).sendTodo((TLRPC.TL_messageMediaToDo) poll, notify, scheduleDate, payStars)
                             );
                         }
                         showLayout(todoLayout);
+                    }
+                } else if (num == LAYOUT_TYPE_RICH) { // [classic] #78
+                    if (!plainTextEnabled && checkCanRemoveRestrictionsByBoosts()) {
+                        return;
+                    }
+                    if (!plainTextEnabled) {
+                        restrictedLayout = new ChatAttachRestrictedLayout(LAYOUT_TYPE_RICH, this, getContext(), resourcesProvider);
+                        showLayout(restrictedLayout);
+                    } else {
+                        if (richLayout == null) {
+                            layouts[6] = richLayout = new ChatAttachAlertRichLayout(this, getContext(), currentAccount, resourcesProvider);
+                        }
+                        showLayout(richLayout);
                     }
                 } else if (view.getTag() instanceof Integer) {
                     delegate.didPressedButton((Integer) view.getTag(), true, true, 0, 0, 0, isCaptionAbove(), false, 0);
@@ -3847,6 +3898,12 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         if (baseFragment instanceof ChatActivity) {
             ChatActivity chatActivity = (ChatActivity) baseFragment;
             calcMandatoryInsets = chatActivity.isKeyboardVisible();
+            if (commentTextView != null) {
+                commentTextView.setChatInfo(chatActivity.getCurrentChatInfo());
+            }
+            if (topCommentTextView != null) {
+                topCommentTextView.setChatInfo(chatActivity.getCurrentChatInfo());
+            }
         }
         updateDoneItemEnabled();
         openTransitionFinished = false;
@@ -3952,6 +4009,8 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             newId = 11;
         } else if (layout == todoLayout) {
             newId = 12;
+        } else if (layout == richLayout) { // [classic] #78
+            newId = LAYOUT_TYPE_RICH;
         }
         showLayout(layout, newId);
     }
@@ -4245,14 +4304,18 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         if (audioLayout == null) {
             layouts[3] = audioLayout = new ChatAttachAlertAudioLayout(this, getContext(), resourcesProvider);
             audioLayout.setDelegate((audios, caption, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars) -> {
-                if (baseFragment != null && baseFragment instanceof ChatActivity) {
+                if (audioSelectDelegate != null) {
+                    audioSelectDelegate.didSelectAudio(audios, caption, notify, scheduleDate, scheduleRepeatPeriod, effectId, invertMedia, payStars);
+                } else if (baseFragment != null && baseFragment instanceof ChatActivity) {
                     ((ChatActivity) baseFragment).sendAudio(audios, caption, notify, scheduleDate, effectId, invertMedia, payStars);
                 } else if (delegate != null) {
                     delegate.sendAudio(audios, caption, notify, scheduleDate, effectId, invertMedia, payStars);
                 }
             });
         }
-        if (baseFragment instanceof ChatActivity) {
+        if (isPollAttach) {
+            audioLayout.setMaxSelectedFiles(1);
+        } else if (baseFragment instanceof ChatActivity) {
             ChatActivity chatActivity = (ChatActivity) baseFragment;
             TLRPC.Chat currentChat = chatActivity.getCurrentChat();
             audioLayout.setMaxSelectedFiles(currentChat != null && !ChatObject.hasAdminRights(currentChat) && currentChat.slowmode_enabled || editingMessageObject != null ? 1 : -1);
@@ -4325,7 +4388,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                 }
             });
         }
-        if (baseFragment instanceof ChatActivity) {
+        if (isPollAttach) {
+            documentLayout.setMaxSelectedFiles(1);
+        } else if (baseFragment instanceof ChatActivity) {
             ChatActivity chatActivity = (ChatActivity) baseFragment;
             TLRPC.Chat currentChat = chatActivity.getCurrentChat();
             documentLayout.setMaxSelectedFiles(currentChat != null && !ChatObject.hasAdminRights(currentChat) && currentChat.slowmode_enabled || editingMessageObject != null ? 1 : -1);
@@ -5261,10 +5326,15 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         enterCommentEventSent = false;
         setFocusable(false);
         ChatAttachAlert.AttachAlertLayout layoutToSet;
-        if (isStoryLocationPicker || isBizLocationPicker) {
+        if (isStoryLocationPicker || isBizLocationPicker || isLocationPicker) { // [classic] #78: 12.9 rich editor location picker
             if (locationLayout == null) {
-                layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
-                locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, 0));
+                // [classic] #78: no live-location rows when the article editor is picking a map block.
+                layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider, !isPollAttach && !isLocationPicker);
+                if (locationActivityDelegate != null) {
+                    locationLayout.setDelegate(locationActivityDelegate);
+                } else {
+                    locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, 0));
+                }
             }
             selectedId = 5;
             layoutToSet = locationLayout;
@@ -5276,6 +5346,31 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             openDocumentsLayout(false);
             layoutToSet = documentLayout;
             selectedId = 4;
+        } else if (isPollAttach) {
+            if (layoutToOpen == LAYOUT_TYPE_MUSIC) {
+                openAudioLayout(false);
+                layoutToSet = audioLayout;
+                selectedId = 3;
+            } else if (layoutToOpen == LAYOUT_TYPE_DOCUMENTS) {
+                openDocumentsLayout(false);
+                layoutToSet = documentLayout;
+                selectedId = 4;
+            } else if (layoutToOpen == LAYOUT_TYPE_LOCATION) {
+                if (locationLayout == null) {
+                    layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
+                    if (locationActivityDelegate != null) {
+                        locationLayout.setDelegate(locationActivityDelegate);
+                    } else {
+                        locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                    }
+                }
+                layoutToSet = locationLayout;
+                selectedId = 6;
+            } else {
+                layoutToSet = photoLayout;
+                selectedId = 1;
+            }
+            typeButtonsAvailable = true;
         } else if (editingMessageObject != null) {
             if (editType == EDITMEDIA_TYPE_ANY) {
                 typeButtonsAvailable = true;
@@ -5396,9 +5491,9 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     private boolean allowDrawContent = true;
     public boolean sent = false;
-    @Override
+    // forkgram-classic: 12.8 BottomSheet dropped setAllowDrawContent; this is no longer an
+    // override and has no super to call. ChatAttachAlert tracks allowDrawContent locally.
     public void setAllowDrawContent(boolean value) {
-        super.setAllowDrawContent(value);
         currentAttachLayout.onContainerTranslationUpdated(currentPanTranslationY);
         if (allowDrawContent != value) {
             allowDrawContent = value;
@@ -5501,6 +5596,100 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         shadow.setVisibility(View.GONE);
     }
 
+    // [classic] #78: the article (IV 2.0) editor drives these two on the parent alert. The classic
+    // attach sheet now hosts that layout, so they need real bodies — they were no-op stubs added
+    // during the 12.8 bump purely to keep ChatAttachAlertRichLayout compiling. This one is the bare
+    // location picker the editor spawns for a map block (RichEditor / ChatAttachAlertRichLayout).
+    public void setLocationPicker() {
+        isLocationPicker = true;
+        buttonsRecyclerView.setVisibility(View.GONE);
+        shadow.setVisibility(View.GONE);
+    }
+
+    // [classic] #78: shows the round send button on its own (no caption bar), sliding the attach-button
+    // row out. Same shape as showCommentTextView(), minus every caption/comment view. Until #78 this was
+    // a stub returning false — "the classic sheet never enters send-button-only mode, accept and ignore".
+    public boolean showSendButtonOnly(boolean show, boolean animated) {
+        if (show == (frameLayout2.getTag() != null)) {
+            return false;
+        }
+        if (commentsAnimator != null) {
+            commentsAnimator.cancel();
+        }
+        frameLayout2.setTag(show ? 1 : null);
+        if (show) {
+            writeButtonContainer.setVisibility(View.VISIBLE);
+        } else if (typeButtonsAvailable) {
+            buttonsRecyclerView.setVisibility(View.VISIBLE);
+        }
+        if (animated) {
+            commentsAnimator = new AnimatorSet();
+            ArrayList<Animator> animators = new ArrayList<>();
+            animators.add(ObjectAnimator.ofFloat(writeButtonContainer, View.SCALE_X, show ? 1.0f : 0.2f));
+            animators.add(ObjectAnimator.ofFloat(writeButtonContainer, View.SCALE_Y, show ? 1.0f : 0.2f));
+            animators.add(ObjectAnimator.ofFloat(writeButtonContainer, View.ALPHA, show ? 1.0f : 0.0f));
+            animators.add(ObjectAnimator.ofFloat(writeButton, View.SCALE_X, show ? 1.0f : 0.2f));
+            animators.add(ObjectAnimator.ofFloat(writeButton, View.SCALE_Y, show ? 1.0f : 0.2f));
+            animators.add(ObjectAnimator.ofFloat(writeButton, View.ALPHA, show ? 1.0f : 0.0f));
+            if (typeButtonsAvailable) {
+                // dp(84), not upstream's dp(36): the classic attach button is dp(84) tall
+                // (AttachButton.onMeasure), so that is the distance showCommentTextView() slides it.
+                animators.add(ObjectAnimator.ofFloat(buttonsRecyclerView, View.TRANSLATION_Y, show ? dp(84) : 0));
+                animators.add(ObjectAnimator.ofFloat(buttonsRecyclerView, View.ALPHA, show ? 0.0f : 1.0f));
+                // Upstream has no `shadow` — its button row carries its own divider. Classic pins this
+                // one 84dp off the bottom, right on top of the row, so it has to go too or it strands
+                // as a line across the sheet. Fade it: layout passes rewrite its translationY.
+                animators.add(ObjectAnimator.ofFloat(shadow, View.ALPHA, show ? 0.0f : 1.0f));
+            }
+            commentsAnimator.playTogether(animators);
+            commentsAnimator.setInterpolator(new DecelerateInterpolator());
+            commentsAnimator.setDuration(180);
+            commentsAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    if (animation.equals(commentsAnimator)) {
+                        if (!show) {
+                            writeButtonContainer.setVisibility(View.INVISIBLE);
+                        } else if (typeButtonsAvailable) {
+                            if (currentAttachLayout == null || currentAttachLayout.shouldHideBottomButtons()) {
+                                buttonsRecyclerView.setVisibility(View.INVISIBLE);
+                            }
+                        }
+                        commentsAnimator = null;
+                    }
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                    if (animation.equals(commentsAnimator)) {
+                        commentsAnimator = null;
+                    }
+                }
+            });
+            commentsAnimator.start();
+        } else {
+            writeButtonContainer.setScaleX(show ? 1.0f : 0.2f);
+            writeButtonContainer.setScaleY(show ? 1.0f : 0.2f);
+            writeButtonContainer.setAlpha(show ? 1.0f : 0.0f);
+            writeButton.setScaleX(show ? 1.0f : 0.2f);
+            writeButton.setScaleY(show ? 1.0f : 0.2f);
+            writeButton.setAlpha(show ? 1.0f : 0.0f);
+            if (typeButtonsAvailable) {
+                buttonsRecyclerView.setTranslationY(show ? dp(84) : 0);
+                buttonsRecyclerView.setAlpha(show ? 0.0f : 1.0f);
+                shadow.setAlpha(show ? 0.0f : 1.0f);
+                if (show && (currentAttachLayout == null || currentAttachLayout.shouldHideBottomButtons())) {
+                    buttonsRecyclerView.setVisibility(View.INVISIBLE);
+                }
+            }
+            if (!show) {
+                writeButtonContainer.setVisibility(View.INVISIBLE);
+            }
+        }
+        writeButton.setCount(0, animated);
+        return true;
+    }
+
     public void setStoryLocationPicker(boolean isVideo, File photo) {
         storyLocationPickerFileIsVideo = isVideo;
         storyLocationPickerPhotoFile = photo;
@@ -5557,6 +5746,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         private int contactButton;
         private int quickRepliesButton;
         private int locationButton;
+        private int richButton; // [classic] #78
         private int buttonsCount;
 
         public ButtonsAdapter(Context context) {
@@ -5610,6 +5800,12 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
                     } else if (position == todoButton) {
                         attachButton.setTextAndIcon(12, getString(R.string.Todo), Theme.chat_attachButtonDrawables[6], Theme.key_chat_attachTodoBackground, Theme.key_chat_attachTodoText);
                         attachButton.setTag(12);
+                    } else if (position == richButton) { // [classic] #78
+                        // Upstream draws this one with a GlassTabView.TabAnimation — redesign chrome the
+                        // classic sheet does not have, so use a flat drawable like every other button here.
+                        // msg_instant is the closer glyph (the feature is IV 2.0); file colors as upstream.
+                        attachButton.setTextAndIcon(LAYOUT_TYPE_RICH, getString(R.string.AttachArticle), createRichButtonIcon(), Theme.key_chat_attachFileBackground, Theme.key_chat_attachFileText);
+                        attachButton.setTag(LAYOUT_TYPE_RICH);
                     }
                     break;
                 case VIEW_TYPE_BOT_BUTTON:
@@ -5642,7 +5838,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         @Override
         public int getItemCount() {
             int count = buttonsCount;
-            if (editingMessageObject == null && baseFragment instanceof ChatActivity) {
+            if (editingMessageObject == null && baseFragment instanceof ChatActivity && !isPollAttach) {
                 count += MediaDataController.getInstance(currentAccount).inlineBots.size();
             }
             return count;
@@ -5659,9 +5855,21 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
             contactButton = -1;
             quickRepliesButton = -1;
             locationButton = -1;
+            richButton = -1; // [classic] #78
             attachBotsStartRow = -1;
             attachBotsEndRow = -1;
-            if (!(baseFragment instanceof ChatActivity)) {
+            if (isPollAttach) {
+                galleryButton = buttonsCount++;
+                if (pollAllowedLayouts == 0 || (pollAllowedLayouts & (1 << LAYOUT_TYPE_DOCUMENTS)) != 0) {
+                    documentButton = buttonsCount++;
+                }
+                if (pollAllowedLayouts == 0 || (pollAllowedLayouts & (1 << LAYOUT_TYPE_MUSIC)) != 0) {
+                    musicButton = buttonsCount++;
+                }
+                if (pollAllowedLayouts == 0 || (pollAllowedLayouts & (1 << LAYOUT_TYPE_LOCATION)) != 0) {
+                    locationButton = buttonsCount++;
+                }
+            } else if (!(baseFragment instanceof ChatActivity)) {
                 galleryButton = buttonsCount++;
                 documentButton = buttonsCount++;
                 if (allowEnterCaption) {
@@ -5708,6 +5916,12 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
                 if (plainTextEnabled) {
                     locationButton = buttonsCount++;
+                }
+                // [classic] #78: same slot and gate as upstream — the classic sheet simply never wired
+                // the button up. richEditorAvailable() is the server-side capability flag; it is forced
+                // true in DEBUG_VERSION builds, so a debug APK always shows the tab regardless of it.
+                if (plainTextEnabled && MessagesController.getInstance(currentAccount).richEditorAvailable()) {
+                    richButton = buttonsCount++;
                 }
 
                 if (pollsEnabled) {
@@ -5766,6 +5980,7 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
         todoLayout = null;
         locationLayout = null;
         documentLayout = null;
+        richLayout = null; // [classic] #78: the loop below drops layouts[6], so drop the field too
         for (int a = 1; a < layouts.length; a++) {
             if (layouts[a] == null) {
                 continue;
@@ -5931,6 +6146,111 @@ public class ChatAttachAlert extends BottomSheet implements NotificationCenter.N
 
     public void setDocumentsDelegate(ChatAttachAlertDocumentLayout.DocumentSelectActivityDelegate documentsDelegate) {
         this.documentsDelegate = documentsDelegate;
+    }
+
+    public void setAudioSelectDelegate(ChatAttachAlertAudioLayout.AudioSelectDelegate delegate) {
+        this.audioSelectDelegate = delegate;
+        if (audioLayout != null && delegate != null) {
+            audioLayout.setDelegate(delegate);
+        }
+    }
+
+    public void setLocationActivityDelegate(ChatAttachAlertLocationLayout.LocationActivityDelegate delegate) {
+        this.locationActivityDelegate = delegate;
+        if (locationLayout != null && delegate != null) {
+            locationLayout.setDelegate(delegate);
+        }
+    }
+
+    public void enablePollAttachMode(int layoutToOpen, int allowedLayouts) {
+        isPollAttach = true;
+        pollAllowedLayouts = allowedLayouts;
+        this.layoutToOpen = layoutToOpen;
+        avatarPicker = 0;
+    }
+
+    // forkgram-classic: 12.9 rich (article) editor API on this pinned sheet. The editor
+    // attaches media through the poll-attach machinery classic already ported for poll v2.
+    public void enablePollAttachMode(int allowedLayouts) {
+        enablePollAttachMode(0, allowedLayouts);
+    }
+
+    // forkgram-classic: 12.9 rich editor jumps straight to a specific attach layout.
+    public void openAttachLayoutForType(int layoutType) {
+        if (layoutType == LAYOUT_TYPE_MUSIC) {
+            if (!musicEnabled && checkCanRemoveRestrictionsByBoosts()) {
+                return;
+            }
+            final Activity activity = baseFragment != null ? baseFragment.getParentActivity() : null;
+            if (activity != null) {
+                if (Build.VERSION.SDK_INT >= 33) {
+                    if (activity.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        activity.requestPermissions(new String[]{Manifest.permission.READ_MEDIA_AUDIO}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE);
+                        return;
+                    }
+                } else if (Build.VERSION.SDK_INT >= 23 && activity.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    activity.requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE);
+                    return;
+                }
+            }
+            openAudioLayout(true);
+        } else if (layoutType == LAYOUT_TYPE_LOCATION) {
+            if (!AndroidUtilities.isMapsInstalled(baseFragment)) {
+                return;
+            }
+            if (locationLayout == null) {
+                layouts[5] = locationLayout = new ChatAttachAlertLocationLayout(this, getContext(), resourcesProvider);
+                if (locationActivityDelegate != null) {
+                    locationLayout.setDelegate(locationActivityDelegate);
+                } else if (baseFragment instanceof ChatActivity) {
+                    locationLayout.setDelegate((location, live, notify, scheduleDate, payStars) -> ((ChatActivity) baseFragment).didSelectLocation(location, live, notify, scheduleDate, payStars));
+                }
+            }
+            showLayout(locationLayout);
+        }
+    }
+
+    private boolean typeButtonsHidden;
+
+    // forkgram-classic: height (px) of the classic bottom attach-type buttons row (84dp).
+    public int getTypeButtonsHeight() {
+        return typeButtonsAvailable ? dp(84) : 0;
+    }
+
+    // forkgram-classic: 12.9 rich layout hides/shows the bottom attach-type buttons row.
+    public void setTypeButtonsHidden(boolean hidden, boolean animated) {
+        if (typeButtonsHidden == hidden) {
+            return;
+        }
+        typeButtonsHidden = hidden;
+        if (!typeButtonsAvailable) {
+            return;
+        }
+        buttonsRecyclerView.animate().cancel();
+        shadow.animate().cancel();
+        if (!hidden) {
+            buttonsRecyclerView.setVisibility(View.VISIBLE);
+            shadow.setVisibility(View.VISIBLE);
+        }
+        if (animated) {
+            buttonsRecyclerView.animate()
+                .alpha(hidden ? 0f : 1f)
+                .translationY(hidden ? dp(84) : 0)
+                .setDuration(180)
+                .withEndAction(() -> {
+                    if (hidden) {
+                        buttonsRecyclerView.setVisibility(View.INVISIBLE);
+                    }
+                })
+                .start();
+            shadow.animate().alpha(hidden ? 0f : 1f).setDuration(180).start();
+        } else {
+            buttonsRecyclerView.setAlpha(hidden ? 0f : 1f);
+            buttonsRecyclerView.setTranslationY(hidden ? dp(84) : 0);
+            buttonsRecyclerView.setVisibility(hidden ? View.INVISIBLE : View.VISIBLE);
+            shadow.setAlpha(hidden ? 0f : 1f);
+            shadow.setVisibility(hidden ? View.INVISIBLE : View.VISIBLE);
+        }
     }
 
     private void replaceWithText(int start, int len, CharSequence text, boolean parseEmoji) {
