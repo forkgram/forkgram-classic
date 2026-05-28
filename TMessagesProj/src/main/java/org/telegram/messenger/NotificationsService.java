@@ -50,7 +50,7 @@ public class NotificationsService extends Service {
                     .setContentText("Push service: tap to learn more").build();
             startForeground(9999,notification);
             } catch (Throwable ignore) {
-                Log.d("Fork Client", "Failed to set intent");
+                Log.d("Forkgram Classic", "Failed to set intent");
             }
         }
         ApplicationLoader.postInitApplication();
