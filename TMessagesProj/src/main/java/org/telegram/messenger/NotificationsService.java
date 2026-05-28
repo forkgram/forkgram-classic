@@ -86,7 +86,7 @@ public class NotificationsService extends Service {
             try {
                 startForeground(NOTIFICATION_ID, getNotification());
             } catch (Throwable e) {
-                Log.d("Fork Client", "Failed to move push service to foreground");
+                Log.d("Forkgram Classic", "Failed to move push service to foreground");
             }
         }
         foregroundStartPending = false;
@@ -115,7 +115,7 @@ public class NotificationsService extends Service {
                 explainIntent.setData(Uri.parse("https://github.com/forkgram/TelegramAndroid"));
                 builder.setContentIntent(PendingIntent.getActivity(this, 0, explainIntent, pendingIntentFlags));
             } catch (Throwable ignore) {
-                Log.d("Fork Client", "Failed to set intent");
+                Log.d("Forkgram Classic", "Failed to set intent");
             }
             notification = builder.build();
         }

@@ -78,7 +78,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Copy without protocol</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Fork Client Settings</string>
+    <string name="ForkSettingsTitle">Forkgram Classic Settings</string>
     <string name="ForkCheckUpdate">Check updates</string>
     <string name="InAppCamera">Enable In-App Camera</string>
     <string name="InAppCameraInfo">In Attachments</string>
@@ -190,9 +190,9 @@
     <string name="ForkSettingsLockChangeCode">Change code</string>
     <string name="ForkSettingsLockRemoveCode">Remove code</string>
     <string name="ForkSettingsLockRemoveCodeConfirm">Fork Client Settings will open without a code.</string>
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
-    <string name="AppNameFdroid">Forkgram</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
+    <string name="AppNameFdroid">Forkgram Classic</string>
     <string name="GoToTags">GoTo chats: %1$s</string>
     <string name="GoToNotFound">No GoTo chat found for #%1$s (%2$s)</string>
     <string name="GoToAmbiguous">Tag #%1$s matches several chats: %2$s</string>
@@ -6083,6 +6083,7 @@
     <string name="AppIconPremium">Premium</string>
     <string name="AppIconTurbo">Turbo</string>
     <string name="AppIconNox">Nox</string>
+    <string name="AppIconOriginalAdaptive">Original adaptive</string>
     <string name="AppIconChangedTo">App icon has been changed to %1$s</string>
     <string name="FileTooLarge">File Too Large</string>
     <string name="PremiumPreviewAppIcon">Premium App Icon</string>
