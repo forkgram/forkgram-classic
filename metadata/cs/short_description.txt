@@ -1,0 +1,1 @@
+Fork Telegramu zachovávající klasické rozhraní z doby před érou „Liquid Glass“.
