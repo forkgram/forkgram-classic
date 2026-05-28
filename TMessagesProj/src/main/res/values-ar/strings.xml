@@ -74,7 +74,7 @@
     <string name="formatterDay12HSec">h:mm:ss ص</string>
     <string name="CopyWithoutProtocol">نسخ بدون بروتوكول</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">إعدادات عميل Fork</string>
+    <string name="ForkSettingsTitle">إعدادات Forkgram Classic</string>
     <string name="ForkCheckUpdate">تحقق من التحديثات</string>
     <string name="SquareAvatars">أفاتارات مربعة</string>
     <string name="AvatarShape">شكل الصورة الرمزية</string>
@@ -155,8 +155,8 @@
     <string name="HideStoriesInArchive">إخفاء القصص في الأرشيف</string>
     <string name="ExtractMediaFromPreview">إرسال الوسائط من معاينة الرابط كمرفق</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">العربية</string>
     <string name="English">الإنجليزية</string>
     <string name="LanguageNameInEnglish">Arabic</string>
