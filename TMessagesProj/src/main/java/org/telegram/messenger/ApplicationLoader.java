@@ -424,7 +424,7 @@ public class ApplicationLoader extends Application {
             } catch (Throwable ignore) {
             }
             if (unifiedPushActive) {
-                Log.d("Fork Client", "UnifiedPush is active, skipping push service watchdog");
+                Log.d("Forkgram Classic", "UnifiedPush is active, skipping push service watchdog");
                 try {
                     applicationContext.stopService(new Intent(applicationContext, NotificationsService.class));
                     AlarmManager alarm = (AlarmManager) applicationContext.getSystemService(Context.ALARM_SERVICE);
@@ -450,7 +450,7 @@ public class ApplicationLoader extends Application {
                 pendingIntent
             );
             } catch (Throwable ignore) {
-                Log.d("Fork Client", "Failed to set intent");
+                Log.d("Forkgram Classic", "Failed to set intent");
             }
             try {
                 Log.d("TFOSS", "Starting push service...");
@@ -472,7 +472,7 @@ public class ApplicationLoader extends Application {
                 alarm.cancel(pendingIntent);
             }
             } catch (Throwable ignore) {
-                Log.d("Fork Client", "Failed to set intent");
+                Log.d("Forkgram Classic", "Failed to set intent");
             }
         }
     }
