@@ -74,7 +74,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">프로토콜 없이 복사</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">포크 클라이언트 설정</string>
+    <string name="ForkSettingsTitle">Forkgram Classic 설정</string>
     <string name="ForkCheckUpdate">업데이트 확인</string>
     <string name="SquareAvatars">정사각형 아바타</string>
     <string name="AvatarShape">아바타 모양</string>
@@ -155,8 +155,8 @@
     <string name="HideStoriesInArchive">보관함에서 스토리 숨기기</string>
     <string name="ExtractMediaFromPreview">링크 미리보기의 미디어를 첨부 파일로 전송</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">한국어</string>
     <string name="English">영어</string>
     <string name="LanguageNameInEnglish">한국어</string>
