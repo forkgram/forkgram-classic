@@ -1,1 +1,1 @@
-Forkgram Classic is a fork of the official Telegram for Android application.
+A Telegram fork preserving the classic UI from before the Liquid Glass era.
