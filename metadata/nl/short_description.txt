@@ -1,0 +1,1 @@
+Een Telegram-fork met de klassieke interface van vóór het Liquid Glass-tijdperk.

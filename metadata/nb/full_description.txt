@@ -1,0 +1,3 @@
+Forkgram Classic er en fork av Telegram for Android med ett eneste formål: å bevare det klassiske grensesnittet, slik det så ut før «Liquid Glass»-tiden (flytende glass).
+
+Appen bygger på Forkgram og arver de små forbedringene som gjør hverdagen enklere. Ingen telemetri, ingen analyse og ingen tredjepartstjenester – all trafikk går utelukkende til Telegrams offisielle servere.
