@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [classic] #72: adaptive original Telegram icon — blue gradient fills the whole
+     icon (icon_background_sa) with the white plane foreground, plus a monochrome
+     layer for Material You themed icons. Sibling to ic_original_launcher (circular). -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/icon_background_sa" />
+    <foreground android:drawable="@mipmap/icon_foreground_sa" />
+    <monochrome android:drawable="@drawable/icon_plane_mono" />
+</adaptive-icon>
