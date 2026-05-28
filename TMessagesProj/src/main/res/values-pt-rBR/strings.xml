@@ -74,7 +74,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Copiar sem protocolo</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Configurações do cliente Fork</string>
+    <string name="ForkSettingsTitle">Configurações do Forkgram Classic</string>
     <string name="ForkCheckUpdate">Verificar atualizações</string>
     <string name="SquareAvatars">Avatares quadrados</string>
     <string name="AvatarShape">Forma do avatar</string>
@@ -154,8 +154,8 @@
     <string name="EnableLastSeenDots">Marcadores coloridos para visto por último</string>
     <string name="HideStoriesInArchive">Ocultar Stories no Arquivo</string>
     <string name="ExtractMediaFromPreview">Enviar mídia da visualização do link como anexo</string>
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Português (Brasil)</string>
     <string name="English">Inglês</string>
     <string name="LanguageNameInEnglish">Portuguese (Brazil)</string>
