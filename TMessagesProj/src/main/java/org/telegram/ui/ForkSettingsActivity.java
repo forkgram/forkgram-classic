@@ -500,7 +500,7 @@ public class ForkSettingsActivity extends BaseFragment {
             hiddenDrawerItems == 0
                 ? LocaleController.getString(R.string.ForkDrawerItemsAllShown)
                 : LocaleController.formatString(R.string.ForkDrawerItemsHidden, hiddenDrawerItems)));
-        items.add(UItem.asSettingsCell(ID_CUSTOM_TITLE, LocaleController.getString(R.string.EditAdminRank), prefs().getString("forkCustomTitle", "Fork Client")));
+        items.add(UItem.asSettingsCell(ID_CUSTOM_TITLE, LocaleController.getString(R.string.EditAdminRank), prefs().getString("forkCustomTitle", "Forkgram Classic")));
         items.add(UItem.asShadow(null));
 
         items.add(UItem.asHeader(LocaleController.getString(R.string.AvatarShape)));
@@ -883,7 +883,7 @@ public class ForkSettingsActivity extends BaseFragment {
     }
 
     private void showCustomTitleDialog(View view) {
-        final String defaultValue = "Fork Client";
+        final String defaultValue = "Forkgram Classic";
         org.telegram.messenger.forkgram.ForkDialogs.createFieldAlert(
             getContext(),
             LocaleController.getString(R.string.EditAdminRank),

@@ -50,7 +50,7 @@ android {
     compileSdkVersion 36
     buildToolsVersion '36.0.0'
 
-    defaultConfig.applicationId = "org.forkclient.messenger"
+    defaultConfig.applicationId = "org.forkgram.classic"
 
     sourceSets.main.jniLibs.srcDirs = ['../TMessagesProj/jni/']
 
@@ -71,7 +71,7 @@ android {
     def appSuffix = fdroid ? "" : ".beta"
     def flavorsConfig = fdroid ? "release" : "debug"
     if (fdroid) {
-        defaultConfig.applicationId = "org.forkgram.messenger"
+        defaultConfig.applicationId = "org.forkgram.classic"
     }
 
     signingConfigs {
@@ -244,7 +244,7 @@ android {
             ndk {
                 abiFilters "arm64-v8a"
             }
-            applicationId "org.forkclient.messenger.test"
+            applicationId "org.forkgram.classic.test"
             sourceSets.debug {
                 manifest.srcFile '../TMessagesProj/config/debug/AndroidManifest_SDK23.xml'
             }
