@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="512">
+      <stop offset="0" stop-color="#3a5e83"></stop>
+      <stop offset="1" stop-color="#274566"></stop>
+    </linearGradient>
+    <linearGradient id="paperLight" gradientUnits="userSpaceOnUse" x1="81" y1="268" x2="431" y2="224">
+      <stop offset="0" stop-color="#d9ecf8"></stop>
+      <stop offset="1" stop-color="#f8feed"></stop>
+    </linearGradient>
+    <linearGradient id="paperMid" gradientUnits="userSpaceOnUse" x1="81" y1="256" x2="431" y2="288">
+      <stop offset="0" stop-color="#bdd9ef"></stop>
+      <stop offset="1" stop-color="#b3bcc0"></stop>
+    </linearGradient>
+    <linearGradient id="paperDark" gradientUnits="userSpaceOnUse" x1="81" y1="268" x2="105" y2="248">
+      <stop offset="0" stop-color="#7c9bbe"></stop>
+      <stop offset="1" stop-color="#788b9b"></stop>
+    </linearGradient>
+    <linearGradient id="creaseRidge" gradientUnits="userSpaceOnUse" x1="105" y1="256" x2="341" y2="256">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"></stop>
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0.55"></stop>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop>
+    </linearGradient>
+
+    
+    <filter id="contourShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="11" stdDeviation="4" flood-color="#0c1a2c" flood-opacity="0.55"></feDropShadow>
+    </filter>
+  </defs>
+
+  
+  <rect width="512" height="512" fill="url(#bg)"></rect>
+
+  
+  <g transform="translate(256 256) rotate(-40) scale(1.14 1.34) translate(-256 -256)" filter="url(#contourShadow)">
+
+    
+    <polygon fill="url(#paperMid)" points="&#xA;      81,256&#xA;      431,256&#xA;      341,263&#xA;      341,281&#xA;      431,288&#xA;      341,295&#xA;      341,296&#xA;      301,268&#xA;      81,268&#xA;    "></polygon>
+
+    
+    <polygon fill="url(#paperLight)" points="&#xA;      81,244&#xA;      301,244&#xA;      341,216&#xA;      341,217&#xA;      431,224&#xA;      341,231&#xA;      341,249&#xA;      431,256&#xA;      81,256&#xA;    "></polygon>
+
+    
+    <polygon fill="url(#paperDark)" points="&#xA;      81,244&#xA;      81,268&#xA;      105,256&#xA;    "></polygon>
+
+    
+    <g fill="none" stroke-linecap="round">
+      
+      <line x1="105" y1="256" x2="341" y2="256" stroke="url(#creaseRidge)" stroke-width="1.2"></line>
+
+      
+      <g stroke="#4d6b8d" stroke-width="0.5" opacity="0.55">
+        <line x1="321" y1="256" x2="341" y2="216"></line>
+        <line x1="321" y1="256" x2="341" y2="296"></line>
+        <line x1="321" y1="256" x2="431" y2="224"></line>
+        <line x1="321" y1="256" x2="431" y2="288"></line>
+      </g>
+
+      
+      <g stroke="#ffffff" stroke-width="0.6" opacity="0.45">
+        <line x1="341" y1="224" x2="425" y2="224"></line>
+        <line x1="341" y1="256" x2="425" y2="256"></line>
+        <line x1="341" y1="288" x2="425" y2="288"></line>
+      </g>
+
+      
+      <g stroke="#6c8aac" stroke-width="0.4" opacity="0.5">
+        <line x1="341" y1="217" x2="431" y2="224"></line>
+        <line x1="341" y1="231" x2="431" y2="224"></line>
+        <line x1="341" y1="249" x2="431" y2="256"></line>
+        <line x1="341" y1="263" x2="431" y2="256"></line>
+        <line x1="341" y1="281" x2="431" y2="288"></line>
+        <line x1="341" y1="295" x2="431" y2="288"></line>
+      </g>
+
+      
+      <g stroke="#5d7da0" stroke-width="0.5" opacity="0.5">
+        <line x1="301" y1="244" x2="341" y2="216"></line>
+        <line x1="301" y1="268" x2="341" y2="296"></line>
+        <line x1="301" y1="244" x2="321" y2="256"></line>
+        <line x1="301" y1="268" x2="321" y2="256"></line>
+      </g>
+    </g>
+
+    
+    <polyline points="105,244 301,244 341,216" fill="none" stroke="#ffffff" stroke-width="0.6" opacity="0.5"></polyline>
+
+  </g>
+</svg>
