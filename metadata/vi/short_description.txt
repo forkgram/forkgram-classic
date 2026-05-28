@@ -1,0 +1,1 @@
+Bản fork của Telegram giữ lại giao diện cổ điển từ thời trước "Liquid Glass".

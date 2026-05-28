@@ -1,0 +1,3 @@
+Forkgram Classic, Android için bir Telegram çatalıdır ve tek bir amacı vardır: "Liquid Glass" (sıvı cam) öncesindeki klasik arayüzü yaşatmak.
+
+Forkgram temel alınarak geliştirilmiştir ve onun kullanımı kolaylaştıran ince ayarlarını devralır; hiçbir telemetri, analitik ya da üçüncü taraf sunucusu yoktur. Tüm trafik yalnızca Telegram'ın resmi sunucularına gider.
