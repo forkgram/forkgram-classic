@@ -83,7 +83,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Копировать без протокола</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Настройки Fork Client</string>
+    <string name="ForkSettingsTitle">Настройки Forkgram Classic</string>
     <string name="ForkCheckUpdate">Проверить обновления</string>
     <string name="SquareAvatars">Квадратные аватары</string>
     <string name="AvatarShape">Форма аватара</string>
@@ -166,8 +166,8 @@
     <string name="HideStoriesInArchive">Скрыть истории в архиве</string>
     <string name="ExtractMediaFromPreview">Отправлять медиа из превью ссылки как вложение</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>

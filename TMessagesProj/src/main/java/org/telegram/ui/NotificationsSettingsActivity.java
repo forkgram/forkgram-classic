@@ -898,10 +898,10 @@ public class NotificationsSettingsActivity extends BaseFragment implements Notif
             if (position == unifiedPushDistributorRow) {
                 String txt;
                 if (UnifiedPushService.getNumOfReceivedNotifications() == 0) {
-                    txt = "You never received notifications with UnifiedPush since Forkgram was started.";
+                    txt = "You never received notifications with UnifiedPush since Forkgram Classic was started.";
                 } else {
                     txt = String.format("The last received notification with UnifiedPush was %d seconds ago.\n" +
-                                        "You received %d notifications since Forkgram was started.",
+                                        "You received %d notifications since Forkgram Classic was started.",
                                         (SystemClock.elapsedRealtime() - UnifiedPushService.getLastReceivedNotification()) / 1000,
                                         UnifiedPushService.getNumOfReceivedNotifications());
                 }
