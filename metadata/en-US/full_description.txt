@@ -1,4 +1,4 @@
-Forkgram is a simple fork of the Telegram Messenger with a few minor improvements.
+Forkgram Classic is a simple fork of the Telegram Messenger with a few minor improvements.
 
 <b>Features</b>
 ͏ • Square avatars (sorry, I love it)
