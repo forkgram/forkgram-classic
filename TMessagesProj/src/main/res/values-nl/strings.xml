@@ -71,7 +71,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Kopiëren zonder protocol</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Instellingen van de Fork-client</string>
+    <string name="ForkSettingsTitle">Instellingen van Forkgram Classic</string>
     <string name="ForkCheckUpdate">Controleer op updates</string>
     <string name="SquareAvatars">Vierkante avatars</string>
     <string name="AvatarShape">Avatarvorm</string>
@@ -152,8 +152,8 @@
     <string name="HideStoriesInArchive">Verhalen in archief verbergen</string>
     <string name="ExtractMediaFromPreview">Media uit linkvoorbeeld als bijlage verzenden</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Nederlands</string>
     <string name="English">Engels</string>
     <string name="LanguageNameInEnglish">Dutch</string>

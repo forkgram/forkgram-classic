@@ -71,7 +71,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Копіювати без протоколу</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Налаштування клієнта Fork</string>
+    <string name="ForkSettingsTitle">Налаштування Forkgram Classic</string>
     <string name="ForkCheckUpdate">Перевірити оновлення</string>
     <string name="SquareAvatars">Квадратні аватари</string>
     <string name="AvatarShape">Форма аватара</string>
@@ -152,8 +152,8 @@
     <string name="HideStoriesInArchive">Сховати історії в архіві</string>
     <string name="ExtractMediaFromPreview">Надсилати медіа з попереднього перегляду посилання як вкладення</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Українська</string>
     <string name="English">Англійська</string>
     <string name="LanguageNameInEnglish">Ukrainian</string>
