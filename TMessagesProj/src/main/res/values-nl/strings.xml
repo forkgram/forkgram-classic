@@ -128,6 +128,7 @@
     <string name="ReplaceForwardInfo">Doorsturen opent het deelvenster in plaats van de chatkiezer.</string>
     <string name="MentionByNameInfo">Automatisch aanvullen voegt de naam van de persoon in in plaats van de gebruikersnaam.</string>
     <string name="HideSendAsInfo">De knop Verzenden als in het berichtveld verbergen.</string>
+    <string name="HideGiftButtonInfo">De cadeauknop in het berichtveld verbergen.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Berichten met links versturen zonder voorbeeldweergave.</string>
     <string name="DisableSlideToNextChannelInfo">Niet naar het volgende kanaal gaan bij doorscrollen voorbij het einde.</string>
     <string name="FormatWithSecondsInfo">Seconden tonen in berichttijden en andere tijden.</string>
@@ -207,6 +208,7 @@
     <string name="ShowArchivedStickers">Gearchiveerde stickerpakketten weergeven</string>
     <string name="ShowArchivedStickersInfo">Toont stickerpakketten die door Telegrams limiet van 200 pakketten zijn gearchiveerd in het stickerpaneel. De pakketten blijven gearchiveerd en worden geladen wanneer nodig.</string>
     <string name="HideSendAs">Knop "Verstuur als" verbergen</string>
+    <string name="HideGiftButton">Cadeauknop verbergen</string>
     <string name="ShowNotificationContent">Inhoud van meldingen weergeven</string>
     <string name="ShowNotificationContentInfo">Wanneer de app is vergrendeld. Kan oorzaak zijn van privacylekken.</string>
     <string name="DeleteAllYourMessages">Verwijder al je berichten</string>

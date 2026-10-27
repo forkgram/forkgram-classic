@@ -42,6 +42,7 @@
     <string name="ReplaceForwardInfo">«هدایت» به‌جای انتخاب چت، برگهٔ اشتراک‌گذاری را باز می‌کند.</string>
     <string name="MentionByNameInfo">تکمیل خودکار به‌جای نام کاربری، نام شخص را درج می‌کند.</string>
     <string name="HideSendAsInfo">دکمهٔ نمایهٔ «ارسال به‌عنوان» در کادر پیام پنهان شود.</string>
+    <string name="HideGiftButtonInfo">دکمهٔ هدیه در کادر پیام پنهان شود.</string>
     <string name="DisableLinkPreviewByDefaultInfo">پیام‌های دارای پیوند بدون پیش‌نمایش ارسال شوند.</string>
     <string name="DisableSlideToNextChannelInfo">هنگام پیمایش تا انتهای کانال، به کانال بعدی لغزانده نشود.</string>
     <string name="FormatWithSecondsInfo">ثانیه‌ها در زمان پیام‌ها و دیگر زمان‌ها نمایش داده شوند.</string>
@@ -121,6 +122,7 @@
     <string name="ShowArchivedStickers">نمایش بسته‌های استیکر آرشیوشده</string>
     <string name="ShowArchivedStickersInfo">بسته‌های استیکری که به‌دلیل محدودیت ۲۰۰ بسته‌ای تلگرام آرشیو شده‌اند، در پنل استیکر نمایش داده می‌شوند. بسته‌ها آرشیو می‌مانند و در صورت نیاز بارگذاری می‌شوند.</string>
     <string name="HideSendAs">پنهان کردن دکمهٔ «ارسال به‌عنوان»</string>
+    <string name="HideGiftButton">پنهان کردن دکمهٔ هدیه</string>
     <string name="ShowNotificationContent">نمایش محتوای اعلان‌ها</string>
     <string name="ShowNotificationContentInfo">هنگامی که برنامه قفل است. می‌تواند باعث نشت حریم خصوصی شود.</string>
     <string name="DeleteAllYourMessages">حذف همهٔ پیام‌های شما</string>

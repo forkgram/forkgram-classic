@@ -128,6 +128,7 @@
     <string name="ReplaceForwardInfo">전달하면 채팅 선택 대신 공유 시트가 열립니다.</string>
     <string name="MentionByNameInfo">자동 완성이 사용자 이름 대신 사람 이름을 삽입합니다.</string>
     <string name="HideSendAsInfo">메시지 입력란의 보낸 사람 선택 버튼을 숨깁니다.</string>
+    <string name="HideGiftButtonInfo">메시지 입력란의 선물 버튼을 숨깁니다.</string>
     <string name="DisableLinkPreviewByDefaultInfo">링크가 포함된 메시지를 미리보기 없이 보냅니다.</string>
     <string name="DisableSlideToNextChannelInfo">끝을 넘겨 스크롤해도 다음 채널로 넘어가지 않습니다.</string>
     <string name="FormatWithSecondsInfo">메시지 시간과 기타 시간에 초를 표시합니다.</string>
@@ -207,6 +208,7 @@
     <string name="ShowArchivedStickers">보관된 스티커 팩 표시</string>
     <string name="ShowArchivedStickersInfo">Telegram의 200개 팩 제한으로 보관된 스티커 팩을 스티커 패널에 표시합니다. 팩은 보관된 상태로 유지되며 필요할 때 불러옵니다.</string>
     <string name="HideSendAs">"다음으로 보내기" 버튼 숨기기</string>
+    <string name="HideGiftButton">선물 버튼 숨기기</string>
     <string name="ShowNotificationContent">알림 내용 표시</string>
     <string name="ShowNotificationContentInfo">앱이 잠겨 있을 때. 개인 정보 유출의 원인이 될 수 있습니다.</string>
     <string name="DeleteAllYourMessages">모든 메시지 삭제</string>

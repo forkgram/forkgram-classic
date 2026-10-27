@@ -123,6 +123,7 @@ public class ForkSettingsActivity extends BaseFragment {
     // forkgram-classic: ids classic adds on its own live at 900+, out of the way of
     // upstream's sequence — 12.10.4 took 39 for ID_LINK_REPLACEMENTS under #118's feet.
     public static final int ID_SHOW_AI_SUMMARY = 900; // [classic] #118
+    public static final int ID_HIDE_GIFT_BUTTON = 901; // [classic] #104
 
     public static final int ID_DISABLE_QUICK_REACTION = 40;
     public static final int ID_HIDE_MESSAGE_REACTIONS = 41;
@@ -652,6 +653,9 @@ public class ForkSettingsActivity extends BaseFragment {
             .setChecked(pref("mentionByName", false)).setMultiline(true));
         items.add(UItem.asButtonCheck(ID_HIDE_SEND_AS, LocaleController.getString(R.string.HideSendAs), LocaleController.getString(R.string.HideSendAsInfo))
             .setChecked(pref("hideSendAs", false)).setMultiline(true));
+        // [classic] #104: the gift button in the message field is upstream behavior again; hiding it is the opt-in.
+        items.add(UItem.asButtonCheck(ID_HIDE_GIFT_BUTTON, LocaleController.getString(R.string.HideGiftButton), LocaleController.getString(R.string.HideGiftButtonInfo))
+            .setChecked(pref("hideGiftButton", false)).setMultiline(true));
         items.add(UItem.asButtonCheck(ID_DISABLE_LINK_PREVIEW_BY_DEFAULT, LocaleController.getString(R.string.DisableLinkPreviewByDefault), LocaleController.getString(R.string.DisableLinkPreviewByDefaultInfo))
             .setChecked(pref("disableLinkPreviewByDefault", false)).setMultiline(true));
         items.add(UItem.asButtonCheck(ID_DELETE_ALL_UNPINNED, LocaleController.getString(R.string.AddDeleteAllUnpinnedMessages), LocaleController.getString(R.string.AddDeleteAllUnpinnedMessagesInfo))
@@ -878,6 +882,9 @@ public class ForkSettingsActivity extends BaseFragment {
             toggle("mentionByName", item, view);
         } else if (id == ID_HIDE_SEND_AS) {
             toggle("hideSendAs", item, view);
+        } else if (id == ID_HIDE_GIFT_BUTTON) { // [classic] #104: applies live to an open chat
+            toggle("hideGiftButton", item, view);
+            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.didUpdatePremiumGiftFieldIcon);
         } else if (id == ID_DISABLE_LINK_PREVIEW_BY_DEFAULT) {
             toggle("disableLinkPreviewByDefault", item, view);
         } else if (id == ID_DELETE_ALL_UNPINNED) {

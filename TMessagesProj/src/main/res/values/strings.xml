@@ -36,6 +36,7 @@
     <string name="ReplaceForwardInfo">Forward opens the share sheet instead of the chat picker.</string>
     <string name="MentionByNameInfo">Autocomplete inserts the person name instead of the username.</string>
     <string name="HideSendAsInfo">Hide the send-as avatar button in the message field.</string>
+    <string name="HideGiftButtonInfo">Hide the gift button in the message field.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Send messages containing links without a preview attached.</string>
     <string name="DisableSlideToNextChannelInfo">Do not slide to the next channel when scrolling past the end.</string>
     <string name="FormatWithSecondsInfo">Show seconds in message timestamps and other times.</string>
@@ -116,6 +117,7 @@
     <string name="ShowArchivedStickers">Show Archived Sticker Packs</string>
     <string name="ShowArchivedStickersInfo">Display sticker packs archived by Telegram\'s 200-pack limit in the sticker panel. Packs stay archived and load on demand.</string>
     <string name="HideSendAs">Hide \"Send as\" button</string>
+    <string name="HideGiftButton">Hide gift button</string>
     <string name="ShowNotificationContent">Show Notifications content</string>
     <string name="ShowNotificationContentInfo">When app is locked. Can be cause of privacy leaks.</string>
     <string name="DeleteAllYourMessages">Delete all your messages</string>

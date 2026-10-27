@@ -128,6 +128,7 @@
     <string name="ReplaceForwardInfo">Encaminhar abre o painel de compartilhamento em vez do seletor de conversas.</string>
     <string name="MentionByNameInfo">O preenchimento automático insere o nome da pessoa em vez do nome de usuário.</string>
     <string name="HideSendAsInfo">Ocultar o botão de enviar como no campo de mensagem.</string>
+    <string name="HideGiftButtonInfo">Ocultar o botão de presentes no campo de mensagem.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Enviar mensagens com links sem pré-visualização.</string>
     <string name="DisableSlideToNextChannelInfo">Não passar para o próximo canal ao rolar além do fim.</string>
     <string name="FormatWithSecondsInfo">Mostrar os segundos nos horários das mensagens e em outros horários.</string>
@@ -207,6 +208,7 @@
     <string name="ShowArchivedStickers">Mostrar pacotes de stickers arquivados</string>
     <string name="ShowArchivedStickersInfo">Exibe no painel de stickers os pacotes arquivados pelo limite de 200 pacotes do Telegram. Os pacotes permanecem arquivados e são carregados quando necessário.</string>
     <string name="HideSendAs">Ocultar botão "Enviar como"</string>
+    <string name="HideGiftButton">Ocultar botão de presentes</string>
     <string name="ShowNotificationContent">Mostrar conteúdo das notificações</string>
     <string name="ShowNotificationContentInfo">Quando o aplicativo está bloqueado. Pode ser causa de vazamentos de privacidade.</string>
     <string name="DeleteAllYourMessagesInAllTopics">Apagar todas as suas mensagens em todos os tópicos</string>

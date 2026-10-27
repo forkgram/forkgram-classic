@@ -128,6 +128,7 @@
     <string name="ReplaceForwardInfo">Пересилання відкриває панель «Поділитися» замість вибору чату.</string>
     <string name="MentionByNameInfo">Автодоповнення вставляє ім\'я людини замість імені користувача.</string>
     <string name="HideSendAsInfo">Приховувати кнопку вибору відправника в полі повідомлення.</string>
+    <string name="HideGiftButtonInfo">Приховувати кнопку подарунків у полі повідомлення.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Надсилати повідомлення з посиланнями без прев\'ю.</string>
     <string name="DisableSlideToNextChannelInfo">Не переходити до наступного каналу під час прокручування за кінець чату.</string>
     <string name="FormatWithSecondsInfo">Показувати секунди в часі повідомлень та інших позначках часу.</string>
@@ -207,6 +208,7 @@
     <string name="ShowArchivedStickers">Показати архівовані набори стікерів</string>
     <string name="ShowArchivedStickersInfo">Показувати в панелі стікерів набори, архівовані через ліміт Telegram у 200 наборів. Набори залишаються в архіві та завантажуються за потреби.</string>
     <string name="HideSendAs">Сховати кнопку "Надіслати як"</string>
+    <string name="HideGiftButton">Сховати кнопку подарунків</string>
     <string name="ShowNotificationContent">Показати вміст сповіщень</string>
     <string name="ShowNotificationContentInfo">Коли додаток заблоковано. Може бути причиною витоків конфіденційності.</string>
     <string name="DeleteAllYourMessages">Видалити всі ваші повідомлення</string>

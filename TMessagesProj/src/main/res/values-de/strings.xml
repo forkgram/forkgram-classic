@@ -128,6 +128,7 @@
     <string name="ReplaceForwardInfo">Weiterleiten öffnet das Teilen-Fenster statt der Chat-Auswahl.</string>
     <string name="MentionByNameInfo">Autovervollständigung fügt den Namen der Person statt des Benutzernamens ein.</string>
     <string name="HideSendAsInfo">Die Senden-als-Schaltfläche im Nachrichtenfeld ausblenden.</string>
+    <string name="HideGiftButtonInfo">Die Geschenk-Schaltfläche im Nachrichtenfeld ausblenden.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Nachrichten mit Links ohne Vorschau senden.</string>
     <string name="DisableSlideToNextChannelInfo">Beim Scrollen über das Ende hinaus nicht zum nächsten Kanal wechseln.</string>
     <string name="FormatWithSecondsInfo">Sekunden in Nachrichtenzeiten und anderen Zeitangaben anzeigen.</string>
@@ -207,6 +208,7 @@
     <string name="ShowArchivedStickers">Archivierte Sticker-Pakete anzeigen</string>
     <string name="ShowArchivedStickersInfo">Sticker-Pakete, die durch Telegrams Limit von 200 Paketen archiviert wurden, im Sticker-Panel anzeigen. Die Pakete bleiben archiviert und werden bei Bedarf geladen.</string>
     <string name="HideSendAs">„Als senden“ Button ausblenden</string>
+    <string name="HideGiftButton">Geschenk-Button ausblenden</string>
     <string name="ShowNotificationContent">Inhalt der Benachrichtigungen anzeigen</string>
     <string name="ShowNotificationContentInfo">Wenn die App gesperrt ist. Kann Ursache für Datenschutzverletzungen sein.</string>
     <string name="DeleteAllYourMessages">Alle Ihre Nachrichten löschen</string>
