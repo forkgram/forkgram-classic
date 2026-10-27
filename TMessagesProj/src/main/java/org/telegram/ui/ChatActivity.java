@@ -442,6 +442,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
     private HintView2 bottomGiftHintView;
     private ImageView bottomSuggestButton;
     private HintView2 bottomSuggestHintView;
+    // [classic] #129: search icon in the channel bottom bar, ported from the 13.1 capsule
+    // (ChatActivityChannelButtonsLayout.BUTTON_SEARCH) into the classic solid bar.
+    private ImageView bottomSearchButton;
     private BlurredFrameLayout bottomOverlayChat;
     private BlurredFrameLayout bottomMessagesActionContainer;
     @Nullable
@@ -28219,6 +28222,8 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         boolean forceNoBottom = false;
         boolean showGiftButton = false;
         boolean showSuggestButton = false;
+        // [classic] #129: same condition as the 13.1 capsule's showSearchButton.
+        boolean showSearchButton = chatMode == MODE_DEFAULT && ChatObject.isChannelOrGiga(currentChat);
         if (chatMode == MODE_DEFAULT && getMessagesController().isFrozen() && !AccountFrozenAlert.isSpamBot(currentAccount, currentUser)) {
             if (bottomOverlayStartButton != null) {
                 bottomOverlayStartButton.setVisibility(View.GONE);
@@ -28610,6 +28615,7 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
         }
         showSuggestButton(showSuggestButton && bottomOverlayChat.getVisibility() == View.VISIBLE, animated);
         showGiftButton(showGiftButton && bottomOverlayChat.getVisibility() == View.VISIBLE, animated);
+        showSearchButton(showSearchButton && bottomOverlayChat.getVisibility() == View.VISIBLE, animated);
         checkRaiseSensors();
     }
 
@@ -28659,7 +28665,9 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             bottomSuggestButton.setImageResource(R.drawable.input_message);
             bottomSuggestButton.setScaleType(ImageView.ScaleType.CENTER);
             bottomSuggestButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_fieldOverlayText), PorterDuff.Mode.SRC_IN));
-            bottomOverlayChat.addView(bottomSuggestButton, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.CENTER_VERTICAL));
+            // [classic] #129: moved to the right corner so the new search icon can take the left one,
+            // like the 13.1 capsule ([search][mute][direct][gift]).
+            bottomOverlayChat.addView(bottomSuggestButton, LayoutHelper.createFrame(48, 48, Gravity.RIGHT | Gravity.CENTER_VERTICAL));
             bottomSuggestButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_chat_fieldOverlayText), .10f), Theme.RIPPLE_MASK_CIRCLE_20DP));
             bottomSuggestButton.setOnClickListener(v -> {
                 MessagesController.getGlobalMainSettings().edit().putInt("channelsuggesthint", 3).apply();
@@ -28682,12 +28690,32 @@ public class ChatActivity extends BaseFragment implements NotificationCenter.Not
             bottomSuggestHintView.setPadding(dp(7.33f), 0, dp(7.33f), 0);
             bottomSuggestHintView.setMultilineText(false);
             bottomSuggestHintView.setText(TextCell.applyNewSpan(getString(R.string.Suggest2ChannelSendHint), true));
-            bottomSuggestHintView.setJoint(0, 24 - 7.33f);
+            // [classic] #129: button sits on the right now, so the hint joins from the right too.
+            bottomSuggestHintView.setJoint(1, -24 + 7.33f);
             contentView.addView(bottomSuggestHintView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 100, Gravity.BOTTOM | Gravity.FILL_HORIZONTAL, 0, 0, 0, 51 - 8.66f));
             bottomSuggestHintView.setOnHiddenListener(() -> AndroidUtilities.removeFromParent(bottomSuggestHintView));
             bottomSuggestHintView.show();
             MessagesController.getGlobalMainSettings().edit().putInt("channelsuggesthint", MessagesController.getGlobalMainSettings().getInt("channelsuggesthint", 0) + 1).apply();
         }
+    }
+
+    private void showSearchButton(boolean show, boolean animated) {
+        if (bottomSearchButton == null && !show) {
+            return;
+        }
+
+        if (bottomSearchButton == null) {
+            bottomSearchButton = new ImageView(getContext());
+            bottomSearchButton.setImageResource(R.drawable.msg_search);
+            bottomSearchButton.setScaleType(ImageView.ScaleType.CENTER);
+            bottomSearchButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_fieldOverlayText), PorterDuff.Mode.SRC_IN));
+            bottomOverlayChat.addView(bottomSearchButton, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.CENTER_VERTICAL));
+            bottomSearchButton.setBackground(Theme.createSelectorDrawable(Theme.multAlpha(getThemedColor(Theme.key_chat_fieldOverlayText), .10f), Theme.RIPPLE_MASK_CIRCLE_20DP));
+            bottomSearchButton.setOnClickListener(v -> openSearchWithText(isSupportedTags() ? "" : null));
+            bottomSearchButton.setContentDescription(getString(R.string.Search));
+            ScaleStateListAnimator.apply(bottomSearchButton);
+        }
+        AndroidUtilities.updateViewShow(bottomSearchButton, show, true, animated);
     }
 
     private boolean shouldDisplaySwipeToLeftToReplyInForum() {
