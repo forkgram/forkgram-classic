@@ -1385,7 +1385,25 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         //StarGiftPatterns.drawProfilePattern(canvas, emoji, getMeasuredWidth(), ((actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + dp(144)) - (1f - extraHeight / dp(88)) * dp(50), Math.min(1f, extraHeight / dp(88)), full);
                         float atop = actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0;
                         float maxExpand = getHeaderOnlyExtraHeight() + atop + (actionBar.getHeight() - atop) / 2f;
-                        StarGiftPatterns.drawProfileAnimatedPattern(canvas, emoji, getMeasuredWidth(), maxExpand, calculateHeaderExtraDiff(), avatarContainer, 1.0f);
+                        // [classic] #130: upstream inflates the pattern box to dp(96) around the
+                        // 13.1 centred-header avatar; the classic left-anchored avatar got the
+                        // hats thrown off it (one clipped at its bottom-left). Anchor the box to
+                        // the real avatar rect (scale included), grown about its own centre to the
+                        // dp(96) the maths expects, top pinned dp(20) under the real top so the
+                        // crown item stays on the head.
+                        final float patternRx = avatarContainer.getX();
+                        final float patternRy = avatarContainer.getY();
+                        final float patternRw = avatarContainer.getWidth() * avatarContainer.getScaleX();
+                        final float patternRh = avatarContainer.getHeight() * avatarContainer.getScaleY();
+                        final float patternHalf = Math.max(AndroidUtilities.dpf2(48f), Math.max(patternRw, patternRh) / 2f);
+                        final float patternTop = patternRy + AndroidUtilities.dpf2(20f);
+                        drawProfilePatternRect.set(
+                            patternRx + patternRw / 2f - patternHalf,
+                            patternTop,
+                            patternRx + patternRw / 2f + patternHalf,
+                            patternTop + patternHalf * 2f
+                        );
+                        StarGiftPatterns.drawProfileAnimatedPattern(canvas, emoji, getMeasuredWidth(), maxExpand, calculateHeaderExtraDiff(), drawProfilePatternRect, 1.0f);
                         canvas.restore();
                     }
                 }
@@ -1414,6 +1432,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
 
         private Rect blurBounds = new Rect();
+        private final RectF drawProfilePatternRect = new RectF();
     }
 
     private class OverlaysView extends View implements ProfileGalleryView.Callback {
