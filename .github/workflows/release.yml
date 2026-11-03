@@ -109,12 +109,12 @@ jobs:
           } >> gradle.properties
 
       - name: Build
-        run: ./gradlew :TMessagesProj_App:assembleAfatRelease
+        run: ./gradlew :TMessagesProj_App:assembleFatRelease
 
       - name: Check and rename the apk
         run: |
           tools="$ANDROID_HOME/build-tools/36.0.0"
-          apk=TMessagesProj_App/build/outputs/apk/afat/release/app.apk
+          apk=TMessagesProj_App/build/outputs/apk/fat/release/app.apk
           if [ ! -f "$apk" ]; then
             echo "Release apk is missing." >&2
             exit 1
