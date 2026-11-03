@@ -85,8 +85,6 @@ jobs:
 
       - name: Write the build properties
         env:
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_HASH: ${{ secrets.APP_HASH }}
           USER_ID_OWNER: ${{ secrets.USER_ID_OWNER }}
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
           LASTFM_API_SECRET: ${{ secrets.LASTFM_API_SECRET }}
@@ -94,8 +92,8 @@ jobs:
         run: |
           {
             echo ""
-            echo "APP_ID=$APP_ID"
-            echo "APP_HASH=$APP_HASH"
+            echo "APP_ID=14577864"
+            echo "APP_HASH=54d3ae230fd8f985ce9adccf08fbd9d6"
             echo "USER_ID_OWNER=$USER_ID_OWNER"
             echo "USER_REPO=forkgram/forkgram-classic"
             echo "CHECK_UPDATES=1"
