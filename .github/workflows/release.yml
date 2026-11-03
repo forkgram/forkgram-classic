@@ -44,6 +44,16 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Decode the release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          printf '%s' "$KEYSTORE_B64" | base64 -d > release.jks
+          if [ ! -s release.jks ]; then
+            echo "RELEASE_KEYSTORE_B64 is empty or invalid." >&2
+            exit 1
+          fi
+
       - name: Free up disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
         with:
@@ -72,16 +82,6 @@ jobs:
           grep -qxF "APP_VERSION_NAME=$base" gradle.properties || { echo "gradle.properties APP_VERSION_NAME does not match the tag base '$base'." >&2; exit 1; }
           echo "TAG=$tag" >> "$GITHUB_ENV"
           echo "BUILD_NUMBER=${tag##*.}" >> "$GITHUB_ENV"
-
-      - name: Decode the release keystore
-        env:
-          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
-        run: |
-          printf '%s' "$KEYSTORE_B64" | base64 -d > release.jks
-          if [ ! -s release.jks ]; then
-            echo "RELEASE_KEYSTORE_B64 is empty or invalid." >&2
-            exit 1
-          fi
 
       - name: Write the build properties
         env:
