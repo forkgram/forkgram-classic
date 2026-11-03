@@ -73,6 +73,7 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install ninja-build meson nasm gperf pkg-config unzip
           rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          rustup toolchain install 1.96.1 -t aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
       - name: Resolve and validate the version
         run: |
