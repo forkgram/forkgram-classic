@@ -7670,8 +7670,10 @@ public class MessagesController extends BaseController implements NotificationCe
             if (cache) {
                 loadingChannelAdmins.delete(chatId);
                 loadChannelAdmins(chatId, false);
-                getNotificationCenter().postNotificationName(NotificationCenter.didLoadChatAdmins, chatId);
             }
+            // [classic] #106: fire on the network path too, so the chat screen rebinds the tag
+            // colors once fresh data lands, not only when the DB cache arrives.
+            getNotificationCenter().postNotificationName(NotificationCenter.didLoadChatAdmins, chatId);
         });
     }
 
@@ -25155,6 +25157,12 @@ public class MessagesController extends BaseController implements NotificationCe
                         final TLRPC.TL_savedMusic r = (TLRPC.TL_savedMusic) res;
                         if (totalCount <= 0 && list.size() == 1) {
                             if (list.get(0).getDocument() != null && !messageObjects.isEmpty() && messageObjects.get(0).getDocument() != null && list.get(0).getDocument().id == messageObjects.get(0).getDocument().id) {
+                                TLRPC.Document cachedDoc = list.get(0).getDocument();
+                                TLRPC.Document freshDoc = messageObjects.get(0).getDocument();
+                                if (freshDoc != null) {
+                                    cachedDoc.file_reference = freshDoc.file_reference;
+                                    cachedDoc.access_hash = freshDoc.access_hash;
+                                }
                                 messageObjects.remove(0);
                             } else {
                                 list.clear();

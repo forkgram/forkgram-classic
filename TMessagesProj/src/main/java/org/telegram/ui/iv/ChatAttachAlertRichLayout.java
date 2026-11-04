@@ -580,7 +580,9 @@ public class ChatAttachAlertRichLayout extends ChatAttachAlert.AttachAlertLayout
             if (!emojiViewVisible || emojiSearchOpened) {
                 gradientInset += parentAlert.currentPanTranslationY;
             }
-            toolbar.setBottomGradientTranslationY(-gradientInset);
+            // [classic] #78: bottomNavInset() is the height the button row above is raised by; the
+            // flat bar has to grow by the same amount to keep covering down to the sheet bottom.
+            toolbar.setBottomBar(-gradientInset, bottomNavInset());
 
             if (lastAttachRise != attachRaise) {
                 toolbar.getBottomInnerContainer().animate()
@@ -942,7 +944,7 @@ public class ChatAttachAlertRichLayout extends ChatAttachAlert.AttachAlertLayout
             }
         });
         if (previewSendButton != null) {
-            previewSendButton.setBackground(RichEditor.withShadow(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_featuredStickers_addButton))));
+            previewSendButton.setBackground(Theme.createRoundRectDrawable(dp(22), getThemedColor(Theme.key_featuredStickers_addButton))); // [classic] #78: flat (no elevation), as RichEditor already does
             messageSendPreview.setSendButtonWidth(dp(44));
         }
 

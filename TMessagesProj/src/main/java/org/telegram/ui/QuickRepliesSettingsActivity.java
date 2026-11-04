@@ -87,7 +87,8 @@ public class QuickRepliesSettingsActivity extends BaseFragment {
 		FrameLayout frameLayout = (FrameLayout) fragmentView;
 
 		listView = new RecyclerListView(context);
-		listView.setSections();
+		// [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+		listView.setSections(0, 0, false);
 		listView.setVerticalScrollBarEnabled(false);
 		listView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
 		frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
