@@ -347,7 +347,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                 layoutParams = (LayoutParams) blurredView.getLayoutParams();
                 layoutParams.topMargin = -getPaddingTop();
 
-                int contentSize = dp(179 + (!isMyList() && !noforwards ? 52 : 0));
+                int contentSize = dp(179 + (!noforwards ? 52 : 0));
                 if (playlist.size() > 1) {
                     contentSize += backgroundPaddingTop + playlist.size() * dp(56);
                 }
@@ -356,8 +356,8 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                     padding = dp(8);
                 } else {
                     padding = (contentSize < availableHeight ? availableHeight - contentSize : availableHeight - (int) (availableHeight / 5 * 3.5f)) + dp(8);
-                    if (padding > availableHeight - dp(179 + (!isMyList() && !noforwards ? 52 : 0) + 150)) {
-                        padding = availableHeight - dp(179 + (!isMyList() && !noforwards ? 52 : 0) + 150);
+                    if (padding > availableHeight - dp(179 + (!noforwards ? 52 : 0) + 150)) {
+                        padding = availableHeight - dp(179 + (!noforwards ? 52 : 0) + 150);
                     }
                     if (padding < 0) {
                         padding = 0;
@@ -391,7 +391,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                     if (listAdapter.getItemCount() > 0) {
                         dismiss = ev.getY() < scrollOffsetY + dp(12);
                     } else {
-                        dismiss = ev.getY() < getMeasuredHeight() - dp(179 + (!isMyList() && !noforwards ? 52 : 0) + 12);
+                        dismiss = ev.getY() < getMeasuredHeight() - dp(179 + (!noforwards ? 52 : 0) + 12);
                     }
                     if (dismiss) {
                         dismiss();
@@ -1246,7 +1246,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             }
         });
         listView.setOnItemLongClickListener((view, position) -> {
-            if (view instanceof AudioPlayerCell && !isMyList()) {
+            if (view instanceof AudioPlayerCell) {
                 showOptions((AudioPlayerCell) view, ((AudioPlayerCell) view).getMessageObject());
                 return true;
             }
@@ -1322,11 +1322,33 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             if (messageObject1 == null || parentActivity == null) {
                 return;
             }
-            saveToProfile(messageObject1, false, () -> {}, false);
-            setVisibleInProfile(false);
-            BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
-                .createSimpleBulletin(R.raw.ic_delete, getString(R.string.AudioSaveToMyProfileUnsaved))
-                .show();
+            saveToProfile(messageObject1, false, () -> {
+                if (isMyList()) {
+                    if (savedMusicList != null) {
+                        savedMusicList.remove(messageObject1);
+                    }
+                    playlist.remove(messageObject1);
+                    if (listAdapter != null) {
+                        listAdapter.notifyDataSetChanged();
+                    }
+                    if ((savedMusicList != null && savedMusicList.list.isEmpty()) || playlist.isEmpty()) {
+                        MediaController.getInstance().cleanup();
+                        dismiss();
+                        return;
+                    } else {
+                        if (savedMusicList != null) {
+                            NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.musicListLoaded, savedMusicList);
+                        }
+                        if (MediaController.getInstance().getPlayingMessageObject() == messageObject1) {
+                            MediaController.getInstance().playNextMessage();
+                        }
+                    }
+                }
+                setVisibleInProfile(false);
+                BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
+                    .createSimpleBulletin(R.raw.ic_delete, getString(R.string.AudioSaveToMyProfileUnsaved))
+                    .show();
+            }, false);
         });
         playerLayout.addView(unsaveFromProfileButton, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 42, Gravity.FILL_HORIZONTAL | Gravity.BOTTOM, 12, 12, 12, 12));
 
@@ -1435,7 +1457,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
 
         if (isMyList()) {
             saveToProfileButton.setVisibility(View.GONE);
-            unsaveFromProfileButton.setVisibility(View.GONE);
+            unsaveFromProfileButton.setVisibility(View.VISIBLE);
 
             itemTouchHelper = new ItemTouchHelper(new ItemTouchHelper.Callback() {
                 @Override
@@ -1496,12 +1518,12 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             itemTouchHelper.attachToRecyclerView(listView);
         }
 
-        containerView.addView(playerLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 179 + (!isMyList() && !noforwards ? 52 : 0), Gravity.LEFT | Gravity.BOTTOM));
+        containerView.addView(playerLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 179 + (!noforwards ? 52 : 0), Gravity.LEFT | Gravity.BOTTOM));
         containerView.addView(playerShadow, new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, AndroidUtilities.getShadowHeight(), Gravity.LEFT | Gravity.BOTTOM));
         FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) playerLayout.getLayoutParams();
-        layoutParams.height = dp(179 + (!isMyList() && !noforwards ? 52 : 0));
+        layoutParams.height = dp(179 + (!noforwards ? 52 : 0));
         layoutParams = (FrameLayout.LayoutParams) playerShadow.getLayoutParams();
-        layoutParams.bottomMargin = dp(179 + (!isMyList() && !noforwards ? 52 : 0));
+        layoutParams.bottomMargin = dp(179 + (!noforwards ? 52 : 0));
         containerView.addView(actionBarShadow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3));
         containerView.addView(actionBar);
 
@@ -1812,11 +1834,20 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
             saveToProfile(messageObject, false, () -> {
                 if (savedMusicList != null) {
                     savedMusicList.remove(messageObject);
-                    if (savedMusicList.list.isEmpty()) {
-                        MediaController.getInstance().cleanup();
-                        dismiss();
-                    } else {
+                }
+                playlist.remove(messageObject);
+                if (listAdapter != null) {
+                    listAdapter.notifyDataSetChanged();
+                }
+                if ((savedMusicList != null && savedMusicList.list.isEmpty()) || playlist.isEmpty()) {
+                    MediaController.getInstance().cleanup();
+                    dismiss();
+                } else {
+                    if (savedMusicList != null) {
                         NotificationCenter.getInstance(currentAccount).postNotificationName(NotificationCenter.musicListLoaded, savedMusicList);
+                    }
+                    if (MediaController.getInstance().getPlayingMessageObject() == messageObject) {
+                        MediaController.getInstance().playNextMessage();
                     }
                 }
             }, false);
@@ -2357,11 +2388,11 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                 this.noforwards = noforwards;
 
                 FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) playerLayout.getLayoutParams();
-                layoutParams.height = dp(179 + (!noforwards && !isMyList() ? 52 : 0));
+                layoutParams.height = dp(179 + (!noforwards ? 52 : 0));
                 playerLayout.setLayoutParams(layoutParams);
 
                 layoutParams = (FrameLayout.LayoutParams) playerShadow.getLayoutParams();
-                layoutParams.bottomMargin = dp(179 + (!isMyList() && !noforwards ? 52 : 0));
+                layoutParams.bottomMargin = dp(179 + (!noforwards ? 52 : 0));
                 playerShadow.setLayoutParams(layoutParams);
             }
             if (noforwards) {
@@ -2861,10 +2892,51 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         }
         ConnectionsManager.getInstance(currentAccount).sendRequest(req, (res, err) -> {
             if (err != null && FileRefController.isFileRefError(err.text)) {
-                if (triedFileRef || messageObject.getId() < 0) {
+                if (triedFileRef) {
                     AndroidUtilities.runOnUIThread(() -> {
                         BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
                             .showForError(err);
+                    });
+                    return;
+                }
+                if (messageObject.getId() < 0) {
+                    final TLRPC.TL_getSavedMusic fileRefReq = new TLRPC.TL_getSavedMusic();
+                    fileRefReq.id = MessagesController.getInstance(currentAccount).getInputUser(UserConfig.getInstance(currentAccount).getClientUserId());
+                    fileRefReq.offset = 0;
+                    fileRefReq.limit = 100;
+                    ConnectionsManager.getInstance(currentAccount).sendRequest(fileRefReq, (res1, err1) -> {
+                        if (res1 instanceof TLRPC.TL_savedMusic) {
+                            final TLRPC.TL_savedMusic r = (TLRPC.TL_savedMusic) res1;
+                            TLRPC.Document freshDoc = null;
+                            for (TLRPC.Document doc : r.documents) {
+                                if (doc != null && doc.id == documentId) {
+                                    freshDoc = doc;
+                                    break;
+                                }
+                            }
+                            if (freshDoc != null) {
+                                if (document != null) {
+                                    document.file_reference = freshDoc.file_reference;
+                                    document.access_hash = freshDoc.access_hash;
+                                }
+                                if (messageObject.messageOwner != null && messageObject.messageOwner.media != null && messageObject.messageOwner.media.document != null) {
+                                    messageObject.messageOwner.media.document.file_reference = freshDoc.file_reference;
+                                    messageObject.messageOwner.media.document.access_hash = freshDoc.access_hash;
+                                }
+                                saveToProfile(messageObject, save, done, true);
+                            } else {
+                                AndroidUtilities.runOnUIThread(() -> {
+                                    BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
+                                        .createErrorBulletin(LocaleController.formatString(R.string.UnknownErrorCode, "CLIENT_MESSAGE_NOT_FOUND"))
+                                        .show();
+                                });
+                            }
+                        } else if (err1 != null) {
+                            AndroidUtilities.runOnUIThread(() -> {
+                                BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
+                                    .showForError(err1);
+                            });
+                        }
                     });
                     return;
                 }
@@ -2936,6 +3008,7 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
                     BulletinFactory.of((FrameLayout) containerView, resourcesProvider)
                         .showForError(err);
                 });
+                return;
             }
 
             AndroidUtilities.runOnUIThread(() -> {
@@ -3120,7 +3193,12 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
     }
 
     private void setVisibleInProfile(boolean visible) {
-        if (isMyList() || noforwards) {
+        if (isMyList()) {
+            saveToProfileButton.setVisibility(View.GONE);
+            unsaveFromProfileButton.setVisibility(View.VISIBLE);
+            return;
+        }
+        if (noforwards) {
             saveToProfileButton.setVisibility(View.GONE);
             unsaveFromProfileButton.setVisibility(View.GONE);
             return;
@@ -3666,6 +3744,10 @@ public class AudioPlayerAlert extends BottomSheet implements NotificationCenter.
         protected abstract TextView createTextView();
     }
 
+    // forkgram-classic: restore modern's tap-outside-to-dismiss. The profile playlist forces
+    // actionBar alpha to 1.0, which disables the inner containerView dismiss path (gated on
+    // alpha==0), and the full-height containerView means the base isTouchOutside (y < 0) never
+    // fires. Use the visible panel top (shadowDrawable bounds) instead.
     @Override
     protected boolean isTouchOutside(float x, float y) {
         if (topBulletinContainer != null && topBulletinContainer.getChildCount() > 0) {

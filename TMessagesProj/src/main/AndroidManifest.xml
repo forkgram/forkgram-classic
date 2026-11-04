@@ -148,6 +148,23 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity-alias>
 
+        <!-- [classic] #72: adaptive original Telegram icon (blue fills the whole icon + Material You themed). -->
+        <activity-alias
+            android:enabled="false"
+            android:name="org.telegram.messenger.OriginalAdaptiveIcon"
+            android:targetActivity="org.telegram.ui.LaunchActivity"
+            android:icon="@mipmap/ic_original_adaptive_launcher"
+            android:roundIcon="@mipmap/ic_original_adaptive_launcher_round"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.MULTIWINDOW_LAUNCHER" />
+            </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+        </activity-alias>
+
         <activity-alias
             android:enabled="false"
             android:name="org.telegram.messenger.VintageIcon"

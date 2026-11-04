@@ -294,8 +294,9 @@ public class PagerSlidingTabStrip extends HorizontalScrollView {
 
             if (indicatorHeight != 0) {
                 rectPaint.setColor(indicatorColor);
-                AndroidUtilities.rectTmp.set(lineLeft - AndroidUtilities.dp(11), getPaddingTop(), lineRight  + AndroidUtilities.dp(11), height - getPaddingBottom());
-                AndroidUtilities.rectTmp.offset(getPaddingLeft(), 0);
+                // [classic] #21: snug fixed 6dp inset pill (old design) — the redesign used
+                // getPaddingTop()/Bottom() which are 0 here, making the pill span the full bar height.
+                AndroidUtilities.rectTmp.set(lineLeft - AndroidUtilities.dp(12), AndroidUtilities.dp(6), lineRight  + AndroidUtilities.dp(12), height - AndroidUtilities.dp(6));
                 canvas.drawRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.rectTmp.height() / 2f, AndroidUtilities.rectTmp.height() / 2f, rectPaint);
             }
         }
