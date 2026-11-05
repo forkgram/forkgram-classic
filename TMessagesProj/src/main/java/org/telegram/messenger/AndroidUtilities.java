@@ -339,6 +339,9 @@ public class AndroidUtilities {
         }
     }
 
+    // [classic] #86: bend a corner radius the way the Avatar Shape setting asks for. ImageReceiver
+    // does this to every avatar it draws; anything that clips or strokes around one has to agree
+    // with it, or the extra shape wins and the avatar looks round again.
     public static int avatarShapedRadius(int radius) {
         return avatarShapedRadius(avatarCornersType(), radius);
     }
@@ -5357,6 +5360,27 @@ public class AndroidUtilities {
         }
     }
 
+    // forkgram-classic: 12.9 removed the scrim overlay constants and this 3-arg overload;
+    // the design-pinned ActionBarLayout (12.1.1 baseline) still calls them. Restored from 12.8.5.
+    public final static int LIGHT_STATUS_BAR_OVERLAY = 0x0f000000, DARK_STATUS_BAR_OVERLAY = 0x33000000;
+
+    public static void setLightStatusBar(Window window, boolean enable, boolean forceTransparentStatusbar) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            final View decorView = window.getDecorView();
+            changeSetSystemUiVisibility(decorView, View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR, enable);
+
+            final int statusBarColor;
+            if (!SharedConfig.noStatusBar && !forceTransparentStatusbar) {
+                statusBarColor = enable ? LIGHT_STATUS_BAR_OVERLAY : DARK_STATUS_BAR_OVERLAY;
+            } else {
+                statusBarColor = Color.TRANSPARENT;
+            }
+            if (window.getStatusBarColor() != statusBarColor) {
+                window.setStatusBarColor(statusBarColor);
+            }
+        }
+    }
+
     public static boolean getLightNavigationBar(Window window) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             final View decorView = window.getDecorView();
@@ -5380,8 +5404,11 @@ public class AndroidUtilities {
     }
 
 
-    // do not make public: Use setLightNavigationBar for activity or dialog.
-    private static void setLightNavigationBar(Window window, boolean enable) {
+    // forkgram-classic: made public again for pinned UI files (ChatActivity,
+    // ChatActivityEnterView, ChatAttachAlert, BottomSheet) that still call the
+    // (Window, boolean) overload. Upstream restricted access to encourage the
+    // (Dialog/Activity, boolean) wrappers.
+    public static void setLightNavigationBar(Window window, boolean enable) {
         if (window != null) {
             setLightNavigationBar(window.getDecorView(), enable);
         }
@@ -5440,7 +5467,13 @@ public class AndroidUtilities {
         }
     }
 
-    private static void setNavigationBarColor(Window window, int color, boolean animated, IntColorCallback onUpdate) {
+    // forkgram-classic: pinned ChatAttachAlert (12.1.1) calls
+    // setNavigationBarColor(Window, int, boolean). Forward to the 4-arg form.
+    public static void setNavigationBarColor(Window window, int color, boolean animated) {
+        setNavigationBarColor(window, color, animated, null);
+    }
+
+    public static void setNavigationBarColor(Window window, int color, boolean animated, IntColorCallback onUpdate) {
         if (window == null) {
             return;
         }

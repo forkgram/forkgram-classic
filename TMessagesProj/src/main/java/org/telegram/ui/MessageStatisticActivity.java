@@ -313,7 +313,8 @@ public class MessageStatisticActivity extends BaseFragment implements Notificati
         frameLayout.addView(progressLayout, LayoutHelper.createFrame(240, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 0, 0, 0, 30));
 
         listView = new RecyclerListView(context, getResourceProvider());
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
         ((SimpleItemAnimator) listView.getItemAnimator()).setSupportsChangeAnimations(false);
         listView.setAdapter(listViewAdapter = new ListAdapter(context));
