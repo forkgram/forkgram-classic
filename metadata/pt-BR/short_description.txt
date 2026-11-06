@@ -1,0 +1,1 @@
+Um fork do Telegram que preserva a interface clássica anterior ao Liquid Glass.

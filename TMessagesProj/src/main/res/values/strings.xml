@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!--forkgram-classic: restored strings that pinned 12.1.1 UI still uses
+        but upstream 12.7.3 dropped from strings.xml.-->
+    <string name="PollQuestion">Poll question</string>
+    <string name="AnswerOptions">Answer options</string>
+    <string name="QuizInfo">Polls in Quiz Mode have one correct answer. Users can\'t revoke their answers.</string>
+
     <!--FORK CLIENT-->
     <string name="ForkSectionAppearance">Appearance</string>
     <string name="ForkSectionMedia">Photos and video</string>
@@ -30,10 +36,12 @@
     <string name="ReplaceForwardInfo">Forward opens the share sheet instead of the chat picker.</string>
     <string name="MentionByNameInfo">Autocomplete inserts the person name instead of the username.</string>
     <string name="HideSendAsInfo">Hide the send-as avatar button in the message field.</string>
+    <string name="HideGiftButtonInfo">Hide the gift button in the message field.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Send messages containing links without a preview attached.</string>
     <string name="DisableSlideToNextChannelInfo">Do not slide to the next channel when scrolling past the end.</string>
     <string name="FormatWithSecondsInfo">Show seconds in message timestamps and other times.</string>
     <string name="HideAiEditorInfo">Hide the AI rewrite button in message and caption fields.</string>
+    <string name="ShowAiSummaryInfo">Show the AI summary button next to long incoming messages.</string>
     <string name="FormattingMenuInfo">Hold and drag an option to reorder it. Unchecked options are hidden from the text selection menu.</string>
     <string name="DisableQuickReactionInfo">Do not send a reaction when a message is double-tapped.</string>
     <string name="HideMessageReactionsInfo">Do not draw reaction bubbles under messages.</string>
@@ -71,7 +79,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Copy without protocol</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Fork Client Settings</string>
+    <string name="ForkSettingsTitle">Forkgram Classic Settings</string>
     <string name="ForkCheckUpdate">Check updates</string>
     <string name="InAppCamera">Enable In-App Camera</string>
     <string name="InAppCameraInfo">In Attachments</string>
@@ -109,6 +117,7 @@
     <string name="ShowArchivedStickers">Show Archived Sticker Packs</string>
     <string name="ShowArchivedStickersInfo">Display sticker packs archived by Telegram\'s 200-pack limit in the sticker panel. Packs stay archived and load on demand.</string>
     <string name="HideSendAs">Hide \"Send as\" button</string>
+    <string name="HideGiftButton">Hide gift button</string>
     <string name="ShowNotificationContent">Show Notifications content</string>
     <string name="ShowNotificationContentInfo">When app is locked. Can be cause of privacy leaks.</string>
     <string name="DeleteAllYourMessages">Delete all your messages</string>
@@ -119,6 +128,12 @@
     <string name="HideContactsInDialogs">Hide contacts in chats list</string>
     <string name="MainTabsHiddenHint">Tabs hidden. Long-press the title to show them again.</string>
     <string name="ShowBottomTabs">Show bottom tabs</string>
+    <string name="ForkDrawerItems">Side menu items</string>
+    <string name="ForkDrawerItemsHeader">Menu items</string>
+    <string name="ForkDrawerItemsBots">Bots</string>
+    <string name="ForkDrawerItemsAllShown">All shown</string>
+    <string name="ForkDrawerItemsHidden">%1$d hidden</string>
+    <string name="ForkDrawerItemsInfo">Uncheck an entry to remove it from the side menu. My Profile and Settings always stay, so there is always a way back into the app.</string>
     <string name="HideBottomTabs">Hide bottom tabs</string>
     <string name="DisableTabletMode">Disable tablet mode</string>
     <string name="DisableQuickReaction">Disable quick reaction</string>
@@ -129,6 +144,7 @@
     <string name="ForceBlockScreenshots">Block screenshots</string>
     <string name="ForceBlockScreenshotsInfo">Prevent screenshots and screen recording across the app, even without a passcode.</string>
     <string name="HideAiEditor">Hide AI Editor button</string>
+    <string name="ShowAiSummary">Show AI Summary button</string>
     <string name="FormattingMenu">Formatting menu</string>
     <string name="DisableLockedAnimatedEmoji">Hide locked animated emoji in panel</string>
     <string name="DisableParametersFromBotLinks">Disable parameters from bot links</string>
@@ -176,9 +192,9 @@
     <string name="ForkSettingsLockChangeCode">Change code</string>
     <string name="ForkSettingsLockRemoveCode">Remove code</string>
     <string name="ForkSettingsLockRemoveCodeConfirm">Fork Client Settings will open without a code.</string>
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
-    <string name="AppNameFdroid">Forkgram</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
+    <string name="AppNameFdroid">Forkgram Classic</string>
     <string name="GoToTags">GoTo chats: %1$s</string>
     <string name="GoToNotFound">No GoTo chat found for #%1$s (%2$s)</string>
     <string name="GoToAmbiguous">Tag #%1$s matches several chats: %2$s</string>
@@ -2892,6 +2908,10 @@
     <string name="UseProxyTelegramInfo">MTProto proxy settings.</string>
     <string name="UseProxyTelegramInfo2">This proxy may display a sponsored channel in your chat list. This doesn\'t reveal any of your Telegram traffic.</string>
     <string name="UseProxyWebInfo">WEB proxy uses an HTTPS page inside a private WebView. Enter a hostname without a scheme or path and a 16-byte MTProxy secret. This proof of concept requires a current Android System WebView and is intended for foreground testing.</string>
+    <!-- [classic] #125: English text for the classic "Use proxy for calls" settings row; upstream dropped
+         the default-locale strings in 12.10.4 but kept every translation. -->
+    <string name="UseProxyForCalls">Use proxy for calls</string>
+    <string name="UseProxyForCallsInfo">Proxy servers may degrade the quality of your calls.</string>
     <string name="ConnectingToProxyEnable">Enable</string>
     <string name="LowDiskSpaceTitle">Attention</string>
     <string name="LowDiskSpaceMessage">Your device is almost out of disk space. To free some space, you can set up Telegram to cache only recent media.</string>
@@ -6065,6 +6085,7 @@
     <string name="AppIconPremium">Premium</string>
     <string name="AppIconTurbo">Turbo</string>
     <string name="AppIconNox">Nox</string>
+    <string name="AppIconOriginalAdaptive">Original adaptive</string>
     <string name="AppIconChangedTo">App icon has been changed to %1$s</string>
     <string name="FileTooLarge">File Too Large</string>
     <string name="PremiumPreviewAppIcon">Premium App Icon</string>
@@ -10776,6 +10797,7 @@
     <string name="AudioSearchChats">Shared Music</string>
     <string name="AudioSearchProfile">Profile Music</string>
     <string name="AudioSearchGlobal">Global Search</string>
+    <string name="AudioAutoRefresh">Auto-refresh</string>
 
     <string name="GiftOfferToBuyMenu">Offer to buy</string>
     <string name="GiftOfferToBuyTitle">Offer to Buy</string>

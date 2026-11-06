@@ -128,6 +128,7 @@
     <string name="ReplaceForwardInfo">Inoltra apre il pannello di condivisione invece del selettore di chat.</string>
     <string name="MentionByNameInfo">Il completamento automatico inserisce il nome della persona invece del nome utente.</string>
     <string name="HideSendAsInfo">Nascondere il pulsante invia come nel campo del messaggio.</string>
+    <string name="HideGiftButtonInfo">Nascondere il pulsante dei regali nel campo del messaggio.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Inviare messaggi con link senza anteprima.</string>
     <string name="DisableSlideToNextChannelInfo">Non passare al canale successivo scorrendo oltre la fine.</string>
     <string name="FormatWithSecondsInfo">Mostrare i secondi negli orari dei messaggi e in altri orari.</string>
@@ -169,7 +170,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Copia senza protocollo</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Impostazioni del client Fork</string>
+    <string name="ForkSettingsTitle">Impostazioni di Forkgram Classic</string>
     <string name="ForkCheckUpdate">Controlla aggiornamenti</string>
     <string name="SquareAvatars">Avatar quadrati</string>
     <string name="AvatarShape">Forma dell\'avatar</string>
@@ -207,6 +208,7 @@
     <string name="ShowArchivedStickers">Mostra i pacchetti di sticker archiviati</string>
     <string name="ShowArchivedStickersInfo">Mostra nel pannello degli sticker i pacchetti archiviati a causa del limite di 200 pacchetti di Telegram. I pacchetti restano archiviati e vengono caricati all\'occorrenza.</string>
     <string name="HideSendAs">Nascondi il pulsante "Invia come"</string>
+    <string name="HideGiftButton">Nascondi il pulsante dei regali</string>
     <string name="ShowNotificationContent">Mostra il contenuto delle notifiche</string>
     <string name="ShowNotificationContentInfo">Quando l\'app è bloccata. Può essere causa di perdite di privacy.</string>
     <string name="DeleteAllYourMessages">Elimina tutti i tuoi messaggi</string>
@@ -265,8 +267,8 @@
     <string name="LinkReplacementInvalid">Espressione non valida</string>
     <string name="LinkReplacedOnPaste">Link sostituito</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Italiano</string>
     <string name="English">Inglese</string>
     <string name="LanguageNameInEnglish">Italian</string>

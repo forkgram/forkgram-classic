@@ -104,7 +104,8 @@ public class LiteModeSettingsActivity extends BaseFragment {
         contentView.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         listView.setLayoutManager(layoutManager = new LinearLayoutManager(context));
         listView.setAdapter(adapter = new Adapter());
@@ -152,7 +153,9 @@ public class LiteModeSettingsActivity extends BaseFragment {
         });
 
         fragmentView = contentView;
-        FLAGS_CHAT = AndroidUtilities.isTablet() ? (LiteMode.FLAGS_CHAT & ~LiteMode.FLAG_CHAT_FORUM_TWOCOLUMN) : LiteMode.FLAGS_CHAT;
+        // [classic] #107: never offer Liquid Glass — drop it from the master switch too, so toggling
+        // "Effects in Chats" cannot turn a redesign-only effect back on.
+        FLAGS_CHAT = (AndroidUtilities.isTablet() ? (LiteMode.FLAGS_CHAT & ~LiteMode.FLAG_CHAT_FORUM_TWOCOLUMN) : LiteMode.FLAGS_CHAT) & ~LiteMode.FLAG_LIQUID_GLASS;
 
         updateItems();
 
@@ -174,7 +177,15 @@ public class LiteModeSettingsActivity extends BaseFragment {
     private Utilities.Callback<Boolean> onPowerAppliedChange = applied -> updateValues();
 
     private boolean[] expanded = new boolean[3];
+    // [classic] #107: outside callers (ProfileActivity, LinkManager) still hand us the upstream
+    // LiteMode.FLAGS_CHAT, which carries the Liquid Glass bit this screen no longer offers.
+    // Strip it before matching, or expanding/scrolling to "Effects in Chats" silently does nothing.
+    private int classicFlags(int flags) {
+        return flags & ~LiteMode.FLAG_LIQUID_GLASS;
+    }
+
     private int getExpandedIndex(int flags) {
+        flags = classicFlags(flags);
         if (flags == LiteMode.FLAGS_ANIMATED_STICKERS) {
             return 0;
         } else if (flags == LiteMode.FLAGS_ANIMATED_EMOJI) {
@@ -206,6 +217,7 @@ public class LiteModeSettingsActivity extends BaseFragment {
     }
 
     public void scrollToFlags(int flags) {
+        flags = classicFlags(flags); // [classic] #107
         for (int i = 0; i < items.size(); i++) {
             Item item = items.get(i);
             if (item.flags == flags) {
@@ -264,9 +276,7 @@ public class LiteModeSettingsActivity extends BaseFragment {
             if (SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_AVERAGE || BuildVars.DEBUG_PRIVATE_VERSION) {
                 items.add(Item.asCheckbox(LocaleController.getString("LiteOptionsBlur2"), LiteMode.FLAG_CHAT_BLUR));
             }
-            if (Build.VERSION.SDK_INT >= 33 && (SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_AVERAGE || BuildVars.DEBUG_PRIVATE_VERSION)) {
-                items.add(Item.asCheckbox(LocaleController.getString("LiteOptionsLiquidGlass"), LiteMode.FLAG_LIQUID_GLASS));
-            }
+            // [classic] #107: no Liquid Glass checkbox — the effect does not exist in classic.
             items.add(Item.asCheckbox(LocaleController.getString("LiteOptionsScale"), LiteMode.FLAG_CHAT_SCALE));
             if (ThanosEffect.supports()) {
                 items.add(Item.asCheckbox(LocaleController.getString("LiteOptionsThanos"), LiteMode.FLAG_CHAT_THANOS));
@@ -625,9 +635,6 @@ public class LiteModeSettingsActivity extends BaseFragment {
                     count--;
             }
             if (SharedConfig.getDevicePerformanceClass() < SharedConfig.PERFORMANCE_CLASS_AVERAGE && (flags & LiteMode.FLAG_CHAT_BLUR) > 0) {
-                count--;
-            }
-            if (!(Build.VERSION.SDK_INT >= 33 && (SharedConfig.getDevicePerformanceClass() >= SharedConfig.PERFORMANCE_CLASS_AVERAGE || BuildVars.DEBUG_PRIVATE_VERSION)) && (flags & LiteMode.FLAG_LIQUID_GLASS) > 0) {
                 count--;
             }
             if (!ThanosEffect.supports() && (flags & LiteMode.FLAG_CHAT_THANOS) > 0) {

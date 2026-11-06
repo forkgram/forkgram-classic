@@ -1,0 +1,33 @@
+# Forkgram Classic — ALWAYS_MERGE list.
+#
+# Paths here are taken from upstream wholesale on every version bump.
+# Categories: TL schema, controllers, native code, build files, assets.
+# See classic/PLAN.md §4.2.
+#
+# Patterns: `**` matches any subtree, `*` matches a single path segment.
+# Anything NOT in DESIGN_FROZEN.txt and NOT in this file is reported as
+# "unknown" by tools/classic/categorize-diff.sh and needs manual review.
+
+# ── Network, MTProto, TL schema ───────────────────────────────────────────
+TMessagesProj/src/main/java/org/telegram/tgnet/**
+TMessagesProj/src/main/java/org/telegram/SQLite/**
+
+# ── Controllers / messenger backend (NOT under ui/) ───────────────────────
+# Includes DB, file loaders, networking, push, secret chats, encryption.
+# TODO(verify): voip/** is heavily wired into UI; web/** may pull in UI
+# deps. Until verified, take all of messenger/** and review per-version.
+TMessagesProj/src/main/java/org/telegram/messenger/**
+
+# ── Native code (jni: video decode, voip, opus, rlottie, …) ───────────────
+TMessagesProj/jni/**
+
+# ── Build files ───────────────────────────────────────────────────────────
+build.gradle
+settings.gradle
+gradle.properties
+buildSrc/**
+TMessagesProj/build.gradle
+
+# ── Assets (emoji, animations — harmless asset bumps) ─────────────────────
+TMessagesProj/src/main/assets/emoji/**
+TMessagesProj/src/main/assets/animations/**
