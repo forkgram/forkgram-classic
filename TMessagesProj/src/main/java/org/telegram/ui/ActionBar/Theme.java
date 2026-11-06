@@ -2277,6 +2277,9 @@ public class Theme {
     public static Paint dialogs_countPaint;
     public static Paint dialogs_errorPaint;
     public static Paint dialogs_countGrayPaint;
+    // [classic] #116: fills behind the mention/reaction/poll glyphs, as 11.9.5.0 drew them.
+    public static Paint dialogs_reactionsCountPaint;
+    public static Paint dialogs_pollMentionCountPaint;
     public static Paint dialogs_actionMessagePaint;
     public static Paint dialogs_tagPaint;
     public static TextPaint[] dialogs_namePaint;
@@ -2516,6 +2519,12 @@ public class Theme {
     public static Drawable chat_msgCallDownGreenDrawable;
 
     public static Drawable chat_attachEmptyDrawable;
+    // forkgram-classic: pinned 12.1.1 ChatAttachAlert addresses the
+    // attach-button icons through this array, which upstream replaced with
+    // per-button resolution. Safe placeholders in the 12.1.1 order:
+    // [0]=gallery, [1]=audio, [2]=file, [3]=contact, [4]=location, [5]=poll,
+    // [6]=todo.
+    public static Drawable[] chat_attachButtonDrawables = new Drawable[7];
     public static Drawable[] chat_locationDrawable = new Drawable[2];
     public static Drawable[] chat_contactDrawable = new Drawable[2];
     public static Drawable[][] chat_fileStatesDrawable = new Drawable[5][2];
@@ -2712,6 +2721,7 @@ public class Theme {
     public static int[] keys_avatar_background2 = {key_avatar_background2Red, key_avatar_background2Orange, key_avatar_background2Violet, key_avatar_background2Green, key_avatar_background2Cyan, key_avatar_background2Blue, key_avatar_background2Pink};
     public static int[] keys_avatar_nameInMessage = {key_avatar_nameInMessageRed, key_avatar_nameInMessageOrange, key_avatar_nameInMessageViolet, key_avatar_nameInMessageGreen, key_avatar_nameInMessageCyan, key_avatar_nameInMessageBlue, key_avatar_nameInMessagePink};
 
+    public static final String CLASSIC_BLUE_HEADER_PREF = "classicBlueHeader"; // [classic] #112
     public static final int key_actionBarDefault = colorsCount++;
     public static final int key_actionBarDefaultSelector = colorsCount++;
     public static final int key_actionBarWhiteSelector = colorsCount++;
@@ -2818,6 +2828,18 @@ public class Theme {
     public static final int key_chat_attachContactText = colorsCount++; //
     public static final int key_chat_attachLocationBackground = colorsCount++;  //
     public static final int key_chat_attachPollBackground = colorsCount++;  //
+
+    // forkgram-classic: pinned ChatAttachAlert (12.1.1) references *Text
+    // companions for each attach-button color and a Todo pair. Upstream
+    // collapsed these — re-introduce as aliases so the layout compiles.
+    public static final int key_chat_attachGalleryText = key_chat_attachGalleryBackground;
+    public static final int key_chat_attachAudioText = key_chat_attachAudioBackground;
+    public static final int key_chat_attachFileBackground = key_chat_attachContactBackground;
+    public static final int key_chat_attachFileText = key_chat_attachContactBackground;
+    public static final int key_chat_attachLocationText = key_chat_attachLocationBackground;
+    public static final int key_chat_attachPollText = key_chat_attachPollBackground;
+    public static final int key_chat_attachTodoBackground = key_chat_attachContactBackground;
+    public static final int key_chat_attachTodoText = key_chat_attachContactBackground;
 
     public static final int key_chat_status = colorsCount++;
     public static final int key_chat_inGreenCall = colorsCount++;
@@ -3090,6 +3112,7 @@ public class Theme {
     public static final int key_chat_gifSaveHintText = colorsCount++;
     public static final int key_chat_gifSaveHintBackground = colorsCount++;
     public static final int key_chat_goDownButton = colorsCount++;
+    public static final int key_chat_goDownButtonIcon = colorsCount++;
     public static final int key_chat_goDownButtonCounter = colorsCount++;
     public static final int key_chat_goDownButtonCounterBackground = colorsCount++;
     public static final int key_chat_inTextSelectionHighlight = colorsCount++;
@@ -7868,6 +7891,8 @@ public class Theme {
             dialogs_tabletSeletedPaint = new Paint();
             dialogs_pinnedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_countGrayPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            dialogs_reactionsCountPaint = new Paint(Paint.ANTI_ALIAS_FLAG); // [classic] #116
+            dialogs_pollMentionCountPaint = new Paint(Paint.ANTI_ALIAS_FLAG); // [classic] #116
             dialogs_errorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_actionMessagePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -7964,6 +7989,8 @@ public class Theme {
         dialogs_archiveTextPaintSmall.setColor(getColor(key_chats_archiveText));
         dialogs_countPaint.setColor(getColor(key_chats_unreadCounter));
         dialogs_countGrayPaint.setColor(getColor(key_chats_unreadCounterMuted));
+        dialogs_reactionsCountPaint.setColor(getColor(key_dialogReactionMentionBackground)); // [classic] #116
+        dialogs_pollMentionCountPaint.setColor(getColor(key_color_purple)); // [classic] #116
         dialogs_actionMessagePaint.setColor(getColor(key_chats_actionMessage));
         dialogs_errorPaint.setColor(getColor(key_chats_sentError));
         dialogs_onlinePaint.setColor(getColor(key_windowBackgroundWhiteBlueText3));
@@ -7985,9 +8012,10 @@ public class Theme {
         setDrawableColorByKey(dialogs_unmuteDrawable, key_chats_muteIcon);
         setDrawableColorByKey(dialogs_hiddenDrawable, key_chats_muteIcon);
 
-        setDrawableColorByKey(dialogs_mentionDrawable, key_chats_unreadCounter);
-        setDrawableColorByKey(dialogs_reactionsMentionDrawable, key_dialogReactionMentionBackground);
-        setDrawableColorByKey(dialogs_pollMentionDrawable, key_color_purple);
+        // [classic] #116: white glyphs on the coloured badges, as 11.9.5.0 tinted them.
+        setDrawableColorByKey(dialogs_mentionDrawable, key_chats_mentionIcon);
+        setDrawableColorByKey(dialogs_reactionsMentionDrawable, key_chats_mentionIcon);
+        setDrawableColorByKey(dialogs_pollMentionDrawable, key_chats_mentionIcon);
 
         setDrawableColorByKey(dialogs_mentionDrawableMuted, key_chats_unreadCounterMuted);
         setDrawableColorByKey(dialogs_reactionsMentionDrawableMuted, key_chats_unreadCounterMuted);
@@ -8301,6 +8329,14 @@ public class Theme {
             chat_gradientRightDrawable = resources.getDrawable(R.drawable.gradient_right);
 
             chat_contextResult_shadowUnderSwitchDrawable = resources.getDrawable(R.drawable.header_shadow).mutate();
+
+            chat_attachButtonDrawables[0] = new RLottieDrawable(R.raw.attach_gallery, dp(26), dp(26));
+            chat_attachButtonDrawables[1] = new RLottieDrawable(R.raw.attach_music, dp(26), dp(26));
+            chat_attachButtonDrawables[2] = new RLottieDrawable(R.raw.attach_file, dp(26), dp(26));
+            chat_attachButtonDrawables[3] = new RLottieDrawable(R.raw.attach_contact, dp(26), dp(26));
+            chat_attachButtonDrawables[4] = new RLottieDrawable(R.raw.attach_location, dp(26), dp(26));
+            chat_attachButtonDrawables[5] = new RLottieDrawable(R.raw.attach_poll, dp(26), dp(26));
+            chat_attachButtonDrawables[6] = new RLottieDrawable(R.raw.todo_attach, dp(26), dp(26));
             chat_attachEmptyDrawable = resources.getDrawable(R.drawable.nophotos3);
 
             chat_shareIconDrawable = resources.getDrawable(R.drawable.filled_button_share).mutate();
@@ -9022,6 +9058,20 @@ public class Theme {
         return getColor(key, isDefault, false);
     }
 
+    // [classic] #112: the stock Blue palette from Telegram 5.15.0, limited to the header.
+    private static int getClassicHeaderColor(int key) {
+        if (key == key_actionBarDefault) return 0xff527da3;
+        if (key == key_actionBarDefaultArchived) return 0xff6f7a87;
+        if (key == key_actionBarDefaultSelector || key == key_actionBarTabSelector) return 0xff406d94;
+        if (key == key_actionBarDefaultArchivedSelector) return 0xff5e6772;
+        if (key == key_actionBarDefaultSubtitle || key == key_actionBarTabUnactiveText) return 0xffd5e8f7;
+        if (key == key_actionBarDefaultSearchPlaceholder || key == key_actionBarDefaultArchivedSearchPlaceholder) return 0x88ffffff;
+        if (key == key_actionBarDefaultIcon || key == key_actionBarDefaultTitle || key == key_actionBarDefaultSearch
+                || key == key_actionBarDefaultArchivedIcon || key == key_actionBarDefaultArchivedTitle || key == key_actionBarDefaultArchivedSearch
+                || key == key_actionBarTabActiveText || key == key_actionBarTabLine || key == key_telegram_color_dialogsLogo) return Color.WHITE;
+        return 0;
+    }
+
     public static int getColor(int key, boolean[] isDefault, boolean ignoreAnimation) {
         if (!ignoreAnimation && animatingColors != null) {
             int index = animatingColors.indexOfKey(key);
@@ -9045,6 +9095,12 @@ public class Theme {
                 useDefault = currentTheme.isDefaultMainAccent();
             }
             if (useDefault) {
+                int classicColor = getClassicHeaderColor(key);
+                if (classicColor != 0 && currentTheme.currentAccentId == DEFALT_THEME_ACCENT_ID
+                        && ApplicationLoader.applicationContext.getSharedPreferences("mainconfig", Context.MODE_PRIVATE)
+                                .getBoolean(CLASSIC_BLUE_HEADER_PREF, false)) {
+                    return classicColor;
+                }
                 if (key == key_chat_serviceBackground) {
                     return serviceMessageColor;
                 } else if (key == key_chat_serviceBackgroundSelected) {

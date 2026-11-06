@@ -236,7 +236,8 @@ public class DataUsage2Activity extends BaseFragment {
             super(context);
             setLayoutManager(layoutManager = new LinearLayoutManager(context));
             setAdapter(adapter = new Adapter());
-            setSections();
+            // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+            setSections(0, 0, false);
             setOnItemClickListener((view, position) -> {
                 if (view instanceof Cell && position >= 0 && position < itemInners.size()) {
                     ItemInner item = itemInners.get(position);

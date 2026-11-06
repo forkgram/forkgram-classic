@@ -915,8 +915,8 @@ public class FilterTabsView extends FrameLayout {
         deletePaint.setStrokeWidth(dp(1.5f));
 
         selectorDrawable = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, null);
-        float rad = AndroidUtilities.dpf2(14);
-        selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, rad, rad, rad, rad});
+        float rad = AndroidUtilities.dpf2(3);
+        selectorDrawable.setCornerRadii(new float[]{rad, rad, rad, rad, 0, 0, 0, 0});
         selectorDrawable.setColor(Theme.getColor(tabLineColorKey, resourcesProvider));
 
         setHorizontalScrollBarEnabled(false);
@@ -1311,6 +1311,8 @@ public class FilterTabsView extends FrameLayout {
         return tabs.get(i);
     }
 
+    // [classic] #79: a tab's list position differs from its id (== filter index) once the "All Chats"
+    // tab is hidden, so callers that have an id must translate it instead of using it as a position.
     public int getTabPositionById(int id) {
         return idToPosition.get(id, -1);
     }
@@ -1513,9 +1515,8 @@ public class FilterTabsView extends FrameLayout {
 
             final float add = additionalTabWidth / 2f;
 
-            final int y = height / 2 - dp(14);
-            selectorDrawable.setBounds((int) (indicatorX - dp(TAB_INTERNAL_PADDING) - add), y, (int) (indicatorX + indicatorWidth + dp(TAB_INTERNAL_PADDING) + add), y + dp(28));
-            selectorDrawable.setAlpha(31);
+            selectorDrawable.setBounds((int) indicatorX, height - AndroidUtilities.dpr(4), (int) (indicatorX + indicatorWidth), height);
+            selectorDrawable.setAlpha(255);
             selectorDrawable.draw(canvas);
             canvas.restore();
         }
@@ -1526,23 +1527,21 @@ public class FilterTabsView extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        clipPath.rewind();
-        clipPath.addRoundRect(dp(9), dp(9), w - dp(9), h - dp(9),
-            dp(16), dp(16), Path.Direction.CW);
     }
 
     @Override
     protected void dispatchDraw(@NonNull Canvas canvas) {
-        canvas.save();
-        canvas.clipPath(clipPath);
         super.dispatchDraw(canvas);
-        canvas.restore();
     }
 
     public void updateColors() {
         if (blurredBackgroundDrawable != null) {
             blurredBackgroundDrawable.updateColors();
         }
+        final int tabLineColor = Theme.getColor(tabLineColorKey, resourcesProvider);
+        selectorDrawable.setColors(new int[]{tabLineColor, tabLineColor});
+        listView.setSelectorDrawableColor(Theme.getColor(selectorColorKey, resourcesProvider));
+        listView.invalidateViews();
         invalidate();
     }
 
@@ -1570,6 +1569,8 @@ public class FilterTabsView extends FrameLayout {
                 updateTabsWidths();
                 invalidated = false;
             } else {
+                // [classic] #79: no "All Chats" tab (hidden via ForkSettings) — stretch the remaining
+                // folder tabs to fill the width, mirroring the branch above without the All-tab title toggle.
                 int prevWidth = additionalTabWidth;
                 additionalTabWidth = allTabsWidth < width ? (width - allTabsWidth) / tabs.size() : 0;
                 if (prevWidth != additionalTabWidth) {
@@ -1736,7 +1737,7 @@ public class FilterTabsView extends FrameLayout {
                 invalidated = true;
                 requestLayout();
                 allTabsWidth = 0;
-                final FilterTabsView.Tab defaultTab = findDefaultTab();
+                final FilterTabsView.Tab defaultTab = findDefaultTab(); // [classic] #79: null when the All tab is hidden
                 if (defaultTab != null) {
                     defaultTab.setTitle(LocaleController.getString(R.string.FilterAllChats), null, false);
                 }
@@ -1772,7 +1773,7 @@ public class FilterTabsView extends FrameLayout {
                 adapter.notifyDataSetChanged();
             }
             allTabsWidth = 0;
-            final FilterTabsView.Tab defaultTab = findDefaultTab();
+            final FilterTabsView.Tab defaultTab = findDefaultTab(); // [classic] #79: null when the All tab is hidden
             if (defaultTab != null) {
                 defaultTab.setTitle(LocaleController.getString(R.string.FilterAllChats), null, false);
             }

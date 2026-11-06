@@ -1,0 +1,3 @@
+Forkgram Classic 是一款 Android 版 Telegram 的分支，宗旨只有一個：保留「Liquid Glass」（液態玻璃）時代之前的經典介面。
+
+它以 Forkgram 為基礎，承襲了各項提升使用體驗的貼心改良。沒有遙測、沒有數據分析，也不連向任何第三方伺服器，所有連線一律只通往 Telegram 官方伺服器。

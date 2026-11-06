@@ -64,7 +64,11 @@ public class UserConfig extends BaseController {
     public boolean syncContacts = false;
     public boolean suggestContacts = true;
     public boolean showCallsTab;
-    public boolean mainTabsHiddenFork = false;
+    public boolean mainTabsHiddenFork = true;
+    // [classic] guard for the one-time "hide the bottom tabs" migration in loadConfig(). It lives in
+    // this per-account prefs file, which clearConfig() wipes wholesale, so clearConfig() has to carry
+    // it across -- see the comment there.
+    private static final String CLASSIC_MAIN_TABS_MIGRATED = "classic_mainTabsHidden_migrated_v1";
     public boolean hasSecureData;
     public int loginTime;
     public TLRPC.TL_help_termsOfService unacceptedTermsOfService;
@@ -332,7 +336,14 @@ public class UserConfig extends BaseController {
             loginTime = preferences.getInt("loginTime", currentAccount);
             syncContacts = preferences.getBoolean("syncContacts", false);
             showCallsTab = preferences.getBoolean("showCallsTab", false);
-            mainTabsHiddenFork = preferences.getBoolean("mainTabsHiddenFork", false);
+            mainTabsHiddenFork = preferences.getBoolean("mainTabsHiddenFork", true);
+            if (!preferences.getBoolean(CLASSIC_MAIN_TABS_MIGRATED, false)) {
+                mainTabsHiddenFork = true;
+                preferences.edit()
+                        .putBoolean("mainTabsHiddenFork", true)
+                        .putBoolean(CLASSIC_MAIN_TABS_MIGRATED, true)
+                        .apply();
+            }
             suggestContacts = preferences.getBoolean("suggestContacts", true);
             hasSecureData = preferences.getBoolean("hasSecureData", false);
             notificationsSettingsLoaded = preferences.getBoolean("notificationsSettingsLoaded4", false);
@@ -480,7 +491,16 @@ public class UserConfig extends BaseController {
 
     public void clearConfig() {
         loadConfig();
-        getPreferences().edit().clear().apply();
+        // [classic] the wipe takes the whole per-account file with it, including
+        // CLASSIC_MAIN_TABS_MIGRATED -- and loadConfig() is a no-op for the rest of this process
+        // (configLoaded), so nothing puts the guard back. The next start would then find it missing
+        // and re-force the classic default over whatever the user had picked in the meantime: a
+        // login (onAuthSuccess -> clearConfig) used to eat the first "Show bottom tabs" toggle that
+        // followed it. This account is being reset to that same default below, so there is nothing
+        // left to migrate -- carry the guard across the wipe.
+        getPreferences().edit().clear()
+                .putBoolean(CLASSIC_MAIN_TABS_MIGRATED, true)
+                .apply();
         HiddenAccountHelper.clearAccount(currentAccount);
 
         sharingMyLocationUntil = 0;
@@ -507,7 +527,7 @@ public class UserConfig extends BaseController {
         contactsReimported = true;
         syncContacts = false;
         showCallsTab = false;
-        mainTabsHiddenFork = false;
+        mainTabsHiddenFork = true;
         suggestContacts = true;
         unreadDialogsLoaded = true;
         hasValidDialogLoadIds = true;

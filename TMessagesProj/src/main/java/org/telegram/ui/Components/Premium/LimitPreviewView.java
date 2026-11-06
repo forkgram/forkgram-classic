@@ -345,7 +345,7 @@ public class LimitPreviewView extends LinearLayout {
     public void setIconValue(int currentValue, boolean animated) {
         ColoredImageSpan span;
         if (currentValue < 0) {
-            // span = new ColoredImageSpan(new RLottieDrawable(R.raw.toast_error, "toast_error", dp(24), dp(24)));
+            // span = new ColoredImageSpan(new RLottieDrawable(R.raw.toast_error, dp(24), dp(24)));
             span = new ColoredImageSpan(R.drawable.warning_sign);
         } else {
             span = new ColoredImageSpan(icon);

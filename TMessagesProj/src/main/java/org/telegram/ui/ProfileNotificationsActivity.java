@@ -366,7 +366,8 @@ public class ProfileNotificationsActivity extends BaseFragment implements Notifi
         frameLayout.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider));
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         listView.setAdapter(adapter = new ListAdapter(context));

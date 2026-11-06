@@ -484,7 +484,8 @@ public class ChannelMonetizationLayout extends SizeNotifierFrameLayout implement
 
         listView = new UniversalRecyclerView(fragment, this::fillItems, this::onClick, this::onLongClick);
         listView.setClipToPadding(false);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         addView(listView);
 
         LinearLayout progressLayout = new LinearLayout(context);

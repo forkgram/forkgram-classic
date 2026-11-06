@@ -634,10 +634,26 @@ public class ProfileActionsView extends View {
         actions.add(action);
     }
 
+    // forkgram-classic: pinned ProfileActivity (12.1.1) passes a Drawable for
+    // the avatar-overlay camera icon. Upstream uses a fixed asset — accept and
+    // ignore the override.
+    public void addCameraAction(android.graphics.drawable.Drawable drawable) {
+        addCameraAction();
+    }
+
     public void addEditInfo() {
         final Action action = new Action(ActionButton.EDIT_INFO);
         action.key = KEY_EDIT_INFO;
         actions.add(action);
+    }
+
+    // forkgram-classic: pinned ProfileActivity uses the *Action suffix.
+    public void addEditInfoAction() {
+        addEditInfo();
+    }
+
+    public void addEditUsernameAction() {
+        addEditInfo();
     }
 
     public void addSettings() {

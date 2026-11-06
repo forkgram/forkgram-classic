@@ -81,6 +81,8 @@
     <string name="WebPublishToken">رمز الرفع</string>
     <string name="UnifiedPush">UnifiedPush</string>
     <string name="ForkSectionAppearance">المظهر</string>
+    <string name="ClassicBlueHeader">شريط العنوان الأزرق الكلاسيكي</string>
+    <string name="ClassicBlueHeaderInfo">استخدم شريط العنوان الأزرق القديم وشريطًا رماديًا في الأرشيف مع سمة Classic ولون التمييز الافتراضي.</string>
     <string name="ForkSectionMedia">الصور والفيديو</string>
     <string name="ForkSectionVoice">الصوت والترجمة</string>
     <string name="ForkSectionBots">البوتات والمتصفح</string>
@@ -115,7 +117,7 @@
     <string name="VideoSubtitlesUnavailable">نزّل الفيديو لإنشاء الترجمات</string>
     <string name="DropScreenshotCaptionInfo">إزالة التسمية التوضيحية عند مشاركة لقطة شاشة من تطبيق آخر.</string>
     <string name="HideInAppHintsInfo">إخفاء لافتات العروض في قائمة الدردشات وتلميح عيد الميلاد داخل الدردشات.</string>
-    <string name="HideBottomButtonInfo">تفريغ زر الشريط السفلي (كتم، انضمام) وتجاهل النقر عليه.</string>
+    <string name="HideBottomButtonInfo">أخفِ شريط الإجراءات الذي يظهر بدل حقل الرسالة بالكامل، بما في ذلك الانضمام وإلغاء الكتم. لا يتغير حقل الرسالة.</string>
     <string name="OpenArchiveOnPullInfo">فتح مجلد الأرشيف عند سحب قائمة الدردشات للأسفل.</string>
     <string name="HideStoriesInArchiveInfo">إخفاء صف القصص داخل الدردشات المؤرشفة.</string>
     <string name="DisableThumbsInDialogListInfo">إخفاء الصور المصغرة لآخر رسالة في قائمة الدردشات.</string>
@@ -128,6 +130,7 @@
     <string name="ReplaceForwardInfo">إعادة التوجيه تفتح لوحة المشاركة بدلاً من محدد الدردشة.</string>
     <string name="MentionByNameInfo">الإكمال التلقائي يُدرج اسم الشخص بدلاً من اسم المستخدم.</string>
     <string name="HideSendAsInfo">إخفاء زر الإرسال باسم في حقل الرسالة.</string>
+    <string name="HideGiftButtonInfo">إخفاء زر الهدايا في حقل الرسالة.</string>
     <string name="DisableLinkPreviewByDefaultInfo">إرسال الرسائل التي تحتوي على روابط بدون معاينة.</string>
     <string name="DisableSlideToNextChannelInfo">عدم الانتقال إلى القناة التالية عند التمرير بعد النهاية.</string>
     <string name="FormatWithSecondsInfo">إظهار الثواني في أوقات الرسائل والأوقات الأخرى.</string>
@@ -169,7 +172,7 @@
     <string name="formatterDay12HSec">h:mm:ss ص</string>
     <string name="CopyWithoutProtocol">نسخ بدون بروتوكول</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">إعدادات عميل Fork</string>
+    <string name="ForkSettingsTitle">إعدادات Forkgram Classic</string>
     <string name="ForkCheckUpdate">تحقق من التحديثات</string>
     <string name="SquareAvatars">أفاتارات مربعة</string>
     <string name="AvatarShape">شكل الصورة الرمزية</string>
@@ -197,7 +200,7 @@
     <string name="SystemCamera">استخدام الكاميرا النظامية للصورة</string>
     <string name="SystemCameraInfo">فقط في حوار المرفقات</string>
     <string name="MentionByName">ذكر المستخدم بالاسم</string>
-    <string name="HideBottomButton">إخفاء الزر السفلي</string>
+    <string name="HideBottomButton">إخفاء إجراءات الدردشة السفلية</string>
     <string name="OpenArchiveOnPull">فتح الأرشيف عند السحب للأسفل</string>
     <string name="StickerSize">حجم الملصق</string>
     <string name="DisableFlipPhotos">تعطيل قلب الصور عند النقر</string>
@@ -207,6 +210,7 @@
     <string name="ShowArchivedStickers">عرض حزم الملصقات المؤرشفة</string>
     <string name="ShowArchivedStickersInfo">عرض حزم الملصقات المؤرشفة بسبب حد الـ 200 حزمة في Telegram ضمن لوحة الملصقات. تبقى الحزم مؤرشفة ويتم تحميلها عند الحاجة.</string>
     <string name="HideSendAs">إخفاء زر "إرسال كـ"</string>
+    <string name="HideGiftButton">إخفاء زر الهدايا</string>
     <string name="ShowNotificationContent">عرض محتوى الإشعارات</string>
     <string name="ShowNotificationContentInfo">عند قفل التطبيق. قد يكون سببًا لتسرب الخصوصية.</string>
     <string name="DeleteAllYourMessages">حذف جميع رسائلك</string>
@@ -265,8 +269,8 @@
     <string name="LinkReplacementInvalid">تعبير غير صالح</string>
     <string name="LinkReplacedOnPaste">تم استبدال الرابط</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">العربية</string>
     <string name="English">الإنجليزية</string>
     <string name="LanguageNameInEnglish">Arabic</string>

@@ -72,6 +72,20 @@ public class HashtagHistoryView extends FrameLayout {
         adapter.update(true);
     }
 
+    // forkgram-classic: classic ChatActivity drives the hashtag-history dropdown
+    // imperatively (show()/isShowing()); 12.8 refactored it to update()+visibility.
+    // Bridge the old API onto the view's visibility so the classic call sites keep working.
+    public boolean isShowing() {
+        return getVisibility() == View.VISIBLE;
+    }
+
+    public void show(boolean show) {
+        setVisibility(show ? View.VISIBLE : View.GONE);
+        if (show) {
+            update();
+        }
+    }
+
     private void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
         history = new ArrayList<>(0);
         history.addAll(HashtagSearchController.getInstance(currentAccount).history);

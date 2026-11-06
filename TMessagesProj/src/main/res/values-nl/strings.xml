@@ -81,6 +81,8 @@
     <string name="WebPublishToken">Uploadtoken</string>
     <string name="UnifiedPush">UnifiedPush</string>
     <string name="ForkSectionAppearance">Weergave</string>
+    <string name="ClassicBlueHeader">Klassieke blauwe kopbalk</string>
+    <string name="ClassicBlueHeaderInfo">Gebruik de oude blauwe kopbalk en een grijze kopbalk in het archief met het thema Classic en de standaardaccentkleur.</string>
     <string name="ForkSectionMedia">Foto\'s en video</string>
     <string name="ForkSectionVoice">Spraak en vertaling</string>
     <string name="ForkSectionBots">Bots en browser</string>
@@ -115,7 +117,7 @@
     <string name="VideoSubtitlesUnavailable">Download de video om ondertitels te genereren</string>
     <string name="DropScreenshotCaptionInfo">Bijschrift verwijderen wanneer een schermafbeelding vanuit een andere app wordt gedeeld.</string>
     <string name="HideInAppHintsInfo">Promobanners in de chatlijst en de verjaardagshint in chats verbergen.</string>
-    <string name="HideBottomButtonInfo">De knop in de onderste balk (Dempen, Deelnemen) leegmaken en tikken negeren.</string>
+    <string name="HideBottomButtonInfo">Verberg de hele actiebalk die in plaats van het berichtveld verschijnt, inclusief Deelnemen en Dempen opheffen. Het berichtveld blijft hetzelfde.</string>
     <string name="OpenArchiveOnPullInfo">De map Archief openen wanneer de chatlijst omlaag wordt getrokken.</string>
     <string name="HideStoriesInArchiveInfo">De storyrij in gearchiveerde chats verbergen.</string>
     <string name="DisableThumbsInDialogListInfo">Mediaminiaturen van het laatste bericht in de chatlijst verbergen.</string>
@@ -128,6 +130,7 @@
     <string name="ReplaceForwardInfo">Doorsturen opent het deelvenster in plaats van de chatkiezer.</string>
     <string name="MentionByNameInfo">Automatisch aanvullen voegt de naam van de persoon in in plaats van de gebruikersnaam.</string>
     <string name="HideSendAsInfo">De knop Verzenden als in het berichtveld verbergen.</string>
+    <string name="HideGiftButtonInfo">De cadeauknop in het berichtveld verbergen.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Berichten met links versturen zonder voorbeeldweergave.</string>
     <string name="DisableSlideToNextChannelInfo">Niet naar het volgende kanaal gaan bij doorscrollen voorbij het einde.</string>
     <string name="FormatWithSecondsInfo">Seconden tonen in berichttijden en andere tijden.</string>
@@ -169,7 +172,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Kopiëren zonder protocol</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Instellingen van de Fork-client</string>
+    <string name="ForkSettingsTitle">Instellingen van Forkgram Classic</string>
     <string name="ForkCheckUpdate">Controleer op updates</string>
     <string name="SquareAvatars">Vierkante avatars</string>
     <string name="AvatarShape">Avatarvorm</string>
@@ -197,7 +200,7 @@
     <string name="SystemCamera">Systeemcamera gebruiken voor foto</string>
     <string name="SystemCameraInfo">Alleen in het bijlagen dialoog</string>
     <string name="MentionByName">Gebruiker bij naam noemen</string>
-    <string name="HideBottomButton">Onderste knop verbergen</string>
+    <string name="HideBottomButton">Onderste chatacties verbergen</string>
     <string name="OpenArchiveOnPull">Archief openen bij naar beneden trekken</string>
     <string name="StickerSize">Sticker grootte</string>
     <string name="DisableFlipPhotos">Foto\'s omdraaien uitschakelen door te tikken</string>
@@ -207,6 +210,7 @@
     <string name="ShowArchivedStickers">Gearchiveerde stickerpakketten weergeven</string>
     <string name="ShowArchivedStickersInfo">Toont stickerpakketten die door Telegrams limiet van 200 pakketten zijn gearchiveerd in het stickerpaneel. De pakketten blijven gearchiveerd en worden geladen wanneer nodig.</string>
     <string name="HideSendAs">Knop "Verstuur als" verbergen</string>
+    <string name="HideGiftButton">Cadeauknop verbergen</string>
     <string name="ShowNotificationContent">Inhoud van meldingen weergeven</string>
     <string name="ShowNotificationContentInfo">Wanneer de app is vergrendeld. Kan oorzaak zijn van privacylekken.</string>
     <string name="DeleteAllYourMessages">Verwijder al je berichten</string>
@@ -265,8 +269,8 @@
     <string name="LinkReplacementInvalid">Ongeldige expressie</string>
     <string name="LinkReplacedOnPaste">Link vervangen</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Nederlands</string>
     <string name="English">Engels</string>
     <string name="LanguageNameInEnglish">Dutch</string>

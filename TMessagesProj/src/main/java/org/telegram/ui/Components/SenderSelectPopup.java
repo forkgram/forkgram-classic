@@ -58,7 +58,11 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
     private final static int SHADOW_DURATION = 150;
     private final static float SCALE_START = 0.25f;
 
-//    public View dimView;
+    // forkgram-classic: re-expose dimView for the pinned 12.1.1
+    // ChatActivityEnterView, which animates it directly. Upstream now manages
+    // the dim background internally — this field is a no-op placeholder.
+    public View dimView;
+
     public LinearLayout recyclerContainer;
     public TextView headerText;
 
@@ -87,6 +91,53 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
 
     private List<Bulletin> bulletins = new ArrayList<>();
 
+    // forkgram-classic: pinned ChatActivityEnterView (12.1.1) calls with
+    // (Context, ChatActivity, MessagesController, TL_chatFull, ArrayList<Peer>, OnSelectCallback).
+    // Adapt to upstream signature by deriving isChannel/defPeer/sendAsPeers.
+    public SenderSelectPopup(
+        Context context,
+        ChatActivity parentFragment,
+        MessagesController messagesController,
+        TLRPC.ChatFull chatFull,
+        TLRPC.TL_channels_sendAsPeers peers,
+        OnSelectCallback selectCallback
+    ) {
+        this(
+            context,
+            parentFragment,
+            messagesController,
+            chatFull != null && parentFragment != null && org.telegram.messenger.ChatObject.isChannelAndNotMegaGroup(messagesController.getChat(chatFull.id)),
+            chatFull != null ? chatFull.default_send_as : null,
+            peers != null ? peers : new TLRPC.TL_channels_sendAsPeers(),
+            selectCallback,
+            null
+        );
+    }
+
+    // forkgram-classic: kept for callers that still hand an ArrayList<Peer>.
+    public SenderSelectPopup(
+        Context context,
+        ChatActivity parentFragment,
+        MessagesController messagesController,
+        TLRPC.ChatFull chatFull,
+        java.util.ArrayList<TLRPC.Peer> peers,
+        OnSelectCallback selectCallback
+    ) {
+        this(context, parentFragment, messagesController, chatFull, buildSendAsPeersStub(peers), selectCallback);
+    }
+
+    private static TLRPC.TL_channels_sendAsPeers buildSendAsPeersStub(java.util.ArrayList<TLRPC.Peer> peers) {
+        TLRPC.TL_channels_sendAsPeers result = new TLRPC.TL_channels_sendAsPeers();
+        if (peers != null) {
+            for (TLRPC.Peer p : peers) {
+                TLRPC.TL_sendAsPeer sap = new TLRPC.TL_sendAsPeer();
+                sap.peer = p;
+                result.peers.add(sap);
+            }
+        }
+        return result;
+    }
+
     @SuppressLint("WrongConstant")
     public SenderSelectPopup(
         Context context,
@@ -113,7 +164,7 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
 
         setBackgroundDrawable(null);
 
-        Drawable shadowDrawable = ContextCompat.getDrawable(context, R.drawable.popup_fixed_alert4).mutate();
+        Drawable shadowDrawable = ContextCompat.getDrawable(context, R.drawable.popup_fixed_alert2).mutate();
         shadowDrawable.setColorFilter(new PorterDuffColorFilter(Theme.getColor(Theme.key_actionBarDefaultSubmenuBackground, resourcesProvider), PorterDuff.Mode.MULTIPLY));
         scrimPopupContainerLayout.setBackground(shadowDrawable);
 
@@ -121,7 +172,7 @@ public class SenderSelectPopup extends ActionBarPopupWindow {
         shadowDrawable.getPadding(padding);
         scrimPopupContainerLayout.setPadding(padding.left, padding.top, padding.right, padding.bottom);
 
-//        dimView = new View(context);
+        dimView = new View(context);
 //        dimView.setBackgroundColor(0x33000000);
 
         int maxHeight = AndroidUtilities.dp(450);

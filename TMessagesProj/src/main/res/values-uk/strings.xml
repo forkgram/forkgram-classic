@@ -81,6 +81,8 @@
     <string name="WebPublishToken">Токен завантаження</string>
     <string name="UnifiedPush">UnifiedPush</string>
     <string name="ForkSectionAppearance">Зовнішній вигляд</string>
+    <string name="ClassicBlueHeader">Класична синя шапка</string>
+    <string name="ClassicBlueHeaderInfo">Синя шапка та сіра шапка архіву, як раніше. Діє з темою Classic та її початковим акцентом.</string>
     <string name="ForkSectionMedia">Фото та відео</string>
     <string name="ForkSectionVoice">Голос і переклад</string>
     <string name="ForkSectionBots">Боти та браузер</string>
@@ -115,7 +117,7 @@
     <string name="VideoSubtitlesUnavailable">Завантажте відео, щоб створити субтитри</string>
     <string name="DropScreenshotCaptionInfo">Прибирати підпис, коли знімок екрана надсилається з іншого застосунку.</string>
     <string name="HideInAppHintsInfo">Приховувати промо-банери у списку чатів і підказку про день народження в чатах.</string>
-    <string name="HideBottomButtonInfo">Очищати нижню кнопку (Вимкнути звук, Приєднатися) та ігнорувати натискання на неї.</string>
+    <string name="HideBottomButtonInfo">Прибрати всю панель дій замість поля введення, зокрема кнопки «Приєднатися» й «Увімкнути звук». Поле введення не зміниться.</string>
     <string name="OpenArchiveOnPullInfo">Відкривати теку «Архів» під час потягування списку чатів униз.</string>
     <string name="HideStoriesInArchiveInfo">Приховувати стрічку історій усередині архіву чатів.</string>
     <string name="DisableThumbsInDialogListInfo">Приховувати мініатюри медіа останнього повідомлення у списку чатів.</string>
@@ -128,6 +130,7 @@
     <string name="ReplaceForwardInfo">Пересилання відкриває панель «Поділитися» замість вибору чату.</string>
     <string name="MentionByNameInfo">Автодоповнення вставляє ім\'я людини замість імені користувача.</string>
     <string name="HideSendAsInfo">Приховувати кнопку вибору відправника в полі повідомлення.</string>
+    <string name="HideGiftButtonInfo">Приховувати кнопку подарунків у полі повідомлення.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Надсилати повідомлення з посиланнями без прев\'ю.</string>
     <string name="DisableSlideToNextChannelInfo">Не переходити до наступного каналу під час прокручування за кінець чату.</string>
     <string name="FormatWithSecondsInfo">Показувати секунди в часі повідомлень та інших позначках часу.</string>
@@ -169,7 +172,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Копіювати без протоколу</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Налаштування клієнта Fork</string>
+    <string name="ForkSettingsTitle">Налаштування Forkgram Classic</string>
     <string name="ForkCheckUpdate">Перевірити оновлення</string>
     <string name="SquareAvatars">Квадратні аватари</string>
     <string name="AvatarShape">Форма аватара</string>
@@ -197,7 +200,7 @@
     <string name="SystemCamera">Використовувати системну камеру для фото</string>
     <string name="SystemCameraInfo">Тільки в діалозі прикріплень</string>
     <string name="MentionByName">Згадати користувача за іменем</string>
-    <string name="HideBottomButton">Сховати нижню кнопку</string>
+    <string name="HideBottomButton">Приховати нижню панель дій</string>
     <string name="OpenArchiveOnPull">Відкрити архів при прокручуванні вниз</string>
     <string name="StickerSize">Розмір стікера</string>
     <string name="DisableFlipPhotos">Вимкнути переворот фото при натисканні</string>
@@ -207,6 +210,7 @@
     <string name="ShowArchivedStickers">Показати архівовані набори стікерів</string>
     <string name="ShowArchivedStickersInfo">Показувати в панелі стікерів набори, архівовані через ліміт Telegram у 200 наборів. Набори залишаються в архіві та завантажуються за потреби.</string>
     <string name="HideSendAs">Сховати кнопку "Надіслати як"</string>
+    <string name="HideGiftButton">Сховати кнопку подарунків</string>
     <string name="ShowNotificationContent">Показати вміст сповіщень</string>
     <string name="ShowNotificationContentInfo">Коли додаток заблоковано. Може бути причиною витоків конфіденційності.</string>
     <string name="DeleteAllYourMessages">Видалити всі ваші повідомлення</string>
@@ -265,8 +269,8 @@
     <string name="LinkReplacementInvalid">Неправильний вираз</string>
     <string name="LinkReplacedOnPaste">Посилання замінено</string>
 
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Українська</string>
     <string name="English">Англійська</string>
     <string name="LanguageNameInEnglish">Ukrainian</string>

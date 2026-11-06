@@ -268,6 +268,12 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
     private final int buttonsSizePx;
 
 
+    // forkgram-classic: pinned 12.1.1 ChatActivity instantiates without the
+    // new-design flag. Default to false to keep the classic camera button look.
+    public InstantCameraView(Context context, Delegate delegate, Theme.ResourcesProvider resourcesProvider) {
+        this(context, delegate, resourcesProvider, false);
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     public InstantCameraView(Context context, Delegate delegate, Theme.ResourcesProvider resourcesProvider, boolean isNewDesign) {
         super(context);
@@ -750,6 +756,14 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         }
         switchCameraButton.setImageDrawable(switchCameraDrawable);
 
+        // [classic] #84: the send transition fades this whole view out and nothing ever fades it back
+        // in — showCamera()/startAnimation() only restore cameraContainer, textureOverlayView,
+        // buttonsLayout, muteImageView and the progress paint, and setVisibility(VISIBLE) resets the
+        // children's alphas but not the parent's. So from the second round video onwards the camera
+        // opens, the GL thread runs and cameraReady goes true, yet the whole view draws at alpha 0:
+        // the reported "no camera". Measured on device — at +900ms the second recording has
+        // cameraContainer alpha 1.0 and the view's own alpha 0.0, the first has both at 1.0.
+        setAlpha(1.0f);
         textureOverlayView.setAlpha(1.0f);
         textureOverlayView.invalidate();
         if (lastBitmap == null) {
@@ -3940,5 +3954,30 @@ public class InstantCameraView extends InstantCameraViewBase implements Notifica
         default boolean isInScheduleMode() {
             return false;
         }
+    }
+
+    // forkgram-classic: pinned ChatActivity (12.1.1) gates blur layering on
+    // this signal. Upstream stopped exposing it. Return false so the blur
+    // path falls back to the default branch.
+    public boolean blurFullyDrawing() {
+        return false;
+    }
+
+    // forkgram-classic: pinned ChatActivity drives blur and animates the
+    // switch/flash buttons during the camera close transition. Classic
+    // InstantCameraView doesn't render the redesigned chrome — provide
+    // no-op accessors so the animation list compiles.
+    public void cancelBlur() {
+    }
+
+    public void invalidateBlur() {
+    }
+
+    public android.view.View getSwitchButtonView() {
+        return this;
+    }
+
+    public android.view.View getFlashButtonView() {
+        return this;
     }
 }

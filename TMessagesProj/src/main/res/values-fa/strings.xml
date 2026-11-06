@@ -15,6 +15,8 @@
     <string name="WebPublishTemplate">قالب کلیپ‌بورد (%q = لینک)</string>
     <string name="WebPublishToken">توکن آپلود</string>
     <string name="ForkSectionAppearance">ظاهر</string>
+    <string name="ClassicBlueHeader">نوار عنوان آبی کلاسیک</string>
+    <string name="ClassicBlueHeaderInfo">با پوستهٔ Classic و رنگ تأکیدی پیش‌فرض آن، از نوار عنوان آبی قدیمی و نوار عنوان خاکستری در بایگانی استفاده کنید.</string>
     <string name="ForkSectionMedia">عکس و ویدیو</string>
     <string name="ForkSectionVoice">صدا و ترجمه</string>
     <string name="ForkSectionBots">ربات‌ها و مرورگر</string>
@@ -29,7 +31,7 @@
     <string name="TranslationEngineOfflineInfo">ترجمهٔ آفلاین روی دستگاه شما اجرا می‌شود و به برنامهٔ **Offline Translator** از F-Droid نیاز دارد.</string>
     <string name="DropScreenshotCaptionInfo">وقتی اسکرین‌شات از برنامه‌ای دیگر به اشتراک گذاشته می‌شود، شرح آن حذف شود.</string>
     <string name="HideInAppHintsInfo">بنرهای تبلیغاتی در فهرست چت‌ها و یادآور تولد در چت‌ها پنهان شوند.</string>
-    <string name="HideBottomButtonInfo">دکمهٔ نوار پایین (بی‌صدا، پیوستن) خالی شود و به ضربه روی آن واکنشی داده نشود.</string>
+    <string name="HideBottomButtonInfo">تمام نوار کنش‌هایی را که به جای کادر نوشتن پیام ظاهر می‌شود، از جمله پیوستن و لغو بی‌صدا، پنهان می‌کند. کادر نوشتن پیام تغییر نمی‌کند.</string>
     <string name="OpenArchiveOnPullInfo">با کشیدن فهرست چت‌ها به پایین، پوشهٔ آرشیو باز شود.</string>
     <string name="HideStoriesInArchiveInfo">ردیف استوری‌ها در چت‌های آرشیوشده پنهان شود.</string>
     <string name="DisableThumbsInDialogListInfo">تصاویر بندانگشتی آخرین پیام در فهرست چت‌ها پنهان شوند.</string>
@@ -42,6 +44,7 @@
     <string name="ReplaceForwardInfo">«هدایت» به‌جای انتخاب چت، برگهٔ اشتراک‌گذاری را باز می‌کند.</string>
     <string name="MentionByNameInfo">تکمیل خودکار به‌جای نام کاربری، نام شخص را درج می‌کند.</string>
     <string name="HideSendAsInfo">دکمهٔ نمایهٔ «ارسال به‌عنوان» در کادر پیام پنهان شود.</string>
+    <string name="HideGiftButtonInfo">دکمهٔ هدیه در کادر پیام پنهان شود.</string>
     <string name="DisableLinkPreviewByDefaultInfo">پیام‌های دارای پیوند بدون پیش‌نمایش ارسال شوند.</string>
     <string name="DisableSlideToNextChannelInfo">هنگام پیمایش تا انتهای کانال، به کانال بعدی لغزانده نشود.</string>
     <string name="FormatWithSecondsInfo">ثانیه‌ها در زمان پیام‌ها و دیگر زمان‌ها نمایش داده شوند.</string>
@@ -111,7 +114,7 @@
     <string name="SystemCamera">استفاده از دوربین سیستم برای عکس</string>
     <string name="SystemCameraInfo">فقط در پنجرهٔ پیوست</string>
     <string name="MentionByName">اشاره به کاربر با نام</string>
-    <string name="HideBottomButton">پنهان کردن دکمهٔ پایین</string>
+    <string name="HideBottomButton">پنهان کردن کنش‌های پایین گفتگو</string>
     <string name="OpenArchiveOnPull">باز کردن آرشیو با کشیدن به پایین</string>
     <string name="StickerSize">اندازهٔ استیکر</string>
     <string name="DisableFlipPhotos">غیرفعال کردن تعویض عکس با ضربه</string>
@@ -121,6 +124,7 @@
     <string name="ShowArchivedStickers">نمایش بسته‌های استیکر آرشیوشده</string>
     <string name="ShowArchivedStickersInfo">بسته‌های استیکری که به‌دلیل محدودیت ۲۰۰ بسته‌ای تلگرام آرشیو شده‌اند، در پنل استیکر نمایش داده می‌شوند. بسته‌ها آرشیو می‌مانند و در صورت نیاز بارگذاری می‌شوند.</string>
     <string name="HideSendAs">پنهان کردن دکمهٔ «ارسال به‌عنوان»</string>
+    <string name="HideGiftButton">پنهان کردن دکمهٔ هدیه</string>
     <string name="ShowNotificationContent">نمایش محتوای اعلان‌ها</string>
     <string name="ShowNotificationContentInfo">هنگامی که برنامه قفل است. می‌تواند باعث نشت حریم خصوصی شود.</string>
     <string name="DeleteAllYourMessages">حذف همهٔ پیام‌های شما</string>

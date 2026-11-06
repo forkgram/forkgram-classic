@@ -1,7 +1,6 @@
 package org.telegram.ui.Stars;
 
 import static org.telegram.messenger.AndroidUtilities.dp;
-import static org.telegram.messenger.AndroidUtilities.dpf2;
 import static org.telegram.messenger.AndroidUtilities.lerp;
 import static org.telegram.ui.Stars.StarsController.findAttribute;
 
@@ -380,18 +379,15 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
         final float realW = (avatarContainer.getWidth()) * avatarContainer.getScaleX();
         final float realH = (avatarContainer.getHeight()) * avatarContainer.getScaleY();
 
-        final float sz = dpf2(96);
-        final float ax = Math.min(realX, (getWidth() - sz) / 2f);
-        final float ay = Math.max(realY, (maxExpandY - sz) / 2f);
-        final float aw = Math.max(realW, sz);
-        final float ah = Math.max(realH, sz);
-
+        // [classic] #130: the base maths keep the dp(96) box pinned at the avatar's left edge
+        // (ax = min(realX, (w - sz) / 2) keeps realX for the left-anchored classic avatar) and
+        // hang the bottom gifts at ay + ah - dp(16), below the avatar and clipped by the short
+        // classic header. Anchor every position to the avatar's own rect instead.
+        final float acx = realX + realW / 2.0f;
+        final float acy = realY + realH / 2.0f;
 
         canvas.save();
         canvas.clipRect(0, 0, getWidth(), expandY);
-
-        final float acx = ax + aw / 2.0f;
-        final float acy = ay + ah / 2.0f;
 
         final float realCX = realX + realW / 2.0f;
         final float realCY = realY + realH / 2.0f;
@@ -409,34 +405,34 @@ public class ProfileGiftsView extends View implements NotificationCenter.Notific
             float delayValue;
 
             switch (gift.position) {
-                case 0: // left
-                    gx = acx / 2f - (dp(20) * expandScale);
+                case 0: // left edge
+                    gx = realX + dp(8);
                     gy = acy - dp(13);
                     delayValue = 1.6f;
                     break;
-                case 1: // top left
-                    gx = acx * 2f / 3f - (dp(6) * expandScale);
-                    gy = ay - dp(4);
+                case 1: // top left, on the head
+                    gx = realX + dp(12);
+                    gy = realY - dp(4);
                     delayValue = 0;
                     break;
-                case 2: // bottom left
-                    gx = acx * 2f / 3f - (dp(12) * expandScale);
-                    gy = ay + ah - dp(16);
+                case 2: // bottom left, on the avatar
+                    gx = realX + dp(14);
+                    gy = realY + realH - dp(12);
                     delayValue = 0.9f;
                     break;
-                case 3: // right
-                    gx = acx * 1.5f + (dp(20) * expandScale);
+                case 3: // right of the avatar
+                    gx = realX + realW + dp(16) * expandScale;
                     gy = acy - dp(13);
                     delayValue = 1.6f;
                     break;
                 case 4: // top right
-                    gx = acx * 4f / 3f + (dp(12) * expandScale);
-                    gy = ay - dp(4);
+                    gx = realX + realW + dp(8) * expandScale;
+                    gy = realY - dp(4);
                     delayValue = 0.9f;
                     break;
-                default: // bottom right
-                    gx = acx * 4f / 3f + (dp(12) * expandScale);
-                    gy = ay + ah - dp(16);
+                default: // bottom right, on the avatar
+                    gx = realX + realW - dp(4);
+                    gy = realY + realH - dp(12);
                     delayValue = 0;
                     break;
             }

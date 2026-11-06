@@ -68,6 +68,8 @@
     <string name="WebPublishToken">Токен загрузки</string>
     <string name="UnifiedPush">UnifiedPush</string>
     <string name="ForkSectionAppearance">Внешний вид</string>
+    <string name="ClassicBlueHeader">Классическая синяя шапка</string>
+    <string name="ClassicBlueHeaderInfo">Синяя шапка и серая шапка архива, как раньше. Работает с темой Classic и её исходным акцентом.</string>
     <string name="ForkSectionMedia">Фото и видео</string>
     <string name="ForkSectionVoice">Голос и перевод</string>
     <string name="ForkSectionBots">Боты и браузер</string>
@@ -102,7 +104,7 @@
     <string name="VideoSubtitlesUnavailable">Скачайте видео, чтобы создать субтитры</string>
     <string name="DropScreenshotCaptionInfo">Убирать подпись, когда скриншот отправляется из другого приложения.</string>
     <string name="HideInAppHintsInfo">Скрывать промо-баннеры в списке чатов и подсказку о дне рождения в чатах.</string>
-    <string name="HideBottomButtonInfo">Очищать нижнюю кнопку (Выключить звук, Вступить) и игнорировать нажатия по ней.</string>
+    <string name="HideBottomButtonInfo">Убрать всю панель действий вместо поля ввода, в том числе кнопки «Вступить» и «Включить звук». Поле ввода не изменится.</string>
     <string name="OpenArchiveOnPullInfo">Открывать папку «Архив» при потягивании списка чатов вниз.</string>
     <string name="HideStoriesInArchiveInfo">Скрывать ленту историй внутри архива чатов.</string>
     <string name="DisableThumbsInDialogListInfo">Скрывать миниатюры медиа последнего сообщения в списке чатов.</string>
@@ -115,6 +117,7 @@
     <string name="ReplaceForwardInfo">Пересылка открывает панель «Поделиться» вместо выбора чата.</string>
     <string name="MentionByNameInfo">Автодополнение вставляет имя человека вместо имени пользователя.</string>
     <string name="HideSendAsInfo">Скрывать кнопку выбора отправителя в поле сообщения.</string>
+    <string name="HideGiftButtonInfo">Скрывать кнопку подарков в поле сообщения.</string>
     <string name="DisableLinkPreviewByDefaultInfo">Отправлять сообщения со ссылками без превью.</string>
     <string name="DisableSlideToNextChannelInfo">Не переходить к следующему каналу при прокрутке за конец чата.</string>
     <string name="FormatWithSecondsInfo">Показывать секунды во времени сообщений и других отметках времени.</string>
@@ -161,7 +164,7 @@
     <string name="formatterDay12HSec">h:mm:ss a</string>
     <string name="CopyWithoutProtocol">Копировать без протокола</string>
     <!--fork settings view-->
-    <string name="ForkSettingsTitle">Настройки Fork Client</string>
+    <string name="ForkSettingsTitle">Настройки Forkgram Classic</string>
     <string name="ForkCheckUpdate">Проверить обновления</string>
     <string name="SquareAvatars">Квадратные аватары</string>
     <string name="AvatarShape">Форма аватара</string>
@@ -189,7 +192,7 @@
     <string name="SystemCamera">Использовать системную камеру для фото</string>
     <string name="SystemCameraInfo">Только в диалоге вложений</string>
     <string name="MentionByName">Упомянуть пользователя по имени</string>
-    <string name="HideBottomButton">Скрыть нижнюю кнопку</string>
+    <string name="HideBottomButton">Скрыть нижнюю панель действий</string>
     <string name="OpenArchiveOnPull">Открыть архив при потягивании вниз</string>
     <string name="StickerSize">Размер стикера</string>
     <string name="DisableFlipPhotos">Отключить переворот фото при нажатии</string>
@@ -199,6 +202,7 @@
     <string name="ShowArchivedStickers">Показать архивированные наборы стикеров</string>
     <string name="ShowArchivedStickersInfo">Показывать в панели стикеров наборы, архивированные из-за лимита Telegram в 200 наборов. Наборы остаются в архиве и загружаются по мере необходимости.</string>
     <string name="HideSendAs">Скрыть кнопку "Отправить как"</string>
+    <string name="HideGiftButton">Скрыть кнопку подарков</string>
     <string name="ShowNotificationContent">Показать содержимое уведомлений</string>
     <string name="ShowNotificationContentInfo">Когда приложение заблокировано. Может быть причиной утечки конфиденциальности.</string>
     <string name="DeleteAllYourMessages">Удалить все ваши сообщения</string>
@@ -265,8 +269,8 @@
     <string name="ForkSettingsLockChangeCode">Изменить код</string>
     <string name="ForkSettingsLockRemoveCode">Удалить код</string>
     <string name="ForkSettingsLockRemoveCodeConfirm">Настройки Fork Client будут открываться без кода.</string>
-    <string name="AppName">Fork Client</string>
-    <string name="AppNameBeta">Fork Client</string>
+    <string name="AppName">Forkgram Classic</string>
+    <string name="AppNameBeta">Forkgram Classic</string>
     <string name="LanguageName">Русский</string>
     <string name="English">Английский</string>
     <string name="LanguageNameInEnglish">Russian</string>

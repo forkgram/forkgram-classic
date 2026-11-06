@@ -640,7 +640,8 @@ public class ChatRightsEditActivity extends BaseFragment implements Notification
         listView.setItemAnimator(itemAnimator);
         listView.setVerticalScrollbarPosition(LocaleController.isRTL ? RecyclerListView.SCROLLBAR_POSITION_LEFT : RecyclerListView.SCROLLBAR_POSITION_RIGHT);
         frameLayout.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
 
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {

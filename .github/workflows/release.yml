@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  push:
+    tags: ['*.*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      # Manual runs rebuild the same tag a push would have built.
+      - name: Switch to the newest release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          tag="$(git tag --list --sort=-version:refname | grep -E '^[0-9]+(\.[0-9]+){3}$' | head -n1)"
+          if [ -z "$tag" ]; then
+            echo "No numeric release tags found." >&2
+            exit 1
+          fi
+          git checkout "$tag"
+          git submodule update --init --recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode the release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          printf '%s' "$KEYSTORE_B64" | base64 -d > release.jks
+          if [ ! -s release.jks ]; then
+            echo "RELEASE_KEYSTORE_B64 is empty or invalid." >&2
+            exit 1
+          fi
+
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
+        with:
+          tool-cache: false
+          android: false
+
+      - uses: nttld/setup-ndk@v1.4.2
+        with:
+          ndk-version: r27c
+          link-to-sdk: true
+
+      - name: Install the NDK gradle pins (ndkVersion)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" >/dev/null
+
+      - name: Install the native toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install ninja-build meson nasm gperf pkg-config unzip
+          rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          rustup toolchain install 1.96.1 -t aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Resolve and validate the version
+        run: |
+          tag="$(git describe --tags --exact-match --match '*.*.*.*')"
+          echo "$tag" | grep -Eq '^[0-9]+(\.[0-9]+){3}$' || { echo "Tag '$tag' is not a numeric version." >&2; exit 1; }
+          base="${tag%.*}"
+          grep -qxF "APP_VERSION_NAME=$base" gradle.properties || { echo "gradle.properties APP_VERSION_NAME does not match the tag base '$base'." >&2; exit 1; }
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${tag##*.}" >> "$GITHUB_ENV"
+
+      - name: Write the build properties
+        env:
+          USER_ID_OWNER: ${{ secrets.USER_ID_OWNER }}
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+          LASTFM_API_SECRET: ${{ secrets.LASTFM_API_SECRET }}
+          KEYSTORE_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          {
+            echo ""
+            echo "APP_ID=14577864"
+            echo "APP_HASH=54d3ae230fd8f985ce9adccf08fbd9d6"
+            echo "USER_ID_OWNER=$USER_ID_OWNER"
+            echo "USER_REPO=forkgram/forkgram-classic"
+            echo "CHECK_UPDATES=1"
+            echo "ADDITIONAL_BUILD_NUMBER=$BUILD_NUMBER"
+            echo "RELEASE_KEYSTORE_FILE=$PWD/release.jks"
+            echo "RELEASE_STORE_PASSWORD=$KEYSTORE_PASS"
+            echo "RELEASE_KEY_PASSWORD=$KEYSTORE_PASS"
+            echo "RELEASE_KEY_ALIAS=classic"
+            echo "LASTFM_API_KEY=$LASTFM_API_KEY"
+            echo "LASTFM_API_SECRET=$LASTFM_API_SECRET"
+            echo "org.gradle.workers.max=1"
+          } >> gradle.properties
+
+      - name: Build
+        run: ./gradlew :TMessagesProj_App:assembleAfatRelease
+
+      - name: Check and rename the apk
+        run: |
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          apk=TMessagesProj_App/build/outputs/apk/afat/release/app.apk
+          if [ ! -f "$apk" ]; then
+            echo "Release apk is missing." >&2
+            exit 1
+          fi
+          version="$("$tools/aapt2" dump badging "$apk" | grep -oP "versionName='[^']+'" | cut -d"'" -f2)"
+          if [ "$version" != "$TAG" ]; then
+            echo "Apk versionName '$version' does not match the tag '$TAG'." >&2
+            exit 1
+          fi
+          mkdir dist
+          cp "$apk" "dist/ForkgramClassic-$TAG.apk"
+          ls -l dist
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Switch to the newest release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          tag="$(git tag --list --sort=-version:refname | grep -E '^[0-9]+(\.[0-9]+){3}$' | head -n1)"
+          if [ -z "$tag" ]; then
+            echo "No numeric release tags found." >&2
+            exit 1
+          fi
+          git checkout "$tag"
+
+      - name: Resolve the tag
+        run: |
+          tag="$(git describe --tags --exact-match --match '*.*.*.*')"
+          echo "$tag" | grep -Eq '^[0-9]+(\.[0-9]+){3}$' || { echo "Tag '$tag' is not a numeric version." >&2; exit 1; }
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
+
+      - name: Write the release notes
+        run: |
+          prev="$(git tag --list --sort=-version:refname | grep -E '^[0-9]+(\.[0-9]+){3}$' | sed -n '2p')"
+          if [ -n "$prev" ]; then
+            git log --oneline "$prev..$TAG" | sed 's/^/- /' > notes.md
+          else
+            : > notes.md
+          fi
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only one release is kept; old ones are dropped while their tags stay as history pins.
+          for old in $(gh release list --repo forkgram/forkgram-classic --limit 100 --json tagName --jq '.[].tagName'); do
+            [ "$old" = "$TAG" ] || gh release delete "$old" -y -R forkgram/forkgram-classic
+          done
+          if gh release view "$TAG" -R forkgram/forkgram-classic >/dev/null 2>&1; then
+            gh release edit "$TAG" -R forkgram/forkgram-classic --title "Forkgram Classic $TAG" --notes-file notes.md
+            # --clobber replaces what it is given and leaves the rest, so a renamed or dropped
+            # build would sit on the release page for ever.
+            fresh="$(cd dist && ls *.apk | tr '\n' ' ')"
+            for asset in $(gh release view "$TAG" -R forkgram/forkgram-classic --json assets --jq '.assets[].name'); do
+              case " $fresh " in
+                *" $asset "*) ;;
+                *) gh release delete-asset "$TAG" "$asset" -y -R forkgram/forkgram-classic ;;
+              esac
+            done
+            gh release upload "$TAG" dist/*.apk --clobber -R forkgram/forkgram-classic
+          else
+            gh release create "$TAG" dist/*.apk -R forkgram/forkgram-classic --title "Forkgram Classic $TAG" --notes-file notes.md
+          fi
+          gh release view "$TAG" -R forkgram/forkgram-classic
