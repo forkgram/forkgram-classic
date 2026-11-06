@@ -556,9 +556,12 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
 
         blurredBackgroundDrawableFactory = new BlurredBackgroundDrawableViewFactory(new ViewPositionWatcher(this), this, blurredBackgroundSourceWithSaturation);
 
-        inputFieldBackground = blurredBackgroundDrawableFactory.create(this, blurredBackgroundColorProvider);
-        emojiKeyboardBackground = blurredBackgroundDrawableFactory.create(this, blurredBackgroundColorProvider);
-        emojiKeyboardBackground.setThickness(dp(32));
+        // [classic] #37: classic 11.9.5.0 painted the stories reply box / emoji popup with the flat
+        // opaque inputBackgroundPaint, not the modern frosted "liquid glass" BlurredBackgroundDrawable.
+        // Leave inputFieldBackground / emojiKeyboardBackground null so drawChild() takes the flat
+        // inputBackgroundPaint fallback branches (the factory is still used by sideControlsButtonsLayout).
+        inputFieldBackground = null;
+        emojiKeyboardBackground = null;
 
         storyContainer = new HwFrameLayout(context) {
 
@@ -7445,16 +7448,16 @@ public class PeerStoriesView extends SizeNotifierFrameLayout implements Notifica
         boolean popupVisible = chatActivityEnterView != null && chatActivityEnterView.isPopupShowing();
         float hideInterfaceAlpha = getHideInterfaceAlpha();
         if (BIG_SCREEN) {
-            inputBackgroundPaint.setColor(
-                ColorUtils.blendARGB(
-                    0xFF1C2229,
-                    Theme.multAlpha(Color.BLACK, 0.44f),
+            // [classic] #37: restore the flat 11.9.5.0 reply-box fill (the redesign retinted it for the glass surface).
+            inputBackgroundPaint.setColor(ColorUtils.blendARGB(
+                    ColorUtils.blendARGB(Color.BLACK, Color.WHITE, 0.13f),
+                    ColorUtils.setAlphaComponent(Color.BLACK, 170),
                     progressToKeyboard
-                )
-            );
+            ));
             inputBackgroundPaint.setAlpha((int) (inputBackgroundPaint.getAlpha() * (1f - progressToDismiss) * hideInterfaceAlpha * (1f - outT)));
         } else {
-            inputBackgroundPaint.setColor(ColorUtils.setAlphaComponent(Color.BLACK, (int) (0xFF * 0.54f * hideInterfaceAlpha * (1f - outT))));
+            // [classic] #37: classic flat fill (alpha 140) instead of the redesign's 0.54f-glass tint.
+            inputBackgroundPaint.setColor(ColorUtils.setAlphaComponent(Color.BLACK, (int) (140 * hideInterfaceAlpha * (1f - outT))));
         }
         if (
             forceUpdateOffsets ||

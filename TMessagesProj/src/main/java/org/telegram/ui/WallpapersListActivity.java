@@ -712,7 +712,8 @@ public class WallpapersListActivity extends BaseFragment implements Notification
         FrameLayout frameLayout = (FrameLayout) fragmentView;
 
         listView = new RecyclerListView(context);
-        listView.setSections();
+        // [classic] #5: flat full-width rows — zero the modern card inset+radius (see ThemeActivity).
+        listView.setSections(0, 0, false);
         actionBar.setAdaptiveBackground(listView);
         listView.setBackgroundColor(getThemedColor(Theme.key_windowBackgroundGray));
         listView.setClipToPadding(false);

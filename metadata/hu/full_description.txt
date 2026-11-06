@@ -1,0 +1,3 @@
+A Forkgram Classic a Telegram androidos forkja, egyetlen céllal: megőrizni a klasszikus kezelőfelületet – azt, amilyen a „Liquid Glass” (folyékony üveg) korszaka előtt volt.
+
+A Forkgram alapjaira épül, és örökli annak kényelmi finomításait. Nincs telemetria, nincs analitika és nincsenek külső szerverek – minden adatforgalom kizárólag a Telegram hivatalos szerverein keresztül zajlik.
